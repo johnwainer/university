@@ -1,0 +1,29 @@
+{
+  "name": "@pae-u/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "import:pasos:cursos": "tsx src/scripts/import-pasos-cursos.ts",
+    "import:pasos:cursos:docker": "tsx src/scripts/import-pasos-cursos-docker.ts",
+    "populate:moodle:demo:docker": "tsx src/scripts/populate-moodle-demo-content-docker.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "@fastify/sensible": "^6.0.3",
+    "@pae-u/shared": "0.1.0",
+    "dotenv": "^17.2.3",
+    "fastify": "^5.2.1",
+    "pg": "^8.13.3",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/pg": "^8.11.11",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

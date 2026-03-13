@@ -1,0 +1,3417 @@
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import sensible from '@fastify/sensible';
+import { z } from 'zod';
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { demoBlueprint } from '@pae-u/shared';
+import { config, getMoodleConfig, hasMoodleConfig, setMoodleConfig } from './config.js';
+import {
+  createCompany,
+  createPodcast,
+  createWebinar,
+  createPlatformUser,
+  createTenant,
+  deleteCompanyCourseAccess,
+  deletePodcast,
+  deleteWebinar,
+  deactivateEnrollmentsForMoodleUsers,
+  getAdminSnapshot,
+  getMoodleCategoryNameMap,
+  getCatalog,
+  getContentBySlug,
+  getEntitlements,
+  getIntegrationSetting,
+  getCompanyById,
+  getCompanyByMemberUserId,
+  getCompanyByRepresentativeUserId,
+  getCompanyMembership,
+  getPlatformUserByEmail,
+  getPlatformUserById,
+  getPublicCourseProgress,
+  getPublicUserAuthByEmail,
+  getOffers,
+  getTenantAndUser,
+  initDb,
+  listCompanies,
+  listCompanyActiveCourseAccess,
+  listCompanyActiveMembersWithMoodle,
+  listCompanyCourseAccess,
+  listCompanyMembers,
+  listMoodleBackedUsers,
+  listMoodleCategories,
+  listMoodleCoursesPage,
+  listPlatformUsers,
+  listPlatformUsersPage,
+  listPodcasts,
+  listWebinars,
+  listExternalIntegrationEvents,
+  listGroupedExternalIntegrationEvents,
+  listPublicCourseInteractions,
+  listPublicCourseProgressByUser,
+  getPlatformUsersByIds,
+  listUserCourses,
+  listMoodleCourses,
+  listTenants,
+  mapLocalUsersByMoodleId,
+  pool,
+  savePublicCourseInteraction,
+  saveIntegrationSetting,
+  setCompanyMemberStatus,
+  setPlatformUsersStatus,
+  setUserCourseEnrollmentStatusForUsers,
+  syncMoodleCategories,
+  syncMoodleCoursesWithCategories,
+  upsertCompanyCourseAccess,
+  upsertCompanyMember,
+  upsertExternalIntegrationEvents,
+  updateCompany,
+  updatePlatformUserProfile,
+  updateExternalIntegrationGroup,
+  updateExternalIntegrationEvent,
+  updatePodcast,
+  updateWebinar,
+  upsertPublicUserAuth,
+  upsertPlatformUserFromMoodle,
+  upsertPublicCourseProgress,
+  upsertUserCourseEnrollment
+} from './db.js';
+import {
+  createMoodleNote,
+  createMoodleUser,
+  enrolMoodleUser,
+  getMoodleActivitiesCompletionStatus,
+  getMoodleCategories,
+  getMoodleEnrolledUsers,
+  getMoodleNotes,
+  getMoodleCourseContents,
+  getMoodleCourses,
+  getMoodleSiteInfo,
+  getMoodleUserCourses,
+  getMoodleUsers,
+  getMoodleUsersByEmail,
+  unenrolMoodleUser,
+  updateMoodleActivityCompletion,
+  updateMoodleUserProfile,
+  updateMoodleUserStatus
+} from './moodle.js';
+
+const app = Fastify({
+  logger: true,
+  rewriteUrl: (req) => {
+    const rawUrl = req.url ?? '/';
+    if (rawUrl === '/api') {
+      return '/';
+    }
+    if (rawUrl.startsWith('/api/')) {
+      return rawUrl.slice(4) || '/';
+    }
+    return rawUrl;
+  }
+});
+const routeRegistry: Array<{ method: string; url: string }> = [];
+const autoSyncIntervalMs = Math.max(30, Number(process.env.AUTO_SYNC_INTERVAL_SEC ?? 180)) * 1000;
+const publicSyncMaxAgeMs = Math.max(30, Number(process.env.PUBLIC_SYNC_MAX_AGE_SEC ?? 120)) * 1000;
+type AdminAuthSession = {
+  token: string;
+  email: string;
+  createdAt: string;
+  expiresAt: string;
+};
+const adminSessions = new Map<string, AdminAuthSession>();
+type PublicAuthSession = {
+  token: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  locale: string;
+  createdAt: string;
+  expiresAt: string;
+};
+const publicSessions = new Map<string, PublicAuthSession>();
+const publicSessionTtlMinutes = Math.max(60, Number(process.env.PUBLIC_SESSION_TTL_MINUTES ?? 43200));
+let moodleSyncInFlight: Promise<void> | null = null;
+const moodleInteractionPrefix = 'PAEU_INTERACTION::';
+
+const demoVideoCandidates = [
+  process.env.DEMO_VIDEO_PATH,
+  resolve(process.cwd(), '.data/demo-course.mp4'),
+  resolve(process.cwd(), '../../.data/demo-course.mp4')
+].filter((value): value is string => Boolean(value));
+
+const demoVideoPath = demoVideoCandidates.find((candidate) => existsSync(candidate)) ?? null;
+
+type NormalizedMoodleCategory = {
+  id: number;
+  name: string;
+  idnumber?: string;
+  parent?: number;
+  depth?: number;
+  path?: string;
+  visible?: number;
+};
+
+app.addHook('onRoute', (route) => {
+  const methods = Array.isArray(route.method) ? route.method : [route.method];
+  for (const method of methods) {
+    routeRegistry.push({ method: String(method), url: route.url });
+  }
+});
+
+await app.register(cors, {
+  origin: true,
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key']
+});
+await app.register(sensible);
+
+await initDb();
+
+async function loadPersistedMoodleConnection(): Promise<void> {
+  const stored = await getIntegrationSetting<{ baseUrl?: string; token?: string }>('moodle.connection');
+  if (!stored) {
+    return;
+  }
+  const baseUrl = typeof stored.baseUrl === 'string' ? stored.baseUrl.trim() : '';
+  const token = typeof stored.token === 'string' ? stored.token.trim() : '';
+  if (!baseUrl || !token) {
+    return;
+  }
+  setMoodleConfig({ baseUrl, token });
+}
+
+await loadPersistedMoodleConnection();
+
+function cleanExpiredAdminSessions(): void {
+  const now = Date.now();
+  for (const [token, session] of adminSessions.entries()) {
+    if (Date.parse(session.expiresAt) <= now) {
+      adminSessions.delete(token);
+    }
+  }
+}
+
+function cleanExpiredPublicSessions(): void {
+  const now = Date.now();
+  for (const [token, session] of publicSessions.entries()) {
+    if (Date.parse(session.expiresAt) <= now) {
+      publicSessions.delete(token);
+    }
+  }
+}
+
+function getBearerToken(headers: Record<string, unknown>): string | null {
+  const authorization = headers.authorization;
+  if (typeof authorization !== 'string' || authorization.length < 8) {
+    return null;
+  }
+
+  const [scheme, value] = authorization.split(' ');
+  if (scheme?.toLowerCase() !== 'bearer' || !value) {
+    return null;
+  }
+
+  return value.trim();
+}
+
+function createPublicSession(input: {
+  userId: string;
+  email: string;
+  fullName: string;
+  locale: string;
+}): PublicAuthSession {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + publicSessionTtlMinutes * 60000);
+  const token = randomBytes(32).toString('hex');
+  const session: PublicAuthSession = {
+    token,
+    userId: input.userId,
+    email: input.email,
+    fullName: input.fullName,
+    locale: input.locale,
+    createdAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString()
+  };
+  publicSessions.set(token, session);
+  return session;
+}
+
+function getPublicSessionFromRequest(request: { headers: Record<string, unknown> }) {
+  cleanExpiredPublicSessions();
+  const token = getBearerToken(request.headers);
+  return getPublicSessionByToken(token);
+}
+
+function getPublicSessionByToken(token: string | null) {
+  cleanExpiredPublicSessions();
+  if (!token) {
+    throw app.httpErrors.unauthorized('Public session is required');
+  }
+  const session = publicSessions.get(token);
+  if (!session) {
+    throw app.httpErrors.unauthorized('Invalid public session');
+  }
+  if (Date.parse(session.expiresAt) <= Date.now()) {
+    publicSessions.delete(token);
+    throw app.httpErrors.unauthorized('Expired public session');
+  }
+  return session;
+}
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, hash] = stored.split(':');
+  if (!salt || !hash) {
+    return false;
+  }
+  const derived = scryptSync(password, salt, 64).toString('hex');
+  return timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(derived, 'hex'));
+}
+
+function parseMoodleInteractionNote(
+  rawContent: unknown,
+  fallback: { moodleCourseId: number; moduleId: number; createdAt: string; noteId: string }
+): {
+  id: string;
+  moodle_course_id: number;
+  module_id: number;
+  module_name: string;
+  module_type: string;
+  response: Record<string, unknown>;
+  created_at: string;
+} | null {
+  if (typeof rawContent !== 'string' || !rawContent.startsWith(moodleInteractionPrefix)) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(rawContent.slice(moodleInteractionPrefix.length)) as Record<string, unknown>;
+    const moduleId = Number(payload.moduleId ?? fallback.moduleId);
+    const createdAt = typeof payload.createdAt === 'string' ? payload.createdAt : fallback.createdAt;
+    return {
+      id: String(payload.id ?? fallback.noteId),
+      moodle_course_id: Number(payload.moodleCourseId ?? fallback.moodleCourseId),
+      module_id: Number.isInteger(moduleId) && moduleId > 0 ? moduleId : fallback.moduleId,
+      module_name: typeof payload.moduleName === 'string' ? payload.moduleName : 'Actividad',
+      module_type: typeof payload.moduleType === 'string' ? payload.moduleType : 'activity',
+      response: (payload.response && typeof payload.response === 'object' ? payload.response : { text: String(rawContent) }) as Record<
+        string,
+        unknown
+      >,
+      created_at: createdAt
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function buildMoodleCourseProgress(input: {
+  localUserId: string;
+  moodleUserId: number;
+  moodleCourseId: number;
+}) {
+  const [completionResult, notesResult, cachedProgress, cachedInteractions] = await Promise.all([
+    getMoodleActivitiesCompletionStatus({
+      courseId: input.moodleCourseId,
+      userId: input.moodleUserId
+    }),
+    getMoodleNotes({
+      userId: input.moodleUserId,
+      courseId: input.moodleCourseId
+    }),
+    getPublicCourseProgress({
+      userId: input.localUserId,
+      moodleCourseId: input.moodleCourseId
+    }),
+    listPublicCourseInteractions({
+      userId: input.localUserId,
+      moodleCourseId: input.moodleCourseId,
+      limit: 100
+    })
+  ]);
+
+  if (!completionResult.ok && !notesResult.ok) {
+    return {
+      progress: cachedProgress,
+      interactions: cachedInteractions
+    };
+  }
+
+  const statuses = completionResult.ok && completionResult.data?.statuses ? completionResult.data.statuses : [];
+  const completedModuleIds = statuses
+    .filter((status) => Number(status.state) > 0 && Number.isInteger(Number(status.cmid)))
+    .map((status) => Number(status.cmid))
+    .filter((value, index, array) => value > 0 && array.indexOf(value) === index);
+  const totalModules = statuses.filter((status) => Number.isInteger(Number(status.cmid))).length;
+
+  const moodleInteractions = (notesResult.ok ? notesResult.data?.notes ?? [] : [])
+    .map((note) =>
+      parseMoodleInteractionNote(note.content, {
+        moodleCourseId: input.moodleCourseId,
+        moduleId: 0,
+        createdAt:
+          typeof note.created === 'number' && Number.isFinite(note.created)
+            ? new Date(note.created * 1000).toISOString()
+            : new Date().toISOString(),
+        noteId: `moodle-note-${note.id ?? randomUUID()}`
+      })
+    )
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+
+  const cachedCompleted = Array.isArray(cachedProgress?.completed_module_ids)
+    ? cachedProgress.completed_module_ids
+        .map((value: unknown) => Number(value))
+        .filter((value: number) => Number.isInteger(value) && value > 0)
+    : [];
+  const mergedCompletedModuleIds = Array.from(new Set([...cachedCompleted, ...completedModuleIds])).sort((a, b) => a - b);
+
+  const interactionById = new Map<string, (typeof moodleInteractions)[number]>();
+  for (const item of cachedInteractions) {
+    if (!item || !item.id) {
+      continue;
+    }
+    interactionById.set(String(item.id), {
+      id: String(item.id),
+      moodle_course_id: Number(item.moodle_course_id),
+      module_id: Number(item.module_id),
+      module_name: String(item.module_name ?? 'Actividad'),
+      module_type: String(item.module_type ?? 'activity'),
+      response:
+        item.response && typeof item.response === 'object'
+          ? (item.response as Record<string, unknown>)
+          : ({ text: '' } as Record<string, unknown>),
+      created_at:
+        typeof item.created_at === 'string'
+          ? item.created_at
+          : new Date(item.created_at as Date).toISOString()
+    });
+  }
+  for (const item of moodleInteractions) {
+    interactionById.set(String(item.id), item);
+  }
+  const mergedInteractions = [...interactionById.values()].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+
+  const mergedTotalModules = Math.max(Number(cachedProgress?.total_modules ?? 0), totalModules);
+  const interactionsCount = mergedInteractions.length;
+  const computedXp = mergedCompletedModuleIds.length * 50 + interactionsCount * 10;
+  const xp = Math.max(computedXp, Number(cachedProgress?.xp ?? 0));
+  const progressPercent =
+    mergedTotalModules > 0 ? Math.min(100, Math.round((mergedCompletedModuleIds.length / mergedTotalModules) * 100)) : 0;
+
+  const moodleLastActivityAt =
+    moodleInteractions[0]?.created_at ??
+    (statuses
+      .map((status) => Number(status.timecompleted))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .sort((a, b) => b - a)
+      .map((value) => new Date(value * 1000).toISOString())[0] ??
+      null);
+  const lastActivityAt = [moodleLastActivityAt, cachedProgress?.last_activity_at]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    .sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
+
+  const mirroredProgress = await upsertPublicCourseProgress({
+    userId: input.localUserId,
+    moodleCourseId: input.moodleCourseId,
+    completedModuleIds: mergedCompletedModuleIds,
+    interactionsCount,
+    xp,
+    totalModules: mergedTotalModules,
+    progressPercent,
+    lastActivityAt
+  });
+
+  return {
+    progress: mirroredProgress,
+    interactions: mergedInteractions
+  };
+}
+
+function ensureAdmin(request: { headers: Record<string, unknown> }) {
+  cleanExpiredAdminSessions();
+  const apiKey = request.headers['x-admin-key'];
+  if (!apiKey || String(apiKey) !== config.admin.apiKey) {
+    const token = getBearerToken(request.headers);
+    if (!token) {
+      throw app.httpErrors.unauthorized('Missing admin credentials');
+    }
+
+    const session = adminSessions.get(token);
+    if (!session) {
+      throw app.httpErrors.unauthorized('Invalid admin session');
+    }
+
+    if (Date.parse(session.expiresAt) <= Date.now()) {
+      adminSessions.delete(token);
+      throw app.httpErrors.unauthorized('Expired admin session');
+    }
+    return session;
+  }
+  return {
+    token: 'api-key',
+    email: config.admin.email,
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + config.admin.sessionTtlMinutes * 60000).toISOString()
+  };
+}
+
+function loadMoodleCategoriesFromDockerFallback(): NormalizedMoodleCategory[] {
+  try {
+    const raw = execFileSync(
+      'docker',
+      [
+        'exec',
+        'pae-u-moodle-db-1',
+        'mariadb',
+        '-N',
+        '-umoodle',
+        '-pmoodle',
+        'moodle',
+        '-e',
+        "SELECT id,name,IFNULL(idnumber,''),parent,depth,IFNULL(path,''),visible FROM mdl_course_categories;"
+      ],
+      { encoding: 'utf8' }
+    );
+    const rows = raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.split('\t'));
+    return rows
+      .map((parts) => ({
+        id: Number(parts[0]),
+        name: String(parts[1] ?? ''),
+        idnumber: String(parts[2] ?? '') || undefined,
+        parent: Number(parts[3] ?? 0),
+        depth: Number(parts[4] ?? 0),
+        path: String(parts[5] ?? '') || undefined,
+        visible: Number(parts[6] ?? 1)
+      }))
+      .filter((item) => Number.isInteger(item.id) && item.id > 0 && item.name.length > 0);
+  } catch (error) {
+    app.log.warn({ error }, 'Docker category fallback failed');
+    return [];
+  }
+}
+
+async function loadMoodleCategoriesForSync(): Promise<{
+  categories: NormalizedMoodleCategory[];
+  source: 'webservice' | 'docker' | 'cache';
+}> {
+  const categoriesResult = await getMoodleCategories();
+  if (categoriesResult.ok) {
+    const categories = (categoriesResult.data ?? [])
+      .filter((category) => Number.isInteger(Number(category.id)) && typeof category.name === 'string')
+      .map((category) => ({
+        id: Number(category.id),
+        name: String(category.name),
+        idnumber: category.idnumber,
+        parent: typeof category.parent === 'number' ? category.parent : undefined,
+        depth: typeof category.depth === 'number' ? category.depth : undefined,
+        path: category.path,
+        visible: typeof category.visible === 'number' ? category.visible : undefined
+      }));
+    return { categories, source: 'webservice' };
+  }
+
+  const dockerCategories = loadMoodleCategoriesFromDockerFallback();
+  if (dockerCategories.length > 0) {
+    return { categories: dockerCategories, source: 'docker' };
+  }
+
+  const cached = await listMoodleCategories();
+  const categories = cached
+    .map((row) => ({
+      id: Number(row.moodle_category_id),
+      name: String(row.name),
+      idnumber: row.idnumber ?? undefined,
+      parent: typeof row.parent_id === 'number' ? row.parent_id : undefined,
+      depth: typeof row.depth === 'number' ? row.depth : undefined,
+      path: row.path ?? undefined,
+      visible: row.visible === false ? 0 : 1
+    }))
+    .filter((row) => Number.isInteger(row.id) && row.id > 0 && row.name.length > 0);
+  return { categories, source: 'cache' };
+}
+
+async function runCoursesSyncInternal() {
+  const [coursesResult, categoriesBundle] = await Promise.all([getMoodleCourses(), loadMoodleCategoriesForSync()]);
+  if (!coursesResult.ok) {
+    return {
+      synced: false as const,
+      error: coursesResult.error ?? 'Unable to fetch courses from Moodle'
+    };
+  }
+
+  const normalizedCategories = categoriesBundle.categories;
+  await syncMoodleCategories(normalizedCategories);
+  const categoryNameById =
+    normalizedCategories.length > 0
+      ? Object.fromEntries(normalizedCategories.map((category) => [Number(category.id), String(category.name)]))
+      : await getMoodleCategoryNameMap();
+
+  const courses = (coursesResult.data ?? []).filter((course) => Number(course.id) > 1);
+  const syncResult = await syncMoodleCoursesWithCategories(courses, categoryNameById);
+  await saveIntegrationSetting('moodle.last_courses_sync', {
+    syncedAt: new Date().toISOString(),
+    total: courses.length,
+    upsertedCatalogAssets: syncResult.upsertedCatalogAssets,
+    categoriesSource: categoriesBundle.source
+  });
+
+  return {
+    synced: true as const,
+    totalCourses: courses.length,
+    upsertedCourses: syncResult.upsertedCourses,
+    upsertedCatalogAssets: syncResult.upsertedCatalogAssets
+  };
+}
+
+async function runCategoriesSyncInternal() {
+  const categoriesBundle = await loadMoodleCategoriesForSync();
+  const categories = categoriesBundle.categories;
+  if (categories.length === 0) {
+    return {
+      synced: false as const,
+      error: 'Unable to fetch categories from Moodle'
+    };
+  }
+  const syncResult = await syncMoodleCategories(categories);
+  await saveIntegrationSetting('moodle.last_categories_sync', {
+    syncedAt: new Date().toISOString(),
+    total: categories.length,
+    source: categoriesBundle.source
+  });
+  return {
+    synced: true as const,
+    totalCategories: categories.length,
+    upsertedCategories: syncResult.upsertedCategories,
+    source: categoriesBundle.source
+  };
+}
+
+async function runUsersSyncInternal() {
+  const usersResult = await getMoodleUsers();
+  if (!usersResult.ok) {
+    return {
+      synced: false as const,
+      error: usersResult.error ?? 'Unable to fetch users from Moodle'
+    };
+  }
+
+  const tenantId = (await getTenantAndUser()).tenant?.id;
+  if (!tenantId) {
+    return {
+      synced: false as const,
+      error: 'No tenant available for user sync'
+    };
+  }
+
+  const moodleUsers = (usersResult.data?.users ?? []).filter(
+    (user) => Number(user.id) > 0 && user.username !== 'guest'
+  );
+
+  let upsertedUsers = 0;
+  for (const moodleUser of moodleUsers) {
+    const synced = await upsertPlatformUserFromMoodle({
+      moodleUser,
+      tenantId
+    });
+    if (synced) {
+      upsertedUsers += 1;
+    }
+  }
+
+  const moodleUserIds = moodleUsers.map((user) => Number(user.id));
+  await deactivateEnrollmentsForMoodleUsers(moodleUserIds);
+
+  const localUserMap = await mapLocalUsersByMoodleId();
+  const courses = await listMoodleCourses(5000);
+
+  let enrollmentLinks = 0;
+  const warnings: string[] = [];
+
+  for (const course of courses) {
+    const courseId = Number(course.moodle_course_id);
+    const enrolledResult = await getMoodleEnrolledUsers(courseId);
+
+    if (!enrolledResult.ok) {
+      warnings.push(`course ${courseId}: ${enrolledResult.error ?? 'enrolled users fetch failed'}`);
+      continue;
+    }
+
+    for (const enrolledUser of enrolledResult.data ?? []) {
+      const localUserId = localUserMap.get(Number(enrolledUser.id));
+      if (!localUserId) {
+        continue;
+      }
+
+      await upsertUserCourseEnrollment({
+        userId: localUserId,
+        moodleCourseId: courseId,
+        status: 'active'
+      });
+      enrollmentLinks += 1;
+    }
+  }
+
+  await saveIntegrationSetting('moodle.last_users_sync', {
+    syncedAt: new Date().toISOString(),
+    totalUsers: moodleUsers.length,
+    upsertedUsers,
+    enrollmentLinks,
+    warningsCount: warnings.length
+  });
+
+  return {
+    synced: true as const,
+    totalUsers: moodleUsers.length,
+    upsertedUsers,
+    enrollmentLinks,
+    warnings
+  };
+}
+
+async function runFullMoodleSync(trigger: string): Promise<void> {
+  if (!hasMoodleConfig()) {
+    return;
+  }
+  if (moodleSyncInFlight) {
+    await moodleSyncInFlight;
+    return;
+  }
+
+  moodleSyncInFlight = (async () => {
+    app.log.info({ trigger }, 'Starting full Moodle sync');
+    const courseSync = await runCoursesSyncInternal();
+    if (!courseSync.synced) {
+      app.log.warn({ trigger, error: courseSync.error }, 'Courses sync failed');
+      return;
+    }
+
+    const userSync = await runUsersSyncInternal();
+    if (!userSync.synced) {
+      app.log.warn({ trigger, error: userSync.error }, 'Users sync failed');
+      return;
+    }
+    app.log.info(
+      {
+        trigger,
+        courses: courseSync.totalCourses,
+        users: userSync.totalUsers,
+        enrollmentLinks: userSync.enrollmentLinks
+      },
+      'Full Moodle sync completed'
+    );
+  })();
+
+  try {
+    await moodleSyncInFlight;
+  } finally {
+    moodleSyncInFlight = null;
+  }
+}
+
+type ExternalIntegrationEvent = Record<string, unknown>;
+
+function normalizeGroupKey(value: string): string {
+  const normalized = value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(vip|virtual|diamante|general|ticket|entrada|acceso)\b/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return normalized || 'evento';
+}
+
+function inferTier(value: string): 'general' | 'vip' | 'virtual' | 'diamante' | 'other' {
+  const normalized = value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (normalized.includes('diamante')) {
+    return 'diamante';
+  }
+  if (normalized.includes('vip')) {
+    return 'vip';
+  }
+  if (normalized.includes('virtual')) {
+    return 'virtual';
+  }
+  if (normalized.includes('general')) {
+    return 'general';
+  }
+  return 'other';
+}
+
+function toIsoOrNull(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.toISOString();
+}
+
+async function fetchExternalIntegrationEventsActive(): Promise<ExternalIntegrationEvent[]> {
+  const url = `${config.externalIntegration.baseUrl.replace(/\/+$/, '')}/api/integration/events/active`;
+  const response = await fetch(url, {
+    headers: {
+      'x-api-key': config.externalIntegration.apiKey
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`External events request failed: ${response.status}`);
+  }
+  const payload = (await response.json()) as unknown;
+  return Array.isArray(payload) ? (payload as ExternalIntegrationEvent[]) : [];
+}
+
+async function fetchExternalIntegrationTicketsByEmail(email: string): Promise<Record<string, unknown>[]> {
+  const url = `${config.externalIntegration.baseUrl.replace(/\/+$/, '')}/api/integration/tickets?email=${encodeURIComponent(email)}`;
+  const response = await fetch(url, {
+    headers: {
+      'x-api-key': config.externalIntegration.apiKey
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`External tickets request failed: ${response.status}`);
+  }
+  const payload = (await response.json()) as unknown;
+  return Array.isArray(payload) ? (payload as Record<string, unknown>[]) : [];
+}
+
+async function runExternalEventsSync(): Promise<{
+  synced: boolean;
+  totalFetched: number;
+  upserted: number;
+  syncedAt: string;
+}> {
+  const externalEvents = await fetchExternalIntegrationEventsActive();
+  const normalized = externalEvents.map((item, index) => {
+    const idValue =
+      item.id ??
+      item._id ??
+      item.eventId ??
+      item.event_id ??
+      item.slug ??
+      item.code ??
+      `event-${index + 1}`;
+    const titleValue = String(item.title ?? item.name ?? item.eventName ?? item.label ?? `Evento ${index + 1}`);
+    const descriptionValue = typeof item.description === 'string' ? item.description : null;
+    const startsAt = toIsoOrNull(item.startsAt ?? item.startAt ?? item.start_date ?? item.date ?? item.datetime);
+    const endsAt = toIsoOrNull(item.endsAt ?? item.endAt ?? item.end_date);
+    const eventUrl =
+      (typeof item.url === 'string' && item.url) ||
+      (typeof item.link === 'string' && item.link) ||
+      (typeof item.checkout_url === 'string' && item.checkout_url) ||
+      null;
+    const venue = typeof item.venue === 'string' ? item.venue : typeof item.location === 'string' ? item.location : null;
+    const modality = typeof item.modality === 'string' ? item.modality : typeof item.mode === 'string' ? item.mode : null;
+    const bannerUrl =
+      (typeof item.banner_frame_url === 'string' && item.banner_frame_url) ||
+      (typeof item.banner_url === 'string' && item.banner_url) ||
+      (typeof item.banner === 'string' && /^https?:\/\//i.test(item.banner) ? item.banner : '') ||
+      null;
+    const bannerFrameUrl =
+      (typeof item.banner_frame_url === 'string' && item.banner_frame_url) ||
+      (typeof item.banner_frame === 'string' && /^https?:\/\//i.test(item.banner_frame) ? item.banner_frame : '') ||
+      null;
+    const emailBannerUrl =
+      (typeof item.email_banner_url === 'string' && item.email_banner_url) ||
+      (typeof item.email_banner === 'string' && /^https?:\/\//i.test(item.email_banner) ? item.email_banner : '') ||
+      null;
+    const ticketFrameUrl =
+      (typeof item.ticket_frame_url === 'string' && item.ticket_frame_url) ||
+      (typeof item.ticket_frame === 'string' && /^https?:\/\//i.test(item.ticket_frame) ? item.ticket_frame : '') ||
+      null;
+    const disclaimerUrl =
+      (typeof item.disclaimer_url === 'string' && item.disclaimer_url) ||
+      (typeof item.disclaimer === 'string' && /^https?:\/\//i.test(item.disclaimer) ? item.disclaimer : '') ||
+      null;
+    const tier = inferTier(titleValue);
+    const groupKey = normalizeGroupKey(titleValue);
+    const groupLabel = groupKey
+      .split('-')
+      .filter(Boolean)
+      .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+      .join(' ');
+
+    return {
+      externalEventId: String(idValue),
+      title: titleValue,
+      description: descriptionValue,
+      startsAt,
+      endsAt,
+      isActive: item.isActive === false ? false : true,
+      eventUrl,
+      venue,
+      modality,
+      bannerUrl,
+      bannerFrameUrl,
+      emailBannerUrl,
+      ticketFrameUrl,
+      disclaimerUrl,
+      groupKey,
+      groupLabel: groupLabel || 'Evento',
+      tier,
+      visibleOnLanding: true,
+      displayOrder: tier === 'general' ? 1 : tier === 'vip' ? 2 : tier === 'virtual' ? 3 : tier === 'diamante' ? 4 : 5,
+      raw: item
+    };
+  });
+
+  const upserted = await upsertExternalIntegrationEvents(normalized);
+  const syncedAt = new Date().toISOString();
+  await saveIntegrationSetting('external_integration.last_events_sync', {
+    syncedAt,
+    totalFetched: externalEvents.length,
+    upserted
+  });
+
+  return {
+    synced: true,
+    totalFetched: externalEvents.length,
+    upserted,
+    syncedAt
+  };
+}
+
+async function ensureFreshExternalEvents(maxAgeSec = 180): Promise<void> {
+  const lastSync = await getIntegrationSetting<{ syncedAt: string }>('external_integration.last_events_sync');
+  if (!lastSync?.syncedAt) {
+    await runExternalEventsSync();
+    return;
+  }
+  const ageMs = Date.now() - Date.parse(lastSync.syncedAt);
+  if (Number.isNaN(ageMs) || ageMs > Math.max(30, maxAgeSec) * 1000) {
+    await runExternalEventsSync();
+  }
+}
+
+function resolveExternalBannerUrl(raw: Record<string, unknown>): string {
+  const direct =
+    (typeof raw.banner_frame_url === 'string' && raw.banner_frame_url) ||
+    (typeof raw.banner_url === 'string' && raw.banner_url) ||
+    (typeof raw.banner === 'string' && raw.banner) ||
+    (typeof raw.image === 'string' && raw.image) ||
+    (typeof raw.image_url === 'string' && raw.image_url) ||
+    (typeof raw.poster === 'string' && raw.poster) ||
+    (typeof raw.poster_url === 'string' && raw.poster_url) ||
+    (typeof raw.banner_frame === 'string' && /^https?:\/\//i.test(raw.banner_frame) ? raw.banner_frame : '');
+  if (direct) {
+    return direct;
+  }
+  const seed =
+    (typeof raw.banner_frame === 'string' && raw.banner_frame) ||
+    (typeof raw.email_banner === 'string' && raw.email_banner) ||
+    (typeof raw.ticket_frame === 'string' && raw.ticket_frame) ||
+    (typeof raw.name === 'string' && raw.name) ||
+    'paeu-external-event';
+  return `https://picsum.photos/seed/${encodeURIComponent(`paeu-event-${seed}`)}/1600/900`;
+}
+
+function toPublicExternalGroupShape(input: {
+  groupKey: string;
+  groupLabel: string;
+  displayOrder?: number;
+  startsAt: string | null;
+  visibleOnLanding?: boolean;
+  isActive?: boolean;
+  events: Array<Record<string, unknown>>;
+}) {
+  const sortedEvents = [...input.events].sort((a, b) => {
+    const aTs = a.starts_at ? Date.parse(String(a.starts_at)) : Number.MAX_SAFE_INTEGER;
+    const bTs = b.starts_at ? Date.parse(String(b.starts_at)) : Number.MAX_SAFE_INTEGER;
+    return aTs - bTs;
+  });
+  const first = sortedEvents[0] ?? null;
+  const raw = (first?.raw as Record<string, unknown> | undefined) ?? {};
+  const directBanner =
+    (typeof first?.banner_frame_url === 'string' && first.banner_frame_url) ||
+    (typeof first?.banner_url === 'string' && first.banner_url) ||
+    (typeof first?.email_banner_url === 'string' && first.email_banner_url) ||
+    (typeof first?.ticket_frame_url === 'string' && first.ticket_frame_url) ||
+    '';
+  const siteUrl =
+    (typeof first?.event_url === 'string' && first.event_url) ||
+    (typeof raw.checkout_url === 'string' ? raw.checkout_url : '') ||
+    '';
+  const venue =
+    (typeof first?.venue === 'string' && first.venue) ||
+    (typeof raw.hotel_name === 'string' ? raw.hotel_name : '') ||
+    (typeof raw.city === 'string' ? raw.city : '') ||
+    '';
+  const city = typeof raw.city === 'string' ? raw.city : '';
+  const country = typeof raw.country === 'string' ? raw.country : '';
+  const modalities = [...new Set(sortedEvents.map((event) => String(event.modality ?? '').trim()).filter(Boolean))];
+  const ticketTypes = [...new Set(sortedEvents.map((event) => String(event.tier ?? '').trim()).filter(Boolean))];
+
+  return {
+    groupKey: input.groupKey,
+    groupLabel: input.groupLabel,
+    displayOrder: Number(input.displayOrder ?? 0),
+    startsAt: input.startsAt,
+    visibleOnLanding: Boolean(input.visibleOnLanding),
+    isActive: Boolean(input.isActive),
+    heroImage: directBanner || resolveExternalBannerUrl(raw),
+    venue: venue || null,
+    city: city || null,
+    country: country || null,
+    siteUrl: siteUrl || null,
+    modalities,
+    ticketTypes,
+    events: sortedEvents
+  };
+}
+
+async function ensureFreshPublicData(): Promise<void> {
+  if (!hasMoodleConfig()) {
+    return;
+  }
+  const lastSync = await getIntegrationSetting<{ syncedAt: string }>('moodle.last_courses_sync');
+  if (!lastSync?.syncedAt) {
+    await runFullMoodleSync('public-bootstrap');
+    return;
+  }
+
+  const ageMs = Date.now() - Date.parse(lastSync.syncedAt);
+  if (Number.isNaN(ageMs) || ageMs > publicSyncMaxAgeMs) {
+    await runFullMoodleSync('public-stale-check');
+  }
+}
+
+async function syncUserEnrollmentsFromMoodle(userId: string, moodleUserId: number): Promise<{
+  synced: boolean;
+  moodleCourses: unknown[];
+  error?: string;
+}> {
+  const moodleCoursesResult = await getMoodleUserCourses(moodleUserId);
+  if (!moodleCoursesResult.ok) {
+    return {
+      synced: false,
+      moodleCourses: [],
+      error: moodleCoursesResult.error ?? 'Unable to fetch Moodle user courses'
+    };
+  }
+
+  const moodleCourses = moodleCoursesResult.data ?? [];
+  const activeCourseIds = moodleCourses
+    .map((course) => Number((course as { id?: unknown }).id))
+    .filter((courseId) => Number.isInteger(courseId) && courseId > 0);
+
+  await pool.query(
+    `
+      UPDATE user_course_enrollments
+      SET status = 'inactive',
+          synced_at = NOW()
+      WHERE user_id = $1
+    `,
+    [userId]
+  );
+
+  for (const moodleCourseId of activeCourseIds) {
+    await upsertUserCourseEnrollment({
+      userId,
+      moodleCourseId,
+      status: 'active'
+    });
+  }
+
+  return {
+    synced: true,
+    moodleCourses
+  };
+}
+
+app.get('/health', async () => {
+  const db = await pool.query('SELECT NOW() AS now');
+
+  return {
+    status: 'ok',
+    service: 'api',
+    timestamp: new Date().toISOString(),
+    db: db.rows[0]?.now ?? null,
+    moodleConfigured: hasMoodleConfig()
+  };
+});
+
+app.get('/v1/home', async () => {
+  await ensureFreshPublicData();
+  const [identity, featured, offers] = await Promise.all([getTenantAndUser(), getCatalog(), getOffers()]);
+
+  if (!identity.tenant || !identity.user) {
+    throw app.httpErrors.internalServerError('Tenant or user data not available');
+  }
+
+  return {
+    tenant: identity.tenant,
+    user: identity.user,
+    featured,
+    liveNow: featured.filter((item) => item.kind === 'live'),
+    continueLearning: featured.filter((item) => item.kind === 'course'),
+    offers
+  };
+});
+
+app.get('/v1/catalog', async () => {
+  await ensureFreshPublicData();
+  return getCatalog();
+});
+app.get('/v1/webinars', async () => listWebinars({ activeOnly: true }));
+app.get('/v1/podcasts', async () => listPodcasts({ activeOnly: true, landingOnly: true }));
+app.get('/v1/integration/events/grouped', async () => {
+  await ensureFreshExternalEvents();
+  const groups = await listGroupedExternalIntegrationEvents({ activeOnly: true, landingOnly: true });
+  return groups.map((group) => toPublicExternalGroupShape(group));
+});
+app.get('/v1/offers', async () => getOffers());
+app.get('/v1/entitlements', async () => getEntitlements());
+app.get('/v1/blueprint', async () => demoBlueprint);
+
+async function fetchLegalPage(slug: 'terminos-y-condiciones' | 'politica-de-privacidad') {
+  const endpoint = `https://www.pasosalexito.com/wp-json/wp/v2/pages?slug=${encodeURIComponent(
+    slug
+  )}&_fields=id,slug,title,content,modified,link`;
+  const response = await fetch(endpoint);
+  if (!response.ok) {
+    throw app.httpErrors.badGateway(`Legal content fetch failed (${response.status})`);
+  }
+  const rows = (await response.json()) as Array<{
+    id: number;
+    slug: string;
+    title?: { rendered?: string };
+    content?: { rendered?: string };
+    modified?: string;
+    link?: string;
+  }>;
+  if (!rows[0]) {
+    throw app.httpErrors.notFound(`Legal page not found for slug ${slug}`);
+  }
+  return {
+    id: rows[0].id,
+    slug: rows[0].slug,
+    title: rows[0].title?.rendered ?? slug,
+    html: rows[0].content?.rendered ?? '',
+    modifiedAt: rows[0].modified ?? null,
+    sourceUrl: rows[0].link ?? null
+  };
+}
+
+app.get('/v1/legal/terms', async () => fetchLegalPage('terminos-y-condiciones'));
+app.get('/v1/legal/privacy', async () => fetchLegalPage('politica-de-privacidad'));
+
+app.get('/v1/media/demo.mp4', async (request, reply) => {
+  if (!demoVideoPath || !existsSync(demoVideoPath)) {
+    return reply.notFound('Demo video not available');
+  }
+
+  const stats = statSync(demoVideoPath);
+  const rangeHeader = request.headers.range;
+  if (typeof rangeHeader === 'string') {
+    const [startRaw, endRaw] = rangeHeader.replace(/bytes=/, '').split('-');
+    const start = Number(startRaw);
+    const end = endRaw ? Number(endRaw) : stats.size - 1;
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end >= stats.size) {
+      reply.header('Content-Range', `bytes */${stats.size}`);
+      return reply.code(416).send();
+    }
+    reply
+      .code(206)
+      .header('Content-Type', 'video/mp4')
+      .header('Accept-Ranges', 'bytes')
+      .header('Content-Length', String(end - start + 1))
+      .header('Content-Range', `bytes ${start}-${end}/${stats.size}`)
+      .header('Cache-Control', 'public, max-age=86400');
+    return reply.send(createReadStream(demoVideoPath, { start, end }));
+  }
+
+  reply
+    .header('Content-Type', 'video/mp4')
+    .header('Accept-Ranges', 'bytes')
+    .header('Content-Length', String(stats.size))
+    .header('Cache-Control', 'public, max-age=86400');
+  return reply.send(createReadStream(demoVideoPath));
+});
+
+const publicRegisterSchema = z.object({
+  fullName: z.string().min(3),
+  email: z.string().email(),
+  password: z.string().min(8),
+  locale: z.string().default('es')
+});
+
+const publicLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1)
+});
+
+const publicProfileUpdateSchema = z
+  .object({
+    fullName: z.string().min(3).max(120).optional(),
+    email: z.string().email().optional(),
+    locale: z.string().min(2).max(10).optional()
+  })
+  .refine((input) => Boolean(input.fullName || input.email || input.locale), {
+    message: 'At least one profile field is required'
+  });
+
+app.post('/v1/auth/register', async (request, reply) => {
+  const payload = publicRegisterSchema.parse(request.body);
+  const email = payload.email.trim().toLowerCase();
+
+  const existingLocal = await getPlatformUserByEmail(email);
+  if (existingLocal) {
+    const existingAuth = await getPublicUserAuthByEmail(email);
+    if (existingAuth) {
+      return reply.conflict('Email already exists. Please login.');
+    }
+
+    // Existing Moodle-synced user without web credentials: activate web access.
+    const updatedUser = await updatePlatformUserProfile({
+      userId: String(existingLocal.id),
+      fullName: payload.fullName.trim(),
+      email,
+      locale: payload.locale.trim().toLowerCase()
+    });
+    if (!updatedUser) {
+      return reply.internalServerError('Unable to activate web access');
+    }
+
+    await upsertPublicUserAuth({
+      userId: String(updatedUser.id),
+      passwordHash: hashPassword(payload.password)
+    });
+
+    const session = createPublicSession({
+      userId: String(updatedUser.id),
+      email: String(updatedUser.email),
+      fullName: String(updatedUser.full_name),
+      locale: String(updatedUser.locale)
+    });
+
+    return {
+      registered: true,
+      activated: true,
+      token: session.token,
+      expiresAt: session.expiresAt,
+      user: {
+        id: updatedUser.id,
+        fullName: updatedUser.full_name,
+        email: updatedUser.email,
+        locale: updatedUser.locale,
+        moodleUserId: updatedUser.moodle_user_id
+      }
+    };
+  }
+
+  const existingMoodle = await getMoodleUsersByEmail(email);
+  if (existingMoodle.ok && (existingMoodle.data?.length ?? 0) > 0) {
+    return reply.conflict('Email already exists in Moodle. Contact support for migration.');
+  }
+
+  const tenantId = (await getTenantAndUser()).tenant?.id;
+  if (!tenantId) {
+    return reply.internalServerError('No tenant available');
+  }
+
+  const { firstname, lastname } = splitName(payload.fullName);
+  const username = normalizeUsername(email);
+  const createMoodle = await createMoodleUser({
+    username,
+    firstname,
+    lastname,
+    email,
+    password: payload.password
+  });
+
+  if (!createMoodle.ok || !createMoodle.data?.[0]?.id) {
+    return reply.badRequest(`Moodle registration failed: ${createMoodle.error ?? 'unknown error'}`);
+  }
+
+  const user = await createPlatformUser({
+    id: randomUUID(),
+    fullName: payload.fullName,
+    email,
+    locale: payload.locale,
+    roles: ['learner'],
+    tenantId,
+    moodleUserId: Number(createMoodle.data[0].id)
+  });
+
+  await upsertPublicUserAuth({
+    userId: String(user.id),
+    passwordHash: hashPassword(payload.password)
+  });
+
+  const session = createPublicSession({
+    userId: String(user.id),
+    email: String(user.email),
+    fullName: String(user.full_name),
+    locale: String(user.locale)
+  });
+
+  return {
+    registered: true,
+    token: session.token,
+    expiresAt: session.expiresAt,
+    user: {
+      id: user.id,
+      fullName: user.full_name,
+      email: user.email,
+      locale: user.locale,
+      moodleUserId: user.moodle_user_id
+    }
+  };
+});
+
+app.post('/v1/auth/login', async (request, reply) => {
+  const payload = publicLoginSchema.parse(request.body);
+  const email = payload.email.trim().toLowerCase();
+  const authUser = await getPublicUserAuthByEmail(email);
+  if (!authUser) {
+    const existingUser = await getPlatformUserByEmail(email);
+    if (existingUser) {
+      return reply.conflict('Cuenta existente sin acceso web. Usa Registro para activarla.');
+    }
+    return reply.unauthorized('Invalid credentials');
+  }
+
+  if (!verifyPassword(payload.password, String(authUser.password_hash))) {
+    return reply.unauthorized('Invalid credentials');
+  }
+
+  const session = createPublicSession({
+    userId: String(authUser.id),
+    email: String(authUser.email),
+    fullName: String(authUser.full_name),
+    locale: String(authUser.locale)
+  });
+
+  return {
+    authenticated: true,
+    token: session.token,
+    expiresAt: session.expiresAt,
+    user: {
+      id: authUser.id,
+      fullName: authUser.full_name,
+      email: authUser.email,
+      locale: authUser.locale
+    }
+  };
+});
+
+app.get('/v1/auth/me', async (request) => {
+  const session = getPublicSessionFromRequest(request);
+  return {
+    authenticated: true,
+    user: {
+      id: session.userId,
+      fullName: session.fullName,
+      email: session.email,
+      locale: session.locale
+    },
+    expiresAt: session.expiresAt
+  };
+});
+
+app.patch('/v1/auth/me', async (request, reply) => {
+  const session = getPublicSessionFromRequest(request);
+  const payload = publicProfileUpdateSchema.parse(request.body);
+  const user = await getPlatformUserById(session.userId);
+  if (!user) {
+    return reply.notFound('User not found');
+  }
+
+  const nextFullName = (payload.fullName ?? String(user.full_name)).trim();
+  const nextEmail = (payload.email ?? String(user.email)).trim().toLowerCase();
+  const nextLocale = (payload.locale ?? String(user.locale)).trim().toLowerCase();
+  if (!nextFullName || !nextEmail || !nextLocale) {
+    return reply.badRequest('Invalid profile payload');
+  }
+
+  if (nextEmail !== String(user.email).toLowerCase()) {
+    const existing = await getPlatformUserByEmail(nextEmail);
+    if (existing && String(existing.id) !== String(user.id)) {
+      return reply.conflict('Email already exists. Use another email.');
+    }
+  }
+
+  if (user.moodle_user_id) {
+    const { firstname, lastname } = splitName(nextFullName);
+    const moodleResult = await updateMoodleUserProfile({
+      userId: Number(user.moodle_user_id),
+      firstname,
+      lastname,
+      email: nextEmail,
+      lang: nextLocale
+    });
+    if (!moodleResult.ok) {
+      return reply.badRequest(`Moodle profile update failed: ${moodleResult.error ?? 'unknown error'}`);
+    }
+  }
+
+  const updated = await updatePlatformUserProfile({
+    userId: String(user.id),
+    fullName: nextFullName,
+    email: nextEmail,
+    locale: nextLocale
+  });
+  if (!updated) {
+    return reply.internalServerError('Profile update failed');
+  }
+
+  const currentSession = publicSessions.get(session.token);
+  if (currentSession) {
+    currentSession.fullName = String(updated.full_name);
+    currentSession.email = String(updated.email);
+    currentSession.locale = String(updated.locale);
+    publicSessions.set(session.token, currentSession);
+  }
+
+  return {
+    updated: true,
+    user: {
+      id: updated.id,
+      fullName: updated.full_name,
+      email: updated.email,
+      locale: updated.locale,
+      moodleUserId: updated.moodle_user_id
+    },
+    expiresAt: session.expiresAt
+  };
+});
+
+app.get('/v1/me/courses', async (request) => {
+  await ensureFreshPublicData();
+  const session = getPublicSessionFromRequest(request);
+  const user = await getPlatformUserById(session.userId);
+  if (!user) {
+    throw app.httpErrors.notFound('User not found');
+  }
+
+  let moodleCourses: unknown[] = [];
+  if (user.moodle_user_id) {
+    const syncResult = await syncUserEnrollmentsFromMoodle(String(user.id), Number(user.moodle_user_id));
+    if (syncResult.synced) {
+      moodleCourses = syncResult.moodleCourses;
+    } else {
+      app.log.warn(
+        {
+          userId: String(user.id),
+          moodleUserId: Number(user.moodle_user_id),
+          error: syncResult.error
+        },
+        'Public user enrollment sync failed'
+      );
+    }
+  }
+  const localCourses = (await listUserCourses(String(user.id))).filter((course) => String(course.status) === 'active');
+  const progressRecords = await listPublicCourseProgressByUser(String(user.id));
+
+  return {
+    user: {
+      id: user.id,
+      fullName: user.full_name,
+      email: user.email,
+      locale: user.locale,
+      moodleUserId: user.moodle_user_id
+    },
+    localCourses,
+    moodleCourses,
+    progressRecords
+  };
+});
+
+app.get('/v1/me/tickets', async (request, reply) => {
+  const session = getPublicSessionFromRequest(request);
+  try {
+    const ticketsRaw = await fetchExternalIntegrationTicketsByEmail(session.email.toLowerCase());
+    const tickets = ticketsRaw.filter((ticket) => {
+      const status = String(ticket.status ?? '')
+        .trim()
+        .toLowerCase();
+      return status === 'active';
+    });
+    return {
+      email: session.email,
+      total: tickets.length,
+      tickets
+    };
+  } catch (error) {
+    return reply.badRequest(`Tickets fetch failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+  }
+});
+
+app.get('/v1/enterprise/overview', async (request) => {
+  const session = getPublicSessionFromRequest(request);
+  const context = await getEnterpriseContextForUser(session.userId);
+  if (!context.company || !context.role) {
+    return {
+      available: false,
+      role: null,
+      company: null,
+      members: [],
+      courseAccess: []
+    };
+  }
+  const companyId = String(context.company.id);
+  if (context.role === 'representative') {
+    const [members, courseAccess] = await Promise.all([
+      listCompanyMembers(companyId),
+      listCompanyCourseAccess(companyId)
+    ]);
+    return {
+      available: true,
+      role: context.role,
+      company: context.company,
+      members,
+      courseAccess
+    };
+  }
+  const [allMembers, courseAccess] = await Promise.all([listCompanyMembers(companyId), listCompanyCourseAccess(companyId)]);
+  const membership = allMembers.find((member) => String(member.user_id) === session.userId) ?? null;
+  return {
+    available: true,
+    role: context.role,
+    company: context.company,
+    members: membership ? [membership] : [],
+    courseAccess: courseAccess.filter((item) => item.is_active)
+  };
+});
+
+app.post('/v1/enterprise/members', async (request, reply) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  const payload = createCompanyMemberSchema.parse(request.body);
+  const companyId = String(company.id);
+  const user = await resolveOrCreateCompanyUser({
+    tenantId: String(company.tenant_id),
+    userId: payload.userId,
+    fullName: payload.fullName,
+    email: payload.email,
+    locale: payload.locale
+  });
+  const member = await upsertCompanyMember({
+    companyId,
+    userId: String(user.id),
+    memberRole: 'collaborator',
+    status: 'active'
+  });
+  if (user.moodle_user_id) {
+    await updateMoodleUserStatus({
+      userId: Number(user.moodle_user_id),
+      suspended: false
+    });
+    await syncCompanyCoursesForMember({
+      companyId,
+      userId: String(user.id),
+      moodleUserId: Number(user.moodle_user_id)
+    });
+  }
+  const members = await listCompanyMembers(companyId);
+  const hydrated = members.find((item) => String(item.user_id) === String(user.id));
+  return reply.code(201).send({
+    created: true,
+    member: hydrated ?? member,
+    user
+  });
+});
+
+app.patch('/v1/enterprise/members/:userId/status', async (request, reply) => {
+  const { session, company } = await ensureRepresentativeCompanyFromSession(request);
+  const { userId } = request.params as { userId: string };
+  const payload = updateCompanyMemberSchema.parse(request.body);
+  const companyId = String(company.id);
+  if (userId === session.userId) {
+    return reply.badRequest('Representative cannot change own member status');
+  }
+  const membership = await getCompanyMembership({ companyId, userId });
+  if (!membership) {
+    return reply.notFound('Member not found in company');
+  }
+  const updated = await setCompanyMemberStatus({
+    companyId,
+    userId,
+    status: payload.status
+  });
+  if (!updated) {
+    return reply.notFound('Member not found in company');
+  }
+  const user = await getPlatformUserById(userId);
+  if (user?.moodle_user_id) {
+    const moodleUserId = Number(user.moodle_user_id);
+    await updateMoodleUserStatus({
+      userId: moodleUserId,
+      suspended: payload.status === 'inactive'
+    });
+    if (payload.status === 'active') {
+      await syncCompanyCoursesForMember({
+        companyId,
+        userId,
+        moodleUserId
+      });
+    } else {
+      const activeCourseIds = await listCompanyActiveCourseAccess(companyId);
+      for (const courseId of activeCourseIds) {
+        await unenrolMoodleUser({
+          userId: moodleUserId,
+          courseId
+        });
+      }
+      await Promise.all(
+        activeCourseIds.map((courseId) =>
+          setUserCourseEnrollmentStatusForUsers({
+            userIds: [userId],
+            moodleCourseId: courseId,
+            status: 'inactive'
+          })
+        )
+      );
+    }
+  }
+  const members = await listCompanyMembers(companyId);
+  const hydrated = members.find((item) => String(item.user_id) === String(userId));
+  return {
+    updated: true,
+    member: hydrated ?? updated
+  };
+});
+
+app.put('/v1/enterprise/courses/:moodleCourseId', async (request, reply) => {
+  const { session, company } = await ensureRepresentativeCompanyFromSession(request);
+  const { moodleCourseId } = request.params as { moodleCourseId: string };
+  const payload = upsertCompanyCourseSchema.parse({
+    ...((request.body as Record<string, unknown>) ?? {}),
+    moodleCourseId: Number(moodleCourseId)
+  });
+  const companyId = String(company.id);
+  const access = await upsertCompanyCourseAccess({
+    companyId,
+    moodleCourseId: payload.moodleCourseId,
+    isActive: payload.isActive ?? true,
+    assignedByUserId: session.userId
+  });
+  await syncCompanyCourseToMembers({
+    companyId,
+    moodleCourseId: payload.moodleCourseId,
+    isActive: payload.isActive ?? true
+  });
+  return {
+    updated: true,
+    access
+  };
+});
+
+app.delete('/v1/enterprise/courses/:moodleCourseId', async (request, reply) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  const { moodleCourseId } = request.params as { moodleCourseId: string };
+  const parsedCourseId = Number(moodleCourseId);
+  if (!Number.isInteger(parsedCourseId) || parsedCourseId <= 0) {
+    return reply.badRequest('Invalid moodleCourseId');
+  }
+  const companyId = String(company.id);
+  await syncCompanyCourseToMembers({
+    companyId,
+    moodleCourseId: parsedCourseId,
+    isActive: false
+  });
+  const deleted = await deleteCompanyCourseAccess({
+    companyId,
+    moodleCourseId: parsedCourseId
+  });
+  return { deleted };
+});
+
+app.get('/v1/catalog/:slug', async (request, reply) => {
+  await ensureFreshPublicData();
+  const { slug } = request.params as { slug: string };
+  const [content, entitlements] = await Promise.all([getContentBySlug(slug), getEntitlements()]);
+
+  if (!content) {
+    return reply.notFound(`Content with slug ${slug} was not found`);
+  }
+
+  return {
+    content,
+    entitlement: entitlements.find((item) => item.contentId === content.id) ?? null
+  };
+});
+
+app.get('/v1/courses/:moodleCourseId/content', async (request, reply) => {
+  getPublicSessionFromRequest(request);
+  const { moodleCourseId } = request.params as { moodleCourseId: string };
+  const courseId = Number(moodleCourseId);
+  if (!Number.isInteger(courseId) || courseId <= 0) {
+    return reply.badRequest('Invalid moodleCourseId');
+  }
+
+  const result = await getMoodleCourseContents(courseId);
+  if (!result.ok) {
+    return {
+      moodleCourseId: courseId,
+      available: false,
+      error: result.error ?? 'Moodle content fetch failed',
+      sections: []
+    };
+  }
+
+  return {
+    moodleCourseId: courseId,
+    available: true,
+    sections: result.data ?? []
+  };
+});
+
+app.get('/v1/moodle/file', async (request, reply) => {
+  const query = request.query as { url?: string; authToken?: string };
+  const bearerToken = getBearerToken(request.headers);
+  getPublicSessionByToken(query.authToken ?? bearerToken);
+  if (!query.url) {
+    return reply.badRequest('Missing url query param');
+  }
+  if (!hasMoodleConfig()) {
+    return reply.serviceUnavailable('Moodle is not configured');
+  }
+  const moodle = getMoodleConfig();
+
+  const moodleBase = new URL(moodle.baseUrl);
+  let targetUrl: URL;
+  try {
+    targetUrl = new URL(query.url);
+  } catch {
+    if (!query.url.startsWith('/')) {
+      return reply.badRequest('Invalid file url');
+    }
+    targetUrl = new URL(query.url, moodleBase);
+  }
+  if (targetUrl.host !== moodleBase.host) {
+    return reply.badRequest('Invalid file host');
+  }
+
+  const validMoodleFilePath =
+    targetUrl.pathname.includes('/pluginfile.php') ||
+    targetUrl.pathname.includes('/webservice/pluginfile.php') ||
+    targetUrl.pathname.includes('/draftfile.php');
+
+  if (!validMoodleFilePath) {
+    return reply.badRequest('Invalid Moodle file path');
+  }
+
+  targetUrl.searchParams.set('token', moodle.token);
+  const incomingRange = request.headers.range;
+  const fileResponse = await fetch(targetUrl.toString(), {
+    headers: incomingRange ? { Range: incomingRange } : undefined
+  });
+  if (!fileResponse.ok) {
+    return reply.status(fileResponse.status).send({
+      ok: false,
+      error: `Unable to fetch Moodle file (${fileResponse.status})`
+    });
+  }
+
+  const contentType = fileResponse.headers.get('content-type');
+  const contentDisposition = fileResponse.headers.get('content-disposition');
+  const contentRange = fileResponse.headers.get('content-range');
+  const contentLength = fileResponse.headers.get('content-length');
+  const acceptRanges = fileResponse.headers.get('accept-ranges');
+  if (contentType) {
+    reply.header('Content-Type', contentType);
+  }
+  if (contentDisposition) {
+    reply.header('Content-Disposition', contentDisposition);
+  }
+  if (contentRange) {
+    reply.header('Content-Range', contentRange);
+  }
+  if (contentLength) {
+    reply.header('Content-Length', contentLength);
+  }
+  if (acceptRanges) {
+    reply.header('Accept-Ranges', acceptRanges);
+  }
+  if (fileResponse.status === 206) {
+    reply.code(206);
+  }
+  const buffer = Buffer.from(await fileResponse.arrayBuffer());
+  return reply.send(buffer);
+});
+
+const publicInteractionSchema = z.object({
+  moduleName: z.string().min(1),
+  moduleType: z.string().min(1),
+  response: z.record(z.unknown()),
+  progress: z
+    .object({
+      completedModuleIds: z.array(z.number().int().positive()),
+      interactionsCount: z.number().int().min(0),
+      xp: z.number().int().min(0),
+      totalModules: z.number().int().min(0),
+      progressPercent: z.number().int().min(0).max(100),
+      lastActivityAt: z.string().optional()
+    })
+    .optional()
+});
+
+const publicProgressSchema = z.object({
+  completedModuleIds: z.array(z.number().int().positive()),
+  interactionsCount: z.number().int().min(0),
+  xp: z.number().int().min(0),
+  totalModules: z.number().int().min(0),
+  progressPercent: z.number().int().min(0).max(100),
+  lastActivityAt: z.string().optional()
+});
+
+app.post('/v1/courses/:moodleCourseId/modules/:moduleId/respond', async (request, reply) => {
+  const session = getPublicSessionFromRequest(request);
+  const { moodleCourseId, moduleId } = request.params as { moodleCourseId: string; moduleId: string };
+  const payload = publicInteractionSchema.parse(request.body);
+  const user = await getPlatformUserById(session.userId);
+  if (!user) {
+    return reply.notFound('User not found');
+  }
+  const parsedCourseId = Number(moodleCourseId);
+  const parsedModuleId = Number(moduleId);
+  if (!Number.isInteger(parsedCourseId) || parsedCourseId <= 0) {
+    return reply.badRequest('Invalid moodleCourseId');
+  }
+  if (!Number.isInteger(parsedModuleId) || parsedModuleId <= 0) {
+    return reply.badRequest('Invalid moduleId');
+  }
+
+  const moodleInteractionPayload = {
+    id: randomUUID(),
+    moodleCourseId: parsedCourseId,
+    moduleId: parsedModuleId,
+    moduleName: payload.moduleName,
+    moduleType: payload.moduleType,
+    response: payload.response,
+    createdAt: new Date().toISOString()
+  };
+  let moodleNoteId: number | null = null;
+  if (user.moodle_user_id) {
+    const noteResult = await createMoodleNote({
+      userId: Number(user.moodle_user_id),
+      courseId: parsedCourseId,
+      text: `${moodleInteractionPrefix}${JSON.stringify(moodleInteractionPayload)}`
+    });
+    if (noteResult.ok) {
+      const createdNote = Array.isArray(noteResult.data) ? noteResult.data[0] : null;
+      moodleNoteId = Number(createdNote?.noteid ?? createdNote?.id ?? 0) || null;
+    }
+  }
+
+  const saved = await savePublicCourseInteraction({
+    userId: session.userId,
+    moodleCourseId: parsedCourseId,
+    moduleId: parsedModuleId,
+    moduleName: payload.moduleName,
+    moduleType: payload.moduleType,
+    response: {
+      ...payload.response,
+      moodleNoteId
+    }
+  });
+
+  let savedProgress: unknown = null;
+  if (user.moodle_user_id) {
+    const moodleState = await buildMoodleCourseProgress({
+      localUserId: session.userId,
+      moodleUserId: Number(user.moodle_user_id),
+      moodleCourseId: parsedCourseId
+    });
+    savedProgress = moodleState.progress;
+  } else if (payload.progress) {
+    savedProgress = await upsertPublicCourseProgress({
+      userId: session.userId,
+      moodleCourseId: parsedCourseId,
+      completedModuleIds: payload.progress.completedModuleIds,
+      interactionsCount: payload.progress.interactionsCount,
+      xp: payload.progress.xp,
+      totalModules: payload.progress.totalModules,
+      progressPercent: payload.progress.progressPercent,
+      lastActivityAt: payload.progress.lastActivityAt ?? new Date().toISOString()
+    });
+  }
+
+  return {
+    saved: true,
+    interaction: saved,
+    progress: savedProgress,
+    moodleSynced: Boolean(moodleNoteId)
+  };
+});
+
+app.get('/v1/courses/:moodleCourseId/progress', async (request, reply) => {
+  const session = getPublicSessionFromRequest(request);
+  const { moodleCourseId } = request.params as { moodleCourseId: string };
+  const parsedCourseId = Number(moodleCourseId);
+  if (!Number.isInteger(parsedCourseId) || parsedCourseId <= 0) {
+    return reply.badRequest('Invalid moodleCourseId');
+  }
+
+  const user = await getPlatformUserById(session.userId);
+  let progress = null;
+  if (user?.moodle_user_id) {
+    const moodleState = await buildMoodleCourseProgress({
+      localUserId: session.userId,
+      moodleUserId: Number(user.moodle_user_id),
+      moodleCourseId: parsedCourseId
+    });
+    progress = moodleState.progress;
+  } else {
+    progress = await getPublicCourseProgress({
+      userId: session.userId,
+      moodleCourseId: parsedCourseId
+    });
+  }
+
+  return {
+    found: Boolean(progress),
+    progress
+  };
+});
+
+app.get('/v1/courses/:moodleCourseId/interactions', async (request, reply) => {
+  const session = getPublicSessionFromRequest(request);
+  const { moodleCourseId } = request.params as { moodleCourseId: string };
+  const parsedCourseId = Number(moodleCourseId);
+  if (!Number.isInteger(parsedCourseId) || parsedCourseId <= 0) {
+    return reply.badRequest('Invalid moodleCourseId');
+  }
+
+  const user = await getPlatformUserById(session.userId);
+  let interactions = await listPublicCourseInteractions({
+    userId: session.userId,
+    moodleCourseId: parsedCourseId,
+    limit: 100
+  });
+  if (user?.moodle_user_id) {
+    const moodleState = await buildMoodleCourseProgress({
+      localUserId: session.userId,
+      moodleUserId: Number(user.moodle_user_id),
+      moodleCourseId: parsedCourseId
+    });
+    interactions = moodleState.interactions.map((item) => ({
+      ...item,
+      user_id: session.userId
+    }));
+  }
+
+  return {
+    moodleCourseId: parsedCourseId,
+    interactions
+  };
+});
+
+app.put('/v1/courses/:moodleCourseId/progress', async (request, reply) => {
+  const session = getPublicSessionFromRequest(request);
+  const { moodleCourseId } = request.params as { moodleCourseId: string };
+  const parsedCourseId = Number(moodleCourseId);
+  if (!Number.isInteger(parsedCourseId) || parsedCourseId <= 0) {
+    return reply.badRequest('Invalid moodleCourseId');
+  }
+  const payload = publicProgressSchema.parse(request.body);
+
+  const saved = await upsertPublicCourseProgress({
+    userId: session.userId,
+    moodleCourseId: parsedCourseId,
+    completedModuleIds: payload.completedModuleIds,
+    interactionsCount: payload.interactionsCount,
+    xp: payload.xp,
+    totalModules: payload.totalModules,
+    progressPercent: payload.progressPercent,
+    lastActivityAt: payload.lastActivityAt ?? new Date().toISOString()
+  });
+
+  return {
+    saved: true,
+    progress: saved
+  };
+});
+
+app.post('/v1/courses/:moodleCourseId/modules/:moduleId/complete', async (request, reply) => {
+  const session = getPublicSessionFromRequest(request);
+  const { moodleCourseId, moduleId } = request.params as { moodleCourseId: string; moduleId: string };
+  const parsedCourseId = Number(moodleCourseId);
+  const parsedModuleId = Number(moduleId);
+  if (!Number.isInteger(parsedCourseId) || parsedCourseId <= 0) {
+    return reply.badRequest('Invalid moodleCourseId');
+  }
+  if (!Number.isInteger(parsedModuleId) || parsedModuleId <= 0) {
+    return reply.badRequest('Invalid moduleId');
+  }
+
+  const payload = publicProgressSchema.parse(request.body);
+  const user = await getPlatformUserById(session.userId);
+  if (!user) {
+    return reply.notFound('User not found');
+  }
+
+  let moodleCompletionSynced = false;
+  if (user.moodle_user_id) {
+    // Persist client-side state first so Moodle reads cannot regress progress on transient failures.
+    await upsertPublicCourseProgress({
+      userId: session.userId,
+      moodleCourseId: parsedCourseId,
+      completedModuleIds: payload.completedModuleIds,
+      interactionsCount: payload.interactionsCount,
+      xp: payload.xp,
+      totalModules: payload.totalModules,
+      progressPercent: payload.progressPercent,
+      lastActivityAt: payload.lastActivityAt ?? new Date().toISOString()
+    });
+
+    const completionResult = await updateMoodleActivityCompletion({
+      cmid: parsedModuleId,
+      completed: true
+    });
+    moodleCompletionSynced = completionResult.ok;
+  }
+
+  let saved;
+  if (user.moodle_user_id) {
+    const moodleState = await buildMoodleCourseProgress({
+      localUserId: session.userId,
+      moodleUserId: Number(user.moodle_user_id),
+      moodleCourseId: parsedCourseId
+    });
+    saved = moodleState.progress;
+  } else {
+    saved = await upsertPublicCourseProgress({
+      userId: session.userId,
+      moodleCourseId: parsedCourseId,
+      completedModuleIds: payload.completedModuleIds,
+      interactionsCount: payload.interactionsCount,
+      xp: payload.xp,
+      totalModules: payload.totalModules,
+      progressPercent: payload.progressPercent,
+      lastActivityAt: payload.lastActivityAt ?? new Date().toISOString()
+    });
+  }
+  if (!saved) {
+    saved = await upsertPublicCourseProgress({
+      userId: session.userId,
+      moodleCourseId: parsedCourseId,
+      completedModuleIds: payload.completedModuleIds,
+      interactionsCount: payload.interactionsCount,
+      xp: payload.xp,
+      totalModules: payload.totalModules,
+      progressPercent: payload.progressPercent,
+      lastActivityAt: payload.lastActivityAt ?? new Date().toISOString()
+    });
+  }
+
+  return {
+    saved: true,
+    progress: saved,
+    moodleCompletionSynced
+  };
+});
+
+app.get('/admin', async (request, reply) => {
+  ensureAdmin(request);
+
+  const routeRows = routeRegistry
+    .map((entry) => `<tr><td>${entry.method}</td><td>${entry.url}</td></tr>`)
+    .join('');
+
+  const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PAE-U Admin</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #0b1220; color: #e2e8f0; margin: 0; padding: 24px; }
+      .card { background: #111827; border: 1px solid #334155; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; border-bottom: 1px solid #334155; padding: 8px; font-size: 14px; }
+      h1, h2 { margin-top: 0; }
+      code { color: #fcd34d; }
+    </style>
+  </head>
+  <body>
+    <h1>PAE-U Admin Gateway</h1>
+    <div class="card">
+      <h2>Status</h2>
+      <p>Admin API key is required in header <code>x-admin-key</code>.</p>
+      <p>Moodle configured: <strong>${hasMoodleConfig() ? 'yes' : 'no'}</strong></p>
+    </div>
+    <div class="card">
+      <h2>Routes</h2>
+      <table>
+        <thead><tr><th>Method</th><th>URL</th></tr></thead>
+        <tbody>${routeRows}</tbody>
+      </table>
+    </div>
+  </body>
+</html>`;
+
+  reply.type('text/html').send(html);
+});
+
+app.get('/admin/routes', async (request) => {
+  ensureAdmin(request);
+  return {
+    count: routeRegistry.length,
+    routes: routeRegistry
+  };
+});
+
+const adminLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1)
+});
+
+app.post('/admin/auth/login', async (request, reply) => {
+  const payload = adminLoginSchema.parse(request.body);
+  if (payload.email !== config.admin.email || payload.password !== config.admin.password) {
+    return reply.unauthorized('Invalid credentials');
+  }
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + config.admin.sessionTtlMinutes * 60000);
+  const token = randomBytes(32).toString('hex');
+  const session: AdminAuthSession = {
+    token,
+    email: config.admin.email,
+    createdAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString()
+  };
+  adminSessions.set(token, session);
+
+  return {
+    authenticated: true,
+    token: session.token,
+    admin: {
+      email: session.email
+    },
+    createdAt: session.createdAt,
+    expiresAt: session.expiresAt
+  };
+});
+
+app.get('/admin/auth/me', async (request) => {
+  const session = ensureAdmin(request);
+  return {
+    authenticated: true,
+    admin: {
+      email: session.email
+    },
+    createdAt: session.createdAt,
+    expiresAt: session.expiresAt
+  };
+});
+
+app.post('/admin/auth/logout', async (request) => {
+  const token = getBearerToken(request.headers);
+  if (token) {
+    adminSessions.delete(token);
+  }
+  return { loggedOut: true };
+});
+
+app.get('/admin/config', async (request) => {
+  ensureAdmin(request);
+  const moodle = getMoodleConfig();
+  return {
+    server: config.server,
+    db: { urlSet: Boolean(config.db.url) },
+    moodle: {
+      configured: hasMoodleConfig(),
+      baseUrl: moodle.baseUrl || null,
+      tokenSet: Boolean(moodle.token)
+    }
+  };
+});
+
+app.get('/admin/status', async (request) => {
+  ensureAdmin(request);
+  const moodle = getMoodleConfig();
+
+  const [snapshot, moodleSiteInfo, lastCoursesSync, lastUsersSync, lastCategoriesSync, lastExternalEventsSync] = await Promise.all([
+    getAdminSnapshot(),
+    getMoodleSiteInfo(),
+    getIntegrationSetting<{ syncedAt: string; total: number; upsertedCatalogAssets?: number }>(
+      'moodle.last_courses_sync'
+    ),
+    getIntegrationSetting<{
+      syncedAt: string;
+      totalUsers: number;
+      upsertedUsers: number;
+      enrollmentLinks: number;
+      warningsCount: number;
+    }>('moodle.last_users_sync'),
+    getIntegrationSetting<{ syncedAt: string; total: number; source?: string }>('moodle.last_categories_sync'),
+    getIntegrationSetting<{ syncedAt: string; totalFetched: number; upserted: number }>(
+      'external_integration.last_events_sync'
+    )
+  ]);
+
+  const publicRoutes = routeRegistry.filter((route) => route.url.startsWith('/v1/')).length;
+  const adminRoutes = routeRegistry.filter((route) => route.url.startsWith('/admin')).length;
+
+  return {
+    platform: 'PAE-U',
+    timestamp: new Date().toISOString(),
+    uptimeSec: process.uptime(),
+    routes: {
+      total: routeRegistry.length,
+      public: publicRoutes,
+      admin: adminRoutes
+    },
+    db: {
+      connected: true,
+      database: snapshot.database,
+      activeSessions: snapshot.activeDbSessions,
+      pool: {
+        total: pool.totalCount,
+        idle: pool.idleCount,
+        waiting: pool.waitingCount
+      },
+      entities: {
+        tenants: snapshot.tenants,
+        users: snapshot.users,
+        offers: snapshot.offers,
+        entitlements: snapshot.entitlements,
+        catalogByKind: snapshot.catalogByKind,
+        moodleCourses: snapshot.moodleCourses,
+        moodleCategories: snapshot.moodleCategories,
+        userEnrollments: snapshot.userEnrollments,
+        companies: snapshot.companies,
+        companyMembers: snapshot.companyMembers,
+        webinars: snapshot.webinars,
+        podcasts: snapshot.podcasts,
+        externalEvents: snapshot.externalEvents
+      }
+    },
+    moodle: {
+      configured: hasMoodleConfig(),
+      connected: moodleSiteInfo.ok,
+      error: moodleSiteInfo.ok ? null : moodleSiteInfo.error ?? null,
+      siteInfo: moodleSiteInfo.ok ? moodleSiteInfo.data : null,
+      baseUrl: moodle.baseUrl || null,
+      tokenSet: Boolean(moodle.token),
+      lastCoursesSync,
+      lastUsersSync,
+      lastCategoriesSync
+    },
+    externalIntegration: {
+      configured: Boolean(config.externalIntegration.baseUrl && config.externalIntegration.apiKey),
+      baseUrl: config.externalIntegration.baseUrl,
+      lastEventsSync: lastExternalEventsSync
+    }
+  };
+});
+
+app.get('/admin/tenants', async (request) => {
+  ensureAdmin(request);
+  return listTenants();
+});
+
+app.get('/admin/webinars', async (request) => {
+  ensureAdmin(request);
+  return listWebinars();
+});
+
+app.get('/admin/podcasts', async (request) => {
+  ensureAdmin(request);
+  return listPodcasts();
+});
+
+app.post('/admin/webinars', async (request, reply) => {
+  ensureAdmin(request);
+  const payload = createWebinarSchema.parse(request.body);
+  const created = await createWebinar({
+    slug: payload.slug,
+    title: payload.title,
+    subtitle: payload.subtitle ?? null,
+    description: payload.description ?? null,
+    heroImage: payload.heroImage,
+    sourceType: payload.sourceType,
+    sourceUrl: payload.sourceUrl,
+    replayUrl: payload.replayUrl && payload.replayUrl.trim() ? payload.replayUrl.trim() : null,
+    startsAt: payload.startsAt,
+    endsAt: payload.endsAt?.trim() ? payload.endsAt.trim() : null,
+    timezone: payload.timezone ?? 'America/Bogota',
+    ctaLabel: payload.ctaLabel ?? 'Reservar cupo',
+    isActive: payload.isActive ?? true,
+    showOnLanding: payload.showOnLanding ?? true,
+    webinarLinks: payload.webinarLinks ?? [],
+    freeReservationUrl:
+      payload.freeReservationUrl && payload.freeReservationUrl.trim() ? payload.freeReservationUrl.trim() : null,
+    vipReservationUrl:
+      payload.vipReservationUrl && payload.vipReservationUrl.trim() ? payload.vipReservationUrl.trim() : null
+  });
+  return reply.code(201).send({ created: true, webinar: created });
+});
+
+app.patch('/admin/webinars/:webinarId', async (request, reply) => {
+  ensureAdmin(request);
+  const { webinarId } = request.params as { webinarId: string };
+  const payload = updateWebinarSchema.parse(request.body);
+  const updated = await updateWebinar(webinarId, {
+    slug: payload.slug,
+    title: payload.title,
+    subtitle: payload.subtitle,
+    description: payload.description,
+    heroImage: payload.heroImage,
+    sourceType: payload.sourceType,
+    sourceUrl: payload.sourceUrl,
+    replayUrl: payload.replayUrl,
+    startsAt: payload.startsAt,
+    endsAt: payload.endsAt,
+    timezone: payload.timezone,
+    ctaLabel: payload.ctaLabel,
+    isActive: payload.isActive,
+    showOnLanding: payload.showOnLanding,
+    webinarLinks: payload.webinarLinks,
+    freeReservationUrl: payload.freeReservationUrl,
+    vipReservationUrl: payload.vipReservationUrl
+  });
+  if (!updated) {
+    return reply.notFound('Webinar not found');
+  }
+  return { updated: true, webinar: updated };
+});
+
+app.delete('/admin/webinars/:webinarId', async (request, reply) => {
+  ensureAdmin(request);
+  const { webinarId } = request.params as { webinarId: string };
+  const deleted = await deleteWebinar(webinarId);
+  if (!deleted) {
+    return reply.notFound('Webinar not found');
+  }
+  return { deleted: true };
+});
+
+app.post('/admin/podcasts', async (request, reply) => {
+  ensureAdmin(request);
+  const payload = createPodcastSchema.parse(request.body);
+  const normalizedVideo = normalizeYouTubeInput(payload.video);
+  if (!normalizedVideo) {
+    return reply.badRequest('Invalid YouTube URL/code');
+  }
+  const created = await createPodcast({
+    title: payload.title.trim(),
+    videoCode: normalizedVideo.code,
+    videoUrl: normalizedVideo.url,
+    publishedAt: payload.publishedAt,
+    isActive: payload.isActive ?? true,
+    showOnLanding: payload.showOnLanding ?? true,
+    displayOrder: payload.displayOrder ?? 0
+  });
+  return reply.code(201).send({ created: true, podcast: created });
+});
+
+app.patch('/admin/podcasts/:podcastId', async (request, reply) => {
+  ensureAdmin(request);
+  const { podcastId } = request.params as { podcastId: string };
+  const payload = updatePodcastSchema.parse(request.body);
+  const normalizedVideo = payload.video ? normalizeYouTubeInput(payload.video) : null;
+  if (payload.video && !normalizedVideo) {
+    return reply.badRequest('Invalid YouTube URL/code');
+  }
+  const updated = await updatePodcast(podcastId, {
+    title: payload.title?.trim(),
+    videoCode: normalizedVideo?.code,
+    videoUrl: normalizedVideo?.url,
+    publishedAt: payload.publishedAt,
+    isActive: payload.isActive,
+    showOnLanding: payload.showOnLanding,
+    displayOrder: payload.displayOrder
+  });
+  if (!updated) {
+    return reply.notFound('Podcast not found');
+  }
+  return { updated: true, podcast: updated };
+});
+
+app.delete('/admin/podcasts/:podcastId', async (request, reply) => {
+  ensureAdmin(request);
+  const { podcastId } = request.params as { podcastId: string };
+  const deleted = await deletePodcast(podcastId);
+  if (!deleted) {
+    return reply.notFound('Podcast not found');
+  }
+  return { deleted: true };
+});
+
+const externalTicketsQuerySchema = z.object({
+  email: z.string().email()
+});
+
+const updateExternalEventSchema = z.object({
+  groupKey: z.string().min(2).max(80).optional(),
+  groupLabel: z.string().min(2).max(120).optional(),
+  tier: z.enum(['general', 'vip', 'virtual', 'diamante', 'other']).optional(),
+  isActive: z.boolean().optional(),
+  visibleOnLanding: z.boolean().optional(),
+  displayOrder: z.number().int().min(0).max(999).optional()
+});
+
+const updateExternalGroupSchema = z.object({
+  groupLabel: z.string().min(2).max(120).optional(),
+  displayOrder: z.number().int().min(0).max(999).optional(),
+  visibleOnLanding: z.boolean().optional(),
+  isActive: z.boolean().optional()
+});
+
+const updateMoodleConnectionSchema = z.object({
+  baseUrl: z.string().url(),
+  token: z.string().min(8).optional()
+});
+
+app.get('/admin/integration/external/events', async (request) => {
+  ensureAdmin(request);
+  return listExternalIntegrationEvents();
+});
+
+app.get('/admin/integration/external/events/grouped', async (request) => {
+  ensureAdmin(request);
+  const groups = await listGroupedExternalIntegrationEvents();
+  return groups.map((group) => toPublicExternalGroupShape(group));
+});
+
+app.post('/admin/integration/external/sync/events', async (request, reply) => {
+  ensureAdmin(request);
+  try {
+    const result = await runExternalEventsSync();
+    return result;
+  } catch (error) {
+    return reply.badRequest(`External events sync failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+  }
+});
+
+app.patch('/admin/integration/external/events/:eventId', async (request, reply) => {
+  ensureAdmin(request);
+  const { eventId } = request.params as { eventId: string };
+  const payload = updateExternalEventSchema.parse(request.body);
+  const updated = await updateExternalIntegrationEvent(eventId, payload);
+  if (!updated) {
+    return reply.notFound('External event not found');
+  }
+  return { updated: true, event: updated };
+});
+
+app.patch('/admin/integration/external/groups/:groupKey', async (request, reply) => {
+  ensureAdmin(request);
+  const { groupKey } = request.params as { groupKey: string };
+  const payload = updateExternalGroupSchema.parse(request.body);
+  const affected = await updateExternalIntegrationGroup(groupKey, payload);
+  if (affected === 0) {
+    return reply.notFound('External group not found');
+  }
+  return { updated: true, groupKey, affectedEvents: affected };
+});
+
+app.get('/admin/integration/external/tickets', async (request, reply) => {
+  ensureAdmin(request);
+  const query = externalTicketsQuerySchema.parse(request.query);
+  try {
+    const tickets = await fetchExternalIntegrationTicketsByEmail(query.email);
+    return { email: query.email, total: tickets.length, tickets };
+  } catch (error) {
+    return reply.badRequest(
+      `External tickets fetch failed: ${error instanceof Error ? error.message : 'unknown error'}`
+    );
+  }
+});
+
+const createTenantSchema = z.object({
+  id: z.string().min(2),
+  slug: z.string().min(2),
+  name: z.string().min(2),
+  locales: z.array(z.string()).min(1),
+  currency: z.string().min(3),
+  branding: z.object({
+    logoUrl: z.string().url(),
+    primaryColor: z.string(),
+    accentColor: z.string(),
+    heroGradient: z.string()
+  })
+});
+
+app.post('/admin/tenants', async (request) => {
+  ensureAdmin(request);
+  const payload = createTenantSchema.parse(request.body);
+  const tenant = await createTenant(payload);
+  return { created: true, tenant };
+});
+
+const createUserSchema = z.object({
+  fullName: z.string().min(3),
+  email: z.string().email(),
+  locale: z.string().default('en'),
+  roles: z.array(z.string()).default(['learner']),
+  tenantId: z.string().optional()
+});
+
+const enrolUserSchema = z.object({
+  moodleCourseId: z.number().int().positive(),
+  roleId: z.number().int().positive().optional()
+});
+
+const paginationQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  q: z.string().optional(),
+  status: z.enum(['active', 'inactive']).optional(),
+  visible: z.enum(['true', 'false']).optional()
+});
+
+const setUserStatusSchema = z.object({
+  status: z.enum(['active', 'inactive']),
+  syncMoodle: z.boolean().optional().default(true)
+});
+
+const setBulkUsersStatusSchema = z.object({
+  userIds: z.array(z.string().uuid()).min(1),
+  status: z.enum(['active', 'inactive']),
+  syncMoodle: z.boolean().optional().default(true)
+});
+
+const webinarSourceTypeSchema = z.enum(['youtube', 'external', 'hls', 'vimeo', 'zoom']);
+const webinarLinkSchema = z.object({
+  platform: z.string().min(2),
+  url: z.string().url()
+});
+
+const createWebinarSchema = z.object({
+  slug: z
+    .string()
+    .min(3)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Invalid slug format'),
+  title: z.string().min(5),
+  subtitle: z.string().optional(),
+  description: z.string().optional(),
+  heroImage: z.string().url(),
+  sourceType: webinarSourceTypeSchema,
+  sourceUrl: z.string().url(),
+  replayUrl: z.string().url().optional().or(z.literal('')),
+  startsAt: z.string(),
+  endsAt: z.string().optional(),
+  timezone: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  isActive: z.boolean().optional(),
+  showOnLanding: z.boolean().optional(),
+  webinarLinks: z.array(webinarLinkSchema).optional(),
+  freeReservationUrl: z.string().url().optional().or(z.literal('')),
+  vipReservationUrl: z.string().url().optional().or(z.literal(''))
+});
+
+const updateWebinarSchema = createWebinarSchema.partial();
+
+const createPodcastSchema = z.object({
+  title: z.string().min(5),
+  video: z.string().min(6),
+  publishedAt: z.string(),
+  isActive: z.boolean().optional(),
+  showOnLanding: z.boolean().optional(),
+  displayOrder: z.number().int().min(0).max(999).optional()
+});
+
+const updatePodcastSchema = createPodcastSchema.partial();
+
+const enterpriseMemberRoleSchema = z.enum(['representative', 'collaborator']);
+
+const createCompanySchema = z.object({
+  slug: z.string().min(3).optional(),
+  name: z.string().min(3),
+  description: z.string().optional(),
+  contactEmail: z.string().email().optional(),
+  representativeUserId: z.string().uuid(),
+  tenantId: z.string().optional(),
+  isActive: z.boolean().optional()
+});
+
+const updateCompanySchema = z
+  .object({
+    slug: z.string().min(3).optional(),
+    name: z.string().min(3).optional(),
+    description: z.string().optional(),
+    contactEmail: z.string().email().optional().nullable(),
+    representativeUserId: z.string().uuid().optional().nullable(),
+    isActive: z.boolean().optional()
+  })
+  .partial();
+
+const createCompanyMemberSchema = z.object({
+  userId: z.string().uuid().optional(),
+  fullName: z.string().min(3).optional(),
+  email: z.string().email().optional(),
+  locale: z.string().default('es'),
+  role: enterpriseMemberRoleSchema.default('collaborator')
+});
+
+const updateCompanyMemberSchema = z.object({
+  status: z.enum(['active', 'inactive'])
+});
+
+const upsertCompanyCourseSchema = z.object({
+  moodleCourseId: z.number().int().positive(),
+  isActive: z.boolean().optional().default(true)
+});
+
+function normalizeYouTubeInput(input: string): { code: string; url: string } | null {
+  const raw = input.trim();
+  if (!raw) {
+    return null;
+  }
+
+  const isCode = /^[A-Za-z0-9_-]{11}$/.test(raw);
+  if (isCode) {
+    return {
+      code: raw,
+      url: `https://www.youtube.com/watch?v=${raw}`
+    };
+  }
+
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    let code = '';
+    if (host.includes('youtu.be')) {
+      code = url.pathname.replace(/\//g, '');
+    } else if (host.includes('youtube.com')) {
+      code = url.searchParams.get('v') ?? '';
+      if (!code && url.pathname.startsWith('/shorts/')) {
+        code = url.pathname.split('/')[2] ?? '';
+      }
+      if (!code && url.pathname.startsWith('/embed/')) {
+        code = url.pathname.split('/')[2] ?? '';
+      }
+    }
+    if (!/^[A-Za-z0-9_-]{11}$/.test(code)) {
+      return null;
+    }
+    return {
+      code,
+      url: `https://www.youtube.com/watch?v=${code}`
+    };
+  } catch {
+    return null;
+  }
+}
+
+function normalizeUsername(email: string): string {
+  const candidate = email.split('@')[0]?.toLowerCase().replace(/[^a-z0-9_.-]/g, '') ?? 'user';
+  return candidate.slice(0, 40) || 'user';
+}
+
+function splitName(fullName: string): { firstname: string; lastname: string } {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 1) {
+    return { firstname: parts[0], lastname: 'User' };
+  }
+  return {
+    firstname: parts[0],
+    lastname: parts.slice(1).join(' ')
+  };
+}
+
+function generateTemporaryPassword(): string {
+  return `Paeu!${Math.random().toString(36).slice(2, 7)}${Date.now().toString().slice(-4)}`;
+}
+
+function normalizeCompanySlug(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+async function syncCompanyCourseToMembers(input: {
+  companyId: string;
+  moodleCourseId: number;
+  isActive: boolean;
+}) {
+  const members = await listCompanyActiveMembersWithMoodle(input.companyId);
+  for (const member of members) {
+    const moodleUserId = Number(member.moodle_user_id);
+    const localUserId = String(member.user_id);
+    if (!Number.isInteger(moodleUserId) || moodleUserId <= 0) {
+      continue;
+    }
+    if (input.isActive) {
+      const enrolResult = await enrolMoodleUser({
+        userId: moodleUserId,
+        courseId: input.moodleCourseId,
+        roleId: 5
+      });
+      if (enrolResult.ok) {
+        await upsertUserCourseEnrollment({
+          userId: localUserId,
+          moodleCourseId: input.moodleCourseId,
+          status: 'active'
+        });
+      }
+    } else {
+      await unenrolMoodleUser({
+        userId: moodleUserId,
+        courseId: input.moodleCourseId,
+        roleId: 5
+      });
+      await setUserCourseEnrollmentStatusForUsers({
+        userIds: [localUserId],
+        moodleCourseId: input.moodleCourseId,
+        status: 'inactive'
+      });
+    }
+  }
+}
+
+async function syncCompanyCoursesForMember(input: {
+  companyId: string;
+  userId: string;
+  moodleUserId: number;
+}) {
+  const courseIds = await listCompanyActiveCourseAccess(input.companyId);
+  for (const moodleCourseId of courseIds) {
+    const enrolResult = await enrolMoodleUser({
+      userId: input.moodleUserId,
+      courseId: moodleCourseId,
+      roleId: 5
+    });
+    if (enrolResult.ok) {
+      await upsertUserCourseEnrollment({
+        userId: input.userId,
+        moodleCourseId,
+        status: 'active'
+      });
+    }
+  }
+}
+
+async function resolveOrCreateCompanyUser(input: {
+  tenantId: string;
+  userId?: string;
+  fullName?: string;
+  email?: string;
+  locale?: string;
+}) {
+  if (input.userId) {
+    const existingById = await getPlatformUserById(input.userId);
+    if (!existingById) {
+      throw app.httpErrors.notFound('User not found');
+    }
+    return existingById;
+  }
+
+  const email = String(input.email ?? '').trim().toLowerCase();
+  const fullName = String(input.fullName ?? '').trim();
+  const locale = String(input.locale ?? 'es').trim().toLowerCase() || 'es';
+  if (!email || !fullName) {
+    throw app.httpErrors.badRequest('fullName and email are required when userId is not provided');
+  }
+
+  const existingByEmail = await getPlatformUserByEmail(email);
+  if (existingByEmail) {
+    return existingByEmail;
+  }
+
+  const moodleByEmail = await getMoodleUsersByEmail(email);
+  if (moodleByEmail.ok && (moodleByEmail.data?.length ?? 0) > 0) {
+    const moodleUser = moodleByEmail.data?.[0];
+    if (moodleUser) {
+      const upserted = await upsertPlatformUserFromMoodle({
+        moodleUser,
+        tenantId: input.tenantId
+      });
+      if (upserted?.id) {
+        const local = await getPlatformUserById(String(upserted.id));
+        if (local) {
+          return local;
+        }
+      }
+    }
+  }
+
+  const { firstname, lastname } = splitName(fullName);
+  const username = normalizeUsername(email);
+  const tempPassword = generateTemporaryPassword();
+  const createResult = await createMoodleUser({
+    username,
+    firstname,
+    lastname,
+    email,
+    password: tempPassword
+  });
+  if (!createResult.ok || !createResult.data?.[0]?.id) {
+    throw app.httpErrors.badRequest(`Moodle user creation failed: ${createResult.error ?? 'unknown error'}`);
+  }
+
+  const user = await createPlatformUser({
+    id: randomUUID(),
+    fullName,
+    email,
+    locale,
+    roles: ['learner'],
+    tenantId: input.tenantId,
+    moodleUserId: Number(createResult.data[0].id)
+  });
+  return user;
+}
+
+async function getEnterpriseContextForUser(userId: string): Promise<{
+  company: Record<string, unknown> | null;
+  role: 'representative' | 'collaborator' | null;
+}> {
+  const asRepresentative = await getCompanyByRepresentativeUserId(userId);
+  if (asRepresentative) {
+    return {
+      company: asRepresentative as Record<string, unknown>,
+      role: 'representative'
+    };
+  }
+  const asMember = await getCompanyByMemberUserId(userId);
+  if (asMember && String(asMember.membership_status ?? 'active') === 'active' && asMember.is_active !== false) {
+    return {
+      company: asMember as Record<string, unknown>,
+      role: String(asMember.member_role) === 'representative' ? 'representative' : 'collaborator'
+    };
+  }
+  return {
+    company: null,
+    role: null
+  };
+}
+
+async function ensureRepresentativeCompanyFromSession(request: { headers: Record<string, unknown> }) {
+  const session = getPublicSessionFromRequest(request);
+  const context = await getEnterpriseContextForUser(session.userId);
+  if (!context.company || context.role !== 'representative') {
+    throw app.httpErrors.forbidden('Representative account required');
+  }
+  return {
+    session,
+    company: context.company
+  };
+}
+
+app.get('/admin/users', async (request) => {
+  ensureAdmin(request);
+  const query = paginationQuerySchema.parse(request.query);
+  return listPlatformUsersPage({
+    page: query.page,
+    pageSize: query.pageSize,
+    search: query.q,
+    status: query.status
+  });
+});
+
+app.patch('/admin/users/:userId/status', async (request, reply) => {
+  ensureAdmin(request);
+  const { userId } = request.params as { userId: string };
+  const payload = setUserStatusSchema.parse(request.body);
+
+  const user = await getPlatformUserById(userId);
+  if (!user) {
+    return reply.notFound('User not found');
+  }
+
+  if (payload.syncMoodle && user.moodle_user_id) {
+    const moodleResult = await updateMoodleUserStatus({
+      userId: Number(user.moodle_user_id),
+      suspended: payload.status === 'inactive'
+    });
+    if (!moodleResult.ok) {
+      return reply.badRequest(`Moodle update failed: ${moodleResult.error ?? 'unknown error'}`);
+    }
+  }
+
+  const localUpdate = await setPlatformUsersStatus([userId], payload.status);
+
+  return {
+    updated: true,
+    userId,
+    status: payload.status,
+    updatedUsers: localUpdate.updatedUsers,
+    updatedEnrollments: localUpdate.updatedEnrollments
+  };
+});
+
+app.post('/admin/users/status/bulk', async (request) => {
+  ensureAdmin(request);
+  const payload = setBulkUsersStatusSchema.parse(request.body);
+  const users = await getPlatformUsersByIds(payload.userIds);
+  const usersById = new Map(users.map((user) => [String(user.id), user]));
+  const processedIds: string[] = [];
+  const failures: Array<{ userId: string; reason: string }> = [];
+
+  for (const userId of payload.userIds) {
+    const user = usersById.get(userId);
+    if (!user) {
+      failures.push({ userId, reason: 'User not found' });
+      continue;
+    }
+
+    if (payload.syncMoodle && user.moodle_user_id) {
+      const moodleResult = await updateMoodleUserStatus({
+        userId: Number(user.moodle_user_id),
+        suspended: payload.status === 'inactive'
+      });
+      if (!moodleResult.ok) {
+        failures.push({
+          userId,
+          reason: `Moodle update failed: ${moodleResult.error ?? 'unknown error'}`
+        });
+        continue;
+      }
+    }
+
+    processedIds.push(userId);
+  }
+
+  const localUpdate = await setPlatformUsersStatus(processedIds, payload.status);
+
+  return {
+    processed: processedIds.length,
+    requested: payload.userIds.length,
+    status: payload.status,
+    failures,
+    updatedUsers: localUpdate.updatedUsers,
+    updatedEnrollments: localUpdate.updatedEnrollments
+  };
+});
+
+app.get('/admin/users/:userId/courses', async (request, reply) => {
+  ensureAdmin(request);
+  const { userId } = request.params as { userId: string };
+  const user = await getPlatformUserById(userId);
+
+  if (!user) {
+    return reply.notFound('User not found');
+  }
+
+  let moodleCourses: unknown[] = [];
+
+  if (user.moodle_user_id) {
+    const syncResult = await syncUserEnrollmentsFromMoodle(userId, Number(user.moodle_user_id));
+    if (syncResult.synced) {
+      moodleCourses = syncResult.moodleCourses;
+    } else {
+      app.log.warn(
+        {
+          userId,
+          moodleUserId: Number(user.moodle_user_id),
+          error: syncResult.error
+        },
+        'Admin user enrollment sync failed'
+      );
+    }
+  }
+  const localCourses = await listUserCourses(userId);
+
+  return {
+    user,
+    localCourses,
+    moodleCourses
+  };
+});
+
+app.get('/admin/companies', async (request) => {
+  ensureAdmin(request);
+  return listCompanies();
+});
+
+app.post('/admin/companies', async (request, reply) => {
+  ensureAdmin(request);
+  const payload = createCompanySchema.parse(request.body);
+  const tenantId = payload.tenantId ?? (await getTenantAndUser()).tenant?.id;
+  if (!tenantId) {
+    return reply.internalServerError('No tenant available for company creation');
+  }
+  const representative = await getPlatformUserById(payload.representativeUserId);
+  if (!representative) {
+    return reply.notFound('Representative user not found');
+  }
+  const created = await createCompany({
+    slug: normalizeCompanySlug(payload.slug ?? payload.name),
+    name: payload.name.trim(),
+    description: payload.description?.trim() || null,
+    contactEmail: payload.contactEmail?.trim().toLowerCase() || null,
+    representativeUserId: payload.representativeUserId,
+    tenantId,
+    isActive: payload.isActive ?? true
+  });
+  await upsertCompanyMember({
+    companyId: String(created.id),
+    userId: String(payload.representativeUserId),
+    memberRole: 'representative',
+    status: 'active'
+  });
+  const refreshed = await getCompanyById(String(created.id));
+  return reply.code(201).send({
+    created: true,
+    company: refreshed ?? created
+  });
+});
+
+app.patch('/admin/companies/:companyId', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId } = request.params as { companyId: string };
+  const payload = updateCompanySchema.parse(request.body);
+  const existing = await getCompanyById(companyId);
+  if (!existing) {
+    return reply.notFound('Company not found');
+  }
+  const updated = await updateCompany(companyId, {
+    slug: payload.slug ? normalizeCompanySlug(payload.slug) : undefined,
+    name: payload.name?.trim(),
+    description:
+      payload.description === undefined
+        ? undefined
+        : payload.description === null
+          ? null
+          : payload.description.trim(),
+    contactEmail: payload.contactEmail ? payload.contactEmail.trim().toLowerCase() : payload.contactEmail,
+    representativeUserId: payload.representativeUserId,
+    isActive: payload.isActive
+  });
+  if (!updated) {
+    return reply.notFound('Company not found');
+  }
+  if (payload.representativeUserId) {
+    await upsertCompanyMember({
+      companyId,
+      userId: payload.representativeUserId,
+      memberRole: 'representative',
+      status: 'active'
+    });
+  }
+  const refreshed = await getCompanyById(companyId);
+  return { updated: true, company: refreshed ?? updated };
+});
+
+app.get('/admin/companies/:companyId/members', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId } = request.params as { companyId: string };
+  const company = await getCompanyById(companyId);
+  if (!company) {
+    return reply.notFound('Company not found');
+  }
+  return listCompanyMembers(companyId);
+});
+
+app.post('/admin/companies/:companyId/members', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId } = request.params as { companyId: string };
+  const payload = createCompanyMemberSchema.parse(request.body);
+  const company = await getCompanyById(companyId);
+  if (!company) {
+    return reply.notFound('Company not found');
+  }
+
+  const user = await resolveOrCreateCompanyUser({
+    tenantId: String(company.tenant_id),
+    userId: payload.userId,
+    fullName: payload.fullName,
+    email: payload.email,
+    locale: payload.locale
+  });
+
+  const member = await upsertCompanyMember({
+    companyId,
+    userId: String(user.id),
+    memberRole: payload.role,
+    status: 'active'
+  });
+
+  if (String(payload.role) === 'representative') {
+    await updateCompany(companyId, {
+      representativeUserId: String(user.id)
+    });
+  }
+
+  if (user.moodle_user_id) {
+    await syncCompanyCoursesForMember({
+      companyId,
+      userId: String(user.id),
+      moodleUserId: Number(user.moodle_user_id)
+    });
+  }
+
+  const members = await listCompanyMembers(companyId);
+  const hydrated = members.find((item) => String(item.user_id) === String(user.id));
+  return reply.code(201).send({
+    created: true,
+    member: hydrated ?? member,
+    user
+  });
+});
+
+app.patch('/admin/companies/:companyId/members/:userId', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId, userId } = request.params as { companyId: string; userId: string };
+  const payload = updateCompanyMemberSchema.parse(request.body);
+  const company = await getCompanyById(companyId);
+  if (!company) {
+    return reply.notFound('Company not found');
+  }
+  const membership = await getCompanyMembership({ companyId, userId });
+  if (!membership) {
+    return reply.notFound('Member not found in company');
+  }
+  const updated = await setCompanyMemberStatus({
+    companyId,
+    userId,
+    status: payload.status
+  });
+  if (!updated) {
+    return reply.notFound('Member not found in company');
+  }
+  const user = await getPlatformUserById(userId);
+  if (user?.moodle_user_id) {
+    const moodleUserId = Number(user.moodle_user_id);
+    await updateMoodleUserStatus({
+      userId: moodleUserId,
+      suspended: payload.status === 'inactive'
+    });
+    if (payload.status === 'active') {
+      await syncCompanyCoursesForMember({
+        companyId,
+        userId,
+        moodleUserId
+      });
+    } else {
+      const activeCourseIds = await listCompanyActiveCourseAccess(companyId);
+      for (const courseId of activeCourseIds) {
+        await unenrolMoodleUser({
+          userId: moodleUserId,
+          courseId
+        });
+      }
+      await Promise.all(
+        activeCourseIds.map((courseId) =>
+          setUserCourseEnrollmentStatusForUsers({
+            userIds: [userId],
+            moodleCourseId: courseId,
+            status: 'inactive'
+          })
+        )
+      );
+    }
+  }
+  const members = await listCompanyMembers(companyId);
+  const hydrated = members.find((item) => String(item.user_id) === String(userId));
+  return { updated: true, member: hydrated ?? updated };
+});
+
+app.get('/admin/companies/:companyId/courses', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId } = request.params as { companyId: string };
+  const company = await getCompanyById(companyId);
+  if (!company) {
+    return reply.notFound('Company not found');
+  }
+  return listCompanyCourseAccess(companyId);
+});
+
+app.put('/admin/companies/:companyId/courses/:moodleCourseId', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId, moodleCourseId } = request.params as { companyId: string; moodleCourseId: string };
+  const payload = upsertCompanyCourseSchema.parse({
+    ...((request.body as Record<string, unknown>) ?? {}),
+    moodleCourseId: Number(moodleCourseId)
+  });
+  const company = await getCompanyById(companyId);
+  if (!company) {
+    return reply.notFound('Company not found');
+  }
+  const access = await upsertCompanyCourseAccess({
+    companyId,
+    moodleCourseId: payload.moodleCourseId,
+    isActive: payload.isActive ?? true,
+    assignedByUserId: company.representative_user_id ? String(company.representative_user_id) : null
+  });
+  await syncCompanyCourseToMembers({
+    companyId,
+    moodleCourseId: payload.moodleCourseId,
+    isActive: payload.isActive ?? true
+  });
+  return { updated: true, access };
+});
+
+app.delete('/admin/companies/:companyId/courses/:moodleCourseId', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId, moodleCourseId } = request.params as { companyId: string; moodleCourseId: string };
+  const parsedCourseId = Number(moodleCourseId);
+  if (!Number.isInteger(parsedCourseId) || parsedCourseId <= 0) {
+    return reply.badRequest('Invalid moodleCourseId');
+  }
+  const company = await getCompanyById(companyId);
+  if (!company) {
+    return reply.notFound('Company not found');
+  }
+  await syncCompanyCourseToMembers({
+    companyId,
+    moodleCourseId: parsedCourseId,
+    isActive: false
+  });
+  const deleted = await deleteCompanyCourseAccess({
+    companyId,
+    moodleCourseId: parsedCourseId
+  });
+  return { deleted };
+});
+
+app.post('/admin/users', async (request, reply) => {
+  ensureAdmin(request);
+  const payload = createUserSchema.parse(request.body);
+
+  const existing = await getMoodleUsersByEmail(payload.email);
+  if (existing.ok && (existing.data?.length ?? 0) > 0) {
+    return reply.conflict('A Moodle user with this email already exists');
+  }
+
+  const tempPassword = generateTemporaryPassword();
+  const { firstname, lastname } = splitName(payload.fullName);
+  const username = normalizeUsername(payload.email);
+  const createResult = await createMoodleUser({
+    username,
+    firstname,
+    lastname,
+    email: payload.email,
+    password: tempPassword
+  });
+
+  if (!createResult.ok || !createResult.data?.[0]?.id) {
+    return reply.badRequest(`Moodle user creation failed: ${createResult.error ?? 'unknown error'}`);
+  }
+
+  const tenantId = payload.tenantId ?? (await getTenantAndUser()).tenant?.id;
+  if (!tenantId) {
+    return reply.internalServerError('No tenant available for user creation');
+  }
+
+  const user = await createPlatformUser({
+    id: randomUUID(),
+    fullName: payload.fullName,
+    email: payload.email,
+    locale: payload.locale,
+    roles: payload.roles,
+    tenantId,
+    moodleUserId: Number(createResult.data[0].id)
+  });
+
+  return {
+    created: true,
+    user,
+    moodleUserId: Number(createResult.data[0].id),
+    temporaryPassword: tempPassword
+  };
+});
+
+app.post('/admin/users/:userId/enrollments', async (request, reply) => {
+  ensureAdmin(request);
+  const { userId } = request.params as { userId: string };
+  const payload = enrolUserSchema.parse(request.body);
+
+  const user = await getPlatformUserById(userId);
+  if (!user) {
+    return reply.notFound('User not found');
+  }
+
+  if (!user.moodle_user_id) {
+    return reply.badRequest('User is missing moodle_user_id');
+  }
+
+  const enrolResult = await enrolMoodleUser({
+    userId: Number(user.moodle_user_id),
+    courseId: payload.moodleCourseId,
+    roleId: payload.roleId
+  });
+
+  if (!enrolResult.ok) {
+    return reply.badRequest(`Moodle enrollment failed: ${enrolResult.error ?? 'unknown error'}`);
+  }
+
+  await upsertUserCourseEnrollment({
+    userId,
+    moodleCourseId: payload.moodleCourseId,
+    status: 'active'
+  });
+
+  return {
+    enrolled: true,
+    userId,
+    moodleCourseId: payload.moodleCourseId
+  };
+});
+
+app.get('/admin/moodle/config', async (request) => {
+  ensureAdmin(request);
+  const moodle = getMoodleConfig();
+  return {
+    configured: hasMoodleConfig(),
+    baseUrl: moodle.baseUrl || null,
+    tokenSet: Boolean(moodle.token)
+  };
+});
+
+app.put('/admin/moodle/config', async (request, reply) => {
+  ensureAdmin(request);
+  const payload = updateMoodleConnectionSchema.parse(request.body);
+  const current = getMoodleConfig();
+  const effectiveToken = (payload.token ?? '').trim() || current.token;
+  if (!effectiveToken) {
+    return reply.badRequest('Token Moodle is required');
+  }
+  setMoodleConfig({
+    baseUrl: payload.baseUrl,
+    token: effectiveToken
+  });
+  await saveIntegrationSetting('moodle.connection', {
+    baseUrl: payload.baseUrl.trim(),
+    token: effectiveToken,
+    updatedAt: new Date().toISOString()
+  });
+  const siteInfo = await getMoodleSiteInfo();
+  if (!siteInfo.ok) {
+    return reply.badRequest(`Moodle connection saved but validation failed: ${siteInfo.error ?? 'unknown error'}`);
+  }
+  return {
+    updated: true,
+    configured: hasMoodleConfig(),
+    connected: true,
+    siteInfo: siteInfo.data,
+    baseUrl: getMoodleConfig().baseUrl
+  };
+});
+
+app.get('/admin/moodle/status', async (request) => {
+  ensureAdmin(request);
+  const [siteInfo, lastCoursesSync, lastUsersSync, lastCategoriesSync] = await Promise.all([
+    getMoodleSiteInfo(),
+    getIntegrationSetting<{ syncedAt: string; total: number; upsertedCatalogAssets?: number }>(
+      'moodle.last_courses_sync'
+    ),
+    getIntegrationSetting<{
+      syncedAt: string;
+      totalUsers: number;
+      upsertedUsers: number;
+      enrollmentLinks: number;
+      warningsCount: number;
+    }>('moodle.last_users_sync'),
+    getIntegrationSetting<{ syncedAt: string; total: number }>('moodle.last_categories_sync')
+  ]);
+  return {
+    configured: hasMoodleConfig(),
+    siteInfo,
+    lastCoursesSync,
+    lastUsersSync,
+    lastCategoriesSync
+  };
+});
+
+app.get('/admin/moodle/courses', async (request) => {
+  ensureAdmin(request);
+  const query = paginationQuerySchema.parse(request.query);
+  const visible = query.visible ? query.visible === 'true' : undefined;
+  const pageData = await listMoodleCoursesPage({
+    page: query.page,
+    pageSize: query.pageSize,
+    search: query.q,
+    visible
+  });
+  return {
+    items: pageData.items,
+    pagination: pageData.pagination
+  };
+});
+
+app.get('/admin/moodle/users', async (request) => {
+  ensureAdmin(request);
+  return listMoodleBackedUsers();
+});
+
+app.get('/admin/moodle/categories', async (request) => {
+  ensureAdmin(request);
+  return listMoodleCategories();
+});
+
+app.post('/admin/moodle/sync/courses', async (request) => {
+  ensureAdmin(request);
+  return runCoursesSyncInternal();
+});
+
+app.post('/admin/moodle/sync/categories', async (request, reply) => {
+  ensureAdmin(request);
+  const result = await runCategoriesSyncInternal();
+  if (!result.synced) {
+    return reply.badRequest(`Moodle categories sync failed: ${result.error ?? 'unknown error'}`);
+  }
+  return result;
+});
+
+app.post('/admin/moodle/sync/users', async (request, reply) => {
+  ensureAdmin(request);
+  const result = await runUsersSyncInternal();
+  if (!result.synced) {
+    return reply.badRequest(`Moodle users sync failed: ${result.error ?? 'unknown error'}`);
+  }
+  return result;
+});
+
+app.post('/admin/moodle/sync/all', async (request, reply) => {
+  ensureAdmin(request);
+  const categories = await runCategoriesSyncInternal();
+  if (!categories.synced) {
+    return reply.badRequest(`Moodle categories sync failed: ${categories.error ?? 'unknown error'}`);
+  }
+
+  const courses = await runCoursesSyncInternal();
+  if (!courses.synced) {
+    return reply.badRequest(`Moodle courses sync failed: ${courses.error ?? 'unknown error'}`);
+  }
+
+  const users = await runUsersSyncInternal();
+  if (!users.synced) {
+    return reply.badRequest(`Moodle users sync failed: ${users.error ?? 'unknown error'}`);
+  }
+
+  return {
+    synced: true,
+    categories,
+    courses,
+    users
+  };
+});
+
+setInterval(() => {
+  if (!hasMoodleConfig()) {
+    return;
+  }
+  void runFullMoodleSync('auto-interval').catch((error) => {
+    app.log.warn({ error }, 'Auto Moodle sync failed');
+  });
+}, autoSyncIntervalMs);
+
+if (hasMoodleConfig()) {
+  void runFullMoodleSync('startup').catch((error) => {
+    app.log.warn({ error }, 'Startup Moodle sync failed');
+  });
+}
+
+const port = config.server.port;
+const host = config.server.host;
+
+app.listen({ port, host }).catch((error) => {
+  app.log.error(error);
+  process.exit(1);
+});

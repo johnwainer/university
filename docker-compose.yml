@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: pae
+      POSTGRES_PASSWORD: pae
+      POSTGRES_DB: pae_u
+    ports:
+      - "65432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  adminer:
+    image: adminer:4
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+  moodle-db:
+    image: mariadb:11
+    profiles: ["moodle"]
+    environment:
+      MYSQL_ROOT_PASSWORD: moodle_root
+      MYSQL_DATABASE: moodle
+      MYSQL_USER: moodle
+      MYSQL_PASSWORD: moodle
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - moodle_db_data:/var/lib/mysql
+
+  moodle:
+    image: lthub/moodle:4.5.10
+    profiles: ["moodle"]
+    ports:
+      - "8081:80"
+    environment:
+      MOODLE_URL: http://localhost:8081
+      MOODLE_DB_HOST: moodle-db
+      MOODLE_DB_PORT: 3306
+      MOODLE_DB_NAME: moodle
+      MOODLE_DB_USER: moodle
+      MOODLE_DB_PASSWORD: moodle
+    depends_on:
+      - moodle-db
+    volumes:
+      - ./infra/moodle/php/zz-upload.ini:/usr/local/etc/php/conf.d/zz-upload.ini:ro
+
+volumes:
+  postgres_data:
+  moodle_db_data:
