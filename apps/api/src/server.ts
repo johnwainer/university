@@ -40,6 +40,24 @@ import {
   listCompanyActiveMembersWithMoodle,
   listCompanyCourseAccess,
   listCompanyMembers,
+  deleteCompany,
+  removeCompanyMember,
+  getCompanyDashboardStats,
+  getCompanyUserProgress,
+  createCompanyCourseGroup,
+  updateCompanyCourseGroup,
+  deleteCompanyCourseGroup,
+  listCompanyCourseGroups,
+  assignCourseToGroup,
+  removeCourseFromGroup,
+  assignGroupToMember,
+  removeGroupFromMember,
+  listCompanyMemberGroups,
+  listCompanyMemberCourses,
+  getMemberActiveMoodleCourseIds,
+  assignCourseToMember,
+  removeCourseFromMember,
+  getGroupMembers,
   listMoodleBackedUsers,
   listMoodleCategories,
   listMoodleCoursesPage,
@@ -367,8 +385,8 @@ async function buildMoodleCourseProgress(input: {
 
   const cachedCompleted = Array.isArray(cachedProgress?.completed_module_ids)
     ? cachedProgress.completed_module_ids
-        .map((value: unknown) => Number(value))
-        .filter((value: number) => Number.isInteger(value) && value > 0)
+      .map((value: unknown) => Number(value))
+      .filter((value: number) => Number.isInteger(value) && value > 0)
     : [];
   const mergedCompletedModuleIds = Array.from(new Set([...cachedCompleted, ...completedModuleIds])).sort((a, b) => a - b);
 
@@ -677,6 +695,27 @@ async function runUsersSyncInternal() {
     enrollmentLinks,
     warnings
   };
+}
+
+async function runEnterpriseSyncInternal() {
+  const companies = await listCompanies();
+  if (companies.length === 0) {
+    return { synced: true, upsertedMembers: 0, error: null };
+  }
+  let updatedCount = 0;
+  for (const company of companies) {
+    const members = await listCompanyMembers(String(company.id));
+    for (const member of members) {
+      if (!member.moodle_user_id) continue;
+      await syncCompanyCoursesForMember({
+        companyId: String(company.id),
+        userId: String(member.user_id),
+        moodleUserId: Number(member.moodle_user_id)
+      });
+      updatedCount += 1;
+    }
+  }
+  return { synced: true, upsertedMembers: updatedCount, error: null };
 }
 
 async function runFullMoodleSync(trigger: string): Promise<void> {
@@ -1468,16 +1507,20 @@ app.get('/v1/enterprise/overview', async (request) => {
   }
   const companyId = String(context.company.id);
   if (context.role === 'representative') {
-    const [members, courseAccess] = await Promise.all([
+    const [members, courseAccess, stats, memberProgress] = await Promise.all([
       listCompanyMembers(companyId),
-      listCompanyCourseAccess(companyId)
+      listCompanyCourseAccess(companyId),
+      getCompanyDashboardStats(companyId),
+      getCompanyUserProgress(companyId)
     ]);
     return {
       available: true,
       role: context.role,
       company: context.company,
       members,
-      courseAccess
+      courseAccess,
+      stats,
+      memberProgress
     };
   }
   const [allMembers, courseAccess] = await Promise.all([listCompanyMembers(companyId), listCompanyCourseAccess(companyId)]);
@@ -1494,7 +1537,7 @@ app.get('/v1/enterprise/overview', async (request) => {
 app.post('/v1/enterprise/members', async (request, reply) => {
   const { company } = await ensureRepresentativeCompanyFromSession(request);
   const payload = createCompanyMemberSchema.parse(request.body);
-  const companyId = String(company.id);
+  const companyId = String(String(company.id));
   const user = await resolveOrCreateCompanyUser({
     tenantId: String(company.tenant_id),
     userId: payload.userId,
@@ -1532,7 +1575,7 @@ app.patch('/v1/enterprise/members/:userId/status', async (request, reply) => {
   const { session, company } = await ensureRepresentativeCompanyFromSession(request);
   const { userId } = request.params as { userId: string };
   const payload = updateCompanyMemberSchema.parse(request.body);
-  const companyId = String(company.id);
+  const companyId = String(String(company.id));
   if (userId === session.userId) {
     return reply.badRequest('Representative cannot change own member status');
   }
@@ -1540,10 +1583,11 @@ app.patch('/v1/enterprise/members/:userId/status', async (request, reply) => {
   if (!membership) {
     return reply.notFound('Member not found in company');
   }
+  const newStatus = payload.status ?? (membership.status as 'active' | 'inactive');
   const updated = await setCompanyMemberStatus({
     companyId,
     userId,
-    status: payload.status
+    status: newStatus
   });
   if (!updated) {
     return reply.notFound('Member not found in company');
@@ -1553,7 +1597,7 @@ app.patch('/v1/enterprise/members/:userId/status', async (request, reply) => {
     const moodleUserId = Number(user.moodle_user_id);
     await updateMoodleUserStatus({
       userId: moodleUserId,
-      suspended: payload.status === 'inactive'
+      suspended: newStatus === 'inactive'
     });
     if (payload.status === 'active') {
       await syncCompanyCoursesForMember({
@@ -1595,7 +1639,7 @@ app.put('/v1/enterprise/courses/:moodleCourseId', async (request, reply) => {
     ...((request.body as Record<string, unknown>) ?? {}),
     moodleCourseId: Number(moodleCourseId)
   });
-  const companyId = String(company.id);
+  const companyId = String(String(company.id));
   const access = await upsertCompanyCourseAccess({
     companyId,
     moodleCourseId: payload.moodleCourseId,
@@ -1620,7 +1664,7 @@ app.delete('/v1/enterprise/courses/:moodleCourseId', async (request, reply) => {
   if (!Number.isInteger(parsedCourseId) || parsedCourseId <= 0) {
     return reply.badRequest('Invalid moodleCourseId');
   }
-  const companyId = String(company.id);
+  const companyId = String(String(company.id));
   await syncCompanyCourseToMembers({
     companyId,
     moodleCourseId: parsedCourseId,
@@ -1631,6 +1675,197 @@ app.delete('/v1/enterprise/courses/:moodleCourseId', async (request, reply) => {
     moodleCourseId: parsedCourseId
   });
   return { deleted };
+});
+
+app.post('/v1/enterprise/groups', async (request, reply) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  const { name, description } = request.body as { name: string; description?: string };
+  if (!name || name.trim().length === 0) {
+    return reply.badRequest('A name is required for the group');
+  }
+  const group = await createCompanyCourseGroup({
+    id: randomUUID(),
+    companyId: String(company.id),
+    name: name.trim(),
+    description: description?.trim() || ''
+  });
+  return group;
+});
+
+app.get('/v1/enterprise/groups', async (request) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  return listCompanyCourseGroups(String(company.id));
+});
+
+app.put('/v1/enterprise/groups/:groupId', async (request, reply) => {
+  await ensureRepresentativeCompanyFromSession(request);
+  const { groupId } = request.params as { groupId: string };
+  const { name, description } = request.body as { name?: string; description?: string };
+  const updated = await updateCompanyCourseGroup({
+    id: groupId,
+    name: name?.trim(),
+    description: description?.trim()
+  });
+  if (!updated) return reply.notFound('Group not found');
+  return { success: true };
+});
+
+app.delete('/v1/enterprise/groups/:groupId', async (request, reply) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  const { groupId } = request.params as { groupId: string };
+
+  // Before deleting the group, get its members to sync later
+  const groupMembers = await getGroupMembers(groupId);
+
+  const deleted = await deleteCompanyCourseGroup(groupId);
+  if (deleted) {
+    // Sync each member who was part of this group
+    for (const member of groupMembers) {
+      if (member.company_id === String(company.id)) {
+        const user = await getPlatformUserById(member.user_id);
+        if (user && user.moodle_user_id) {
+          await syncCompanyCoursesForMember({
+            companyId: String(company.id),
+            userId: member.user_id,
+            moodleUserId: user.moodle_user_id
+          });
+        }
+      }
+    }
+  }
+  return { deleted };
+});
+
+app.post('/v1/enterprise/groups/:groupId/courses/:moodleCourseId', async (request, reply) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  const { groupId, moodleCourseId } = request.params as { groupId: string; moodleCourseId: string };
+  const parsedCourseId = Number(moodleCourseId);
+  if (!Number.isInteger(parsedCourseId)) return reply.badRequest('Invalid moodleCourseId');
+
+  const assigned = await assignCourseToGroup({ groupId, moodleCourseId: parsedCourseId });
+  if (assigned) {
+    const groupMembers = await getGroupMembers(groupId);
+    for (const member of groupMembers) {
+      if (member.company_id === String(company.id)) {
+        const user = await getPlatformUserById(member.user_id);
+        if (user && user.moodle_user_id) {
+          await syncCompanyCoursesForMember({
+            companyId: String(company.id),
+            userId: member.user_id,
+            moodleUserId: user.moodle_user_id
+          });
+        }
+      }
+    }
+  }
+  return { success: true };
+});
+
+app.delete('/v1/enterprise/groups/:groupId/courses/:moodleCourseId', async (request, reply) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  const { groupId, moodleCourseId } = request.params as { groupId: string; moodleCourseId: string };
+  const parsedCourseId = Number(moodleCourseId);
+  const removed = await removeCourseFromGroup({ groupId, moodleCourseId: parsedCourseId });
+  if (removed) {
+    const groupMembers = await getGroupMembers(groupId);
+    for (const member of groupMembers) {
+      if (member.company_id === String(company.id)) {
+        const user = await getPlatformUserById(member.user_id);
+        if (user && user.moodle_user_id) {
+          await syncCompanyCoursesForMember({
+            companyId: String(company.id),
+            userId: member.user_id,
+            moodleUserId: user.moodle_user_id
+          });
+        }
+      }
+    }
+  }
+  return { removed };
+});
+
+app.get('/v1/enterprise/members/:userId/groups', async (request) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  const { userId } = request.params as { userId: string };
+  return listCompanyMemberGroups(String(company.id), userId);
+});
+
+app.post('/v1/enterprise/members/:userId/groups/:groupId', async (request, reply) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  const { userId, groupId } = request.params as { userId: string; groupId: string };
+  const assigned = await assignGroupToMember({ companyId: String(company.id), userId, groupId });
+  if (assigned) {
+    const user = await getPlatformUserById(userId);
+    if (user && user.moodle_user_id) {
+      await syncCompanyCoursesForMember({
+        companyId: String(company.id),
+        userId: userId,
+        moodleUserId: user.moodle_user_id
+      });
+    }
+  }
+  return { success: !!assigned };
+});
+
+app.delete('/v1/enterprise/members/:userId/groups/:groupId', async (request, reply) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  const { userId, groupId } = request.params as { userId: string; groupId: string };
+  const removed = await removeGroupFromMember({ companyId: String(company.id), userId, groupId });
+  if (removed) {
+    const user = await getPlatformUserById(userId);
+    if (user && user.moodle_user_id) {
+      await syncCompanyCoursesForMember({
+        companyId: String(company.id),
+        userId: userId,
+        moodleUserId: user.moodle_user_id
+      });
+    }
+  }
+  return { removed };
+});
+
+app.get('/v1/enterprise/members/:userId/courses', async (request) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  const { userId } = request.params as { userId: string };
+  return listCompanyMemberCourses(String(company.id), userId);
+});
+
+app.post('/v1/enterprise/members/:userId/courses/:moodleCourseId', async (request, reply) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  const { userId, moodleCourseId } = request.params as { userId: string; moodleCourseId: string };
+  const parsedCourseId = Number(moodleCourseId);
+  if (!Number.isInteger(parsedCourseId)) return reply.badRequest('Invalid Moodle course');
+
+  const assigned = await assignCourseToMember({ companyId: String(company.id), userId, moodleCourseId: parsedCourseId });
+  if (assigned) {
+    const user = await getPlatformUserById(userId);
+    if (user && user.moodle_user_id) {
+      await syncCompanyCoursesForMember({
+        companyId: String(company.id),
+        userId: userId,
+        moodleUserId: user.moodle_user_id
+      });
+    }
+  }
+  return { success: !!assigned };
+});
+
+app.delete('/v1/enterprise/members/:userId/courses/:moodleCourseId', async (request, reply) => {
+  const { company } = await ensureRepresentativeCompanyFromSession(request);
+  const { userId, moodleCourseId } = request.params as { userId: string; moodleCourseId: string };
+  const parsedCourseId = Number(moodleCourseId);
+  const removed = await removeCourseFromMember({ companyId: String(company.id), userId, moodleCourseId: parsedCourseId });
+  if (removed) {
+    const user = await getPlatformUserById(userId);
+    if (user && user.moodle_user_id) {
+      await syncCompanyCoursesForMember({
+        companyId: String(company.id),
+        userId: userId,
+        moodleUserId: user.moodle_user_id
+      });
+    }
+  }
+  return { removed };
 });
 
 app.get('/v1/catalog/:slug', async (request, reply) => {
@@ -2465,7 +2700,7 @@ const enrolUserSchema = z.object({
 
 const paginationQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  pageSize: z.coerce.number().int().min(1).max(10000).default(20),
   q: z.string().optional(),
   status: z.enum(['active', 'inactive']).optional(),
   visible: z.enum(['true', 'false']).optional()
@@ -2556,7 +2791,10 @@ const createCompanyMemberSchema = z.object({
 });
 
 const updateCompanyMemberSchema = z.object({
-  status: z.enum(['active', 'inactive'])
+  status: z.enum(['active', 'inactive']).optional(),
+  fullName: z.string().min(3).optional(),
+  email: z.string().email().optional(),
+  role: enterpriseMemberRoleSchema.optional()
 });
 
 const upsertCompanyCourseSchema = z.object({
@@ -2648,18 +2886,8 @@ async function syncCompanyCourseToMembers(input: {
       continue;
     }
     if (input.isActive) {
-      const enrolResult = await enrolMoodleUser({
-        userId: moodleUserId,
-        courseId: input.moodleCourseId,
-        roleId: 5
-      });
-      if (enrolResult.ok) {
-        await upsertUserCourseEnrollment({
-          userId: localUserId,
-          moodleCourseId: input.moodleCourseId,
-          status: 'active'
-        });
-      }
+      // Do not auto-enroll everyone when a course is added to the company.
+      // Representatives manage access via groups and individual assignments.
     } else {
       await unenrolMoodleUser({
         userId: moodleUserId,
@@ -2675,23 +2903,38 @@ async function syncCompanyCourseToMembers(input: {
   }
 }
 
-async function syncCompanyCoursesForMember(input: {
+export async function syncCompanyCoursesForMember(input: {
   companyId: string;
   userId: string;
   moodleUserId: number;
 }) {
-  const courseIds = await listCompanyActiveCourseAccess(input.companyId);
-  for (const moodleCourseId of courseIds) {
-    const enrolResult = await enrolMoodleUser({
-      userId: input.moodleUserId,
-      courseId: moodleCourseId,
-      roleId: 5
-    });
-    if (enrolResult.ok) {
-      await upsertUserCourseEnrollment({
-        userId: input.userId,
+  const allCompanyCourseIds = await listCompanyActiveCourseAccess(input.companyId);
+  const memberActiveCourseIds = await getMemberActiveMoodleCourseIds(input.companyId, input.userId);
+
+  for (const moodleCourseId of allCompanyCourseIds) {
+    if (memberActiveCourseIds.includes(moodleCourseId)) {
+      const enrolResult = await enrolMoodleUser({
+        userId: input.moodleUserId,
+        courseId: moodleCourseId,
+        roleId: 5
+      });
+      if (enrolResult.ok) {
+        await upsertUserCourseEnrollment({
+          userId: input.userId,
+          moodleCourseId,
+          status: 'active'
+        });
+      }
+    } else {
+      await unenrolMoodleUser({
+        userId: input.moodleUserId,
+        courseId: moodleCourseId,
+        roleId: 5
+      });
+      await setUserCourseEnrollmentStatusForUsers({
+        userIds: [input.userId],
         moodleCourseId,
-        status: 'active'
+        status: 'inactive'
       });
     }
   }
@@ -2998,6 +3241,20 @@ app.patch('/admin/companies/:companyId', async (request, reply) => {
   return { updated: true, company: refreshed ?? updated };
 });
 
+app.delete('/admin/companies/:companyId', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId } = request.params as { companyId: string };
+  const existing = await getCompanyById(companyId);
+  if (!existing) {
+    return reply.notFound('Company not found');
+  }
+  const deleted = await deleteCompany(companyId);
+  if (!deleted) {
+    return reply.status(500).send({ error: 'Failed to delete company' });
+  }
+  return { deleted: true };
+});
+
 app.get('/admin/companies/:companyId/members', async (request, reply) => {
   ensureAdmin(request);
   const { companyId } = request.params as { companyId: string };
@@ -3006,6 +3263,20 @@ app.get('/admin/companies/:companyId/members', async (request, reply) => {
     return reply.notFound('Company not found');
   }
   return listCompanyMembers(companyId);
+});
+
+app.get('/admin/companies/:companyId/stats', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId } = request.params as { companyId: string };
+  const company = await getCompanyById(companyId);
+  if (!company) {
+    return reply.notFound('Company not found');
+  }
+  const [stats, memberProgress] = await Promise.all([
+    getCompanyDashboardStats(companyId),
+    getCompanyUserProgress(companyId)
+  ]);
+  return { stats, memberProgress };
 });
 
 app.post('/admin/companies/:companyId/members', async (request, reply) => {
@@ -3067,49 +3338,114 @@ app.patch('/admin/companies/:companyId/members/:userId', async (request, reply) 
   if (!membership) {
     return reply.notFound('Member not found in company');
   }
-  const updated = await setCompanyMemberStatus({
+
+  const newStatus = payload.status ?? membership.status;
+  const newRole = payload.role ?? membership.member_role;
+
+  const updated = await upsertCompanyMember({
     companyId,
     userId,
-    status: payload.status
+    status: newStatus as 'active' | 'inactive',
+    memberRole: newRole as 'representative' | 'collaborator'
   });
   if (!updated) {
     return reply.notFound('Member not found in company');
   }
   const user = await getPlatformUserById(userId);
-  if (user?.moodle_user_id) {
-    const moodleUserId = Number(user.moodle_user_id);
-    await updateMoodleUserStatus({
-      userId: moodleUserId,
-      suspended: payload.status === 'inactive'
-    });
-    if (payload.status === 'active') {
-      await syncCompanyCoursesForMember({
-        companyId,
+  if (user) {
+    if (payload.fullName || payload.email) {
+      await updatePlatformUserProfile({
         userId,
-        moodleUserId
+        fullName: payload.fullName ?? user.full_name,
+        email: payload.email ?? user.email,
+        locale: user.locale
       });
-    } else {
-      const activeCourseIds = await listCompanyActiveCourseAccess(companyId);
-      for (const courseId of activeCourseIds) {
-        await unenrolMoodleUser({
+    }
+
+    if (user.moodle_user_id) {
+      const moodleUserId = Number(user.moodle_user_id);
+
+      if (payload.fullName || payload.email) {
+        const { firstname, lastname } = splitName(payload.fullName ?? user.full_name);
+        await updateMoodleUserProfile({
           userId: moodleUserId,
-          courseId
+          firstname,
+          lastname,
+          email: payload.email ?? user.email
         });
       }
-      await Promise.all(
-        activeCourseIds.map((courseId) =>
-          setUserCourseEnrollmentStatusForUsers({
-            userIds: [userId],
-            moodleCourseId: courseId,
-            status: 'inactive'
-          })
-        )
-      );
+
+      if (payload.status) {
+        await updateMoodleUserStatus({
+          userId: moodleUserId,
+          suspended: payload.status === 'inactive'
+        });
+        if (payload.status === 'active') {
+          await syncCompanyCoursesForMember({
+            companyId,
+            userId,
+            moodleUserId
+          });
+        } else {
+          const activeCourseIds = await listCompanyActiveCourseAccess(companyId);
+          for (const courseId of activeCourseIds) {
+            await unenrolMoodleUser({
+              userId: moodleUserId,
+              courseId
+            });
+          }
+          await Promise.all(
+            activeCourseIds.map((courseId) =>
+              setUserCourseEnrollmentStatusForUsers({
+                userIds: [userId],
+                moodleCourseId: courseId,
+                status: 'inactive'
+              })
+            )
+          );
+        }
+      }
     }
   }
+
   const members = await listCompanyMembers(companyId);
   const hydrated = members.find((item) => String(item.user_id) === String(userId));
   return { updated: true, member: hydrated ?? updated };
+});
+
+app.delete('/admin/companies/:companyId/members/:userId', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId, userId } = request.params as { companyId: string; userId: string };
+  const company = await getCompanyById(companyId);
+  if (!company) {
+    return reply.notFound('Company not found');
+  }
+  const membership = await getCompanyMembership({ companyId, userId });
+  if (!membership) {
+    return reply.notFound('Member not found in company');
+  }
+  const user = await getPlatformUserById(userId);
+  if (user?.moodle_user_id) {
+    const moodleUserId = Number(user.moodle_user_id);
+    const activeCourseIds = await listCompanyActiveCourseAccess(companyId);
+    for (const courseId of activeCourseIds) {
+      await unenrolMoodleUser({
+        userId: moodleUserId,
+        courseId
+      });
+    }
+    await Promise.all(
+      activeCourseIds.map((courseId) =>
+        setUserCourseEnrollmentStatusForUsers({
+          userIds: [userId],
+          moodleCourseId: courseId,
+          status: 'inactive'
+        })
+      )
+    );
+  }
+  const deleted = await removeCompanyMember(companyId, userId);
+  return { deleted };
 });
 
 app.get('/admin/companies/:companyId/courses', async (request, reply) => {
@@ -3167,6 +3503,131 @@ app.delete('/admin/companies/:companyId/courses/:moodleCourseId', async (request
     companyId,
     moodleCourseId: parsedCourseId
   });
+  return { deleted };
+});
+
+app.get('/admin/companies/:companyId/groups', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId } = request.params as { companyId: string };
+  return listCompanyCourseGroups(companyId);
+});
+
+app.post('/admin/companies/:companyId/groups', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId } = request.params as { companyId: string };
+  const payload = z.object({ name: z.string(), description: z.string().optional() }).parse(request.body);
+  const created = await createCompanyCourseGroup({
+    id: randomUUID(),
+    companyId,
+    name: payload.name,
+    description: payload.description
+  });
+  return { created };
+});
+
+app.patch('/admin/companies/:companyId/groups/:groupId', async (request, reply) => {
+  ensureAdmin(request);
+  const { groupId } = request.params as { groupId: string };
+  const payload = z.object({ name: z.string().optional(), description: z.string().optional() }).parse(request.body);
+  const updated = await updateCompanyCourseGroup({ id: groupId, name: payload.name, description: payload.description });
+  return { updated };
+});
+
+app.delete('/admin/companies/:companyId/groups/:groupId', async (request, reply) => {
+  ensureAdmin(request);
+  const { groupId } = request.params as { groupId: string };
+  const members = await getGroupMembers(groupId);
+  const deleted = await deleteCompanyCourseGroup(groupId);
+  for (const m of members) {
+     const dbMember = await getPlatformUserById(m.user_id);
+     if (dbMember?.moodle_user_id) {
+        await syncCompanyCoursesForMember({ companyId: m.company_id, userId: m.user_id, moodleUserId: Number(dbMember.moodle_user_id) });
+     }
+  }
+  return { deleted };
+});
+
+app.put('/admin/companies/:companyId/groups/:groupId/courses/:moodleCourseId', async (request, reply) => {
+  ensureAdmin(request);
+  const { groupId, moodleCourseId } = request.params as { groupId: string, moodleCourseId: string };
+  const parsedCourseId = parseInt(moodleCourseId, 10);
+  const added = await assignCourseToGroup({ groupId, moodleCourseId: parsedCourseId });
+  const members = await getGroupMembers(groupId);
+  for (const m of members) {
+     const dbMember = await getPlatformUserById(m.user_id);
+     if (dbMember?.moodle_user_id) {
+        await syncCompanyCoursesForMember({ companyId: m.company_id, userId: m.user_id, moodleUserId: Number(dbMember.moodle_user_id) });
+     }
+  }
+  return { added };
+});
+
+app.delete('/admin/companies/:companyId/groups/:groupId/courses/:moodleCourseId', async (request, reply) => {
+  ensureAdmin(request);
+  const { groupId, moodleCourseId } = request.params as { groupId: string, moodleCourseId: string };
+  const parsedCourseId = parseInt(moodleCourseId, 10);
+  const deleted = await removeCourseFromGroup({ groupId, moodleCourseId: parsedCourseId });
+  const members = await getGroupMembers(groupId);
+  for (const m of members) {
+     const dbMember = await getPlatformUserById(m.user_id);
+     if (dbMember?.moodle_user_id) {
+        await syncCompanyCoursesForMember({ companyId: m.company_id, userId: m.user_id, moodleUserId: Number(dbMember.moodle_user_id) });
+     }
+  }
+  return { deleted };
+});
+
+app.get('/admin/companies/:companyId/members/:userId/assignments', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId, userId } = request.params as { companyId: string, userId: string };
+  const groups = await listCompanyMemberGroups(companyId, userId);
+  const courses = await listCompanyMemberCourses(companyId, userId);
+  return { groups, courses };
+});
+
+app.put('/admin/companies/:companyId/members/:userId/groups/:groupId', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId, userId, groupId } = request.params as { companyId: string, userId: string, groupId: string };
+  const added = await assignGroupToMember({ companyId, userId, groupId });
+  const dbMember = await getPlatformUserById(userId);
+  if (dbMember?.moodle_user_id) {
+     await syncCompanyCoursesForMember({ companyId, userId, moodleUserId: Number(dbMember.moodle_user_id) });
+  }
+  return { added };
+});
+
+app.delete('/admin/companies/:companyId/members/:userId/groups/:groupId', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId, userId, groupId } = request.params as { companyId: string, userId: string, groupId: string };
+  const deleted = await removeGroupFromMember({ companyId, userId, groupId });
+  const dbMember = await getPlatformUserById(userId);
+  if (dbMember?.moodle_user_id) {
+     await syncCompanyCoursesForMember({ companyId, userId, moodleUserId: Number(dbMember.moodle_user_id) });
+  }
+  return { deleted };
+});
+
+app.put('/admin/companies/:companyId/members/:userId/courses/:moodleCourseId', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId, userId, moodleCourseId } = request.params as { companyId: string, userId: string, moodleCourseId: string };
+  const parsedCourseId = parseInt(moodleCourseId, 10);
+  const added = await assignCourseToMember({ companyId, userId, moodleCourseId: parsedCourseId });
+  const dbMember = await getPlatformUserById(userId);
+  if (dbMember?.moodle_user_id) {
+     await syncCompanyCoursesForMember({ companyId, userId, moodleUserId: Number(dbMember.moodle_user_id) });
+  }
+  return { added };
+});
+
+app.delete('/admin/companies/:companyId/members/:userId/courses/:moodleCourseId', async (request, reply) => {
+  ensureAdmin(request);
+  const { companyId, userId, moodleCourseId } = request.params as { companyId: string, userId: string, moodleCourseId: string };
+  const parsedCourseId = parseInt(moodleCourseId, 10);
+  const deleted = await removeCourseFromMember({ companyId, userId, moodleCourseId: parsedCourseId });
+  const dbMember = await getPlatformUserById(userId);
+  if (dbMember?.moodle_user_id) {
+     await syncCompanyCoursesForMember({ companyId, userId, moodleUserId: Number(dbMember.moodle_user_id) });
+  }
   return { deleted };
 });
 
@@ -3364,6 +3825,15 @@ app.post('/admin/moodle/sync/users', async (request, reply) => {
   const result = await runUsersSyncInternal();
   if (!result.synced) {
     return reply.badRequest(`Moodle users sync failed: ${result.error ?? 'unknown error'}`);
+  }
+  return result;
+});
+
+app.post('/admin/moodle/sync/enterprise', async (request, reply) => {
+  ensureAdmin(request);
+  const result = await runEnterpriseSyncInternal();
+  if (!result.synced) {
+    return reply.badRequest(`Moodle enterprise sync failed: ${result.error ?? 'unknown error'}`);
   }
   return result;
 });

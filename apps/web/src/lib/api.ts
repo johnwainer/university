@@ -125,32 +125,32 @@ export type AdminStatus = {
     siteInfo: Record<string, unknown> | null;
     lastCoursesSync: MoodleLastSync;
     lastUsersSync:
-      | {
-          syncedAt: string;
-          totalUsers: number;
-          upsertedUsers: number;
-          enrollmentLinks: number;
-          warningsCount: number;
-        }
-      | null;
+    | {
+      syncedAt: string;
+      totalUsers: number;
+      upsertedUsers: number;
+      enrollmentLinks: number;
+      warningsCount: number;
+    }
+    | null;
     lastCategoriesSync:
-      | {
-          syncedAt: string;
-          total: number;
-          source?: string;
-        }
-      | null;
+    | {
+      syncedAt: string;
+      total: number;
+      source?: string;
+    }
+    | null;
   };
   externalIntegration: {
     configured: boolean;
     baseUrl: string;
     lastEventsSync:
-      | {
-          syncedAt: string;
-          totalFetched: number;
-          upserted: number;
-        }
-      | null;
+    | {
+      syncedAt: string;
+      totalFetched: number;
+      upserted: number;
+    }
+    | null;
   };
 };
 
@@ -523,6 +523,8 @@ export type CompanyMemberRecord = {
   moodle_user_id: number | null;
   created_at: string;
   updated_at: string;
+  assigned_groups: { id: string; name: string }[];
+  assigned_courses: { id: number; name: string }[];
 };
 
 export type CompanyCourseAccessRecord = {
@@ -537,12 +539,56 @@ export type CompanyCourseAccessRecord = {
   updated_at: string;
 };
 
+export type CompanyDashboardStats = {
+  totalMembers: number;
+  activeMembers: number;
+  totalEnrollments: number;
+  averageProgress: number;
+  totalInteractions: number;
+  lastActivity: string | null;
+};
+
+export type CompanyUserProgressRecord = {
+  user_id: string;
+  full_name: string;
+  email: string;
+  member_status: string;
+  moodle_course_id: number;
+  course_name: string;
+  progress_percent: number;
+  interactions_count: number;
+  last_activity_at: string | null;
+};
+
+export type CompanyCourseGroup = {
+  id: string;
+  company_id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+  items: { moodle_course_id: number; full_name?: string; short_name?: string }[];
+};
+
+export type MemberCourseGroupAssoc = {
+  id: string;
+  name: string;
+  description: string;
+};
+
+export type MemberCourseAssoc = {
+  moodle_course_id: number;
+  full_name?: string;
+  short_name?: string;
+};
 export type EnterpriseOverviewResponse = {
   available: boolean;
   role: 'representative' | 'collaborator' | null;
   company: CompanyRecord | null;
   members: CompanyMemberRecord[];
   courseAccess: CompanyCourseAccessRecord[];
+  stats?: CompanyDashboardStats;
+  memberProgress?: CompanyUserProgressRecord[];
 };
 
 export const api = {
@@ -674,7 +720,84 @@ export const api = {
       fetchJson<{ deleted: boolean }>(`/v1/enterprise/courses/${moodleCourseId}`, {
         method: 'DELETE',
         auth: { token }
-      })
+      }),
+    enterpriseGroups: (token: string) =>
+      fetchJson<CompanyCourseGroup[]>('/v1/enterprise/groups', {
+        auth: { token }
+      }),
+    enterpriseCreateGroup: (token: string, payload: { name: string; description?: string }) =>
+      fetchJson<CompanyCourseGroup>('/v1/enterprise/groups', {
+        method: 'POST',
+        auth: { token },
+        body: payload
+      }),
+    enterpriseUpdateGroup: (token: string, groupId: string, payload: { name?: string; description?: string }) =>
+      fetchJson<{ success: boolean }>(`/v1/enterprise/groups/${encodeURIComponent(groupId)}`, {
+        method: 'PUT',
+        auth: { token },
+        body: payload
+      }),
+    enterpriseDeleteGroup: (token: string, groupId: string) =>
+      fetchJson<{ deleted: boolean }>(`/v1/enterprise/groups/${encodeURIComponent(groupId)}`, {
+        method: 'DELETE',
+        auth: { token }
+      }),
+    enterpriseAddCourseToGroup: (token: string, groupId: string, moodleCourseId: number) =>
+      fetchJson<{ success: boolean }>(
+        `/v1/enterprise/groups/${encodeURIComponent(groupId)}/courses/${moodleCourseId}`,
+        {
+          method: 'POST',
+          auth: { token }
+        }
+      ),
+    enterpriseRemoveCourseFromGroup: (token: string, groupId: string, moodleCourseId: number) =>
+      fetchJson<{ removed: boolean }>(
+        `/v1/enterprise/groups/${encodeURIComponent(groupId)}/courses/${moodleCourseId}`,
+        {
+          method: 'DELETE',
+          auth: { token }
+        }
+      ),
+    enterpriseMemberGroups: (token: string, userId: string) =>
+      fetchJson<MemberCourseGroupAssoc[]>(`/v1/enterprise/members/${encodeURIComponent(userId)}/groups`, {
+        auth: { token }
+      }),
+    enterpriseAddGroupToMember: (token: string, userId: string, groupId: string) =>
+      fetchJson<{ success: boolean }>(
+        `/v1/enterprise/members/${encodeURIComponent(userId)}/groups/${encodeURIComponent(groupId)}`,
+        {
+          method: 'POST',
+          auth: { token }
+        }
+      ),
+    enterpriseRemoveGroupFromMember: (token: string, userId: string, groupId: string) =>
+      fetchJson<{ removed: boolean }>(
+        `/v1/enterprise/members/${encodeURIComponent(userId)}/groups/${encodeURIComponent(groupId)}`,
+        {
+          method: 'DELETE',
+          auth: { token }
+        }
+      ),
+    enterpriseMemberCourses: (token: string, userId: string) =>
+      fetchJson<MemberCourseAssoc[]>(`/v1/enterprise/members/${encodeURIComponent(userId)}/courses`, {
+        auth: { token }
+      }),
+    enterpriseAddCourseToMember: (token: string, userId: string, moodleCourseId: number) =>
+      fetchJson<{ success: boolean }>(
+        `/v1/enterprise/members/${encodeURIComponent(userId)}/courses/${moodleCourseId}`,
+        {
+          method: 'POST',
+          auth: { token }
+        }
+      ),
+    enterpriseRemoveCourseFromMember: (token: string, userId: string, moodleCourseId: number) =>
+      fetchJson<{ removed: boolean }>(
+        `/v1/enterprise/members/${encodeURIComponent(userId)}/courses/${moodleCourseId}`,
+        {
+          method: 'DELETE',
+          auth: { token }
+        }
+      )
   },
   courseContent: (moodleCourseId: number, token: string) =>
     fetchJson<MoodleCourseContentResponse>(`/v1/courses/${moodleCourseId}/content`, {
@@ -738,15 +861,15 @@ export const api = {
       lastActivityAt?: string;
     },
     token: string
-    ) =>
-      fetchJson<{ saved: boolean; progress: PublicCourseProgressRecord; moodleCompletionSynced: boolean }>(
-        `/v1/courses/${moodleCourseId}/modules/${moduleId}/complete`,
-        {
-          method: 'POST',
-          body: payload,
-          auth: { token }
-        }
-      ),
+  ) =>
+    fetchJson<{ saved: boolean; progress: PublicCourseProgressRecord; moodleCompletionSynced: boolean }>(
+      `/v1/courses/${moodleCourseId}/modules/${moduleId}/complete`,
+      {
+        method: 'POST',
+        body: payload,
+        auth: { token }
+      }
+    ),
   courseInteractions: (moodleCourseId: number, token: string) =>
     fetchJson<{ moodleCourseId: number; interactions: PublicCourseInteractionRecord[] }>(
       `/v1/courses/${moodleCourseId}/interactions`,
@@ -808,6 +931,8 @@ export const api = {
       fetchJson<MoodleSyncResponse>('/admin/moodle/sync/courses', { method: 'POST', auth: { token } }),
     moodleSyncUsers: (token: string) =>
       fetchJson<MoodleUsersSyncResponse>('/admin/moodle/sync/users', { method: 'POST', auth: { token } }),
+    moodleSyncEnterprise: (token: string) =>
+      fetchJson<{ synced: boolean; upsertedMembers: number; error: string | null }>('/admin/moodle/sync/enterprise', { method: 'POST', auth: { token } }),
     moodleSyncCategories: (token: string) =>
       fetchJson<MoodleCategoriesSyncResponse>('/admin/moodle/sync/categories', { method: 'POST', auth: { token } }),
     moodleSyncAll: (token: string) =>
@@ -1079,6 +1204,11 @@ export const api = {
         auth: { token },
         body: payload
       }),
+    deleteCompany: (token: string, companyId: string) =>
+      fetchJson<{ deleted: boolean }>(`/admin/companies/${encodeURIComponent(companyId)}`, {
+        method: 'DELETE',
+        auth: { token }
+      }),
     companyMembers: (token: string, companyId: string) =>
       fetchJson<CompanyMemberRecord[]>(`/admin/companies/${encodeURIComponent(companyId)}/members`, {
         auth: { token }
@@ -1109,11 +1239,11 @@ export const api = {
         auth: { token },
         body: payload
       }),
-    updateCompanyMemberStatus: (
+    updateCompanyMember: (
       token: string,
       companyId: string,
       userId: string,
-      payload: { status: 'active' | 'inactive' }
+      payload: { status?: 'active' | 'inactive'; fullName?: string; email?: string; role?: 'representative' | 'collaborator' }
     ) =>
       fetchJson<{ updated: boolean; member: CompanyMemberRecord }>(
         `/admin/companies/${encodeURIComponent(companyId)}/members/${encodeURIComponent(userId)}`,
@@ -1123,10 +1253,23 @@ export const api = {
           body: payload
         }
       ),
+    deleteCompanyMember: (token: string, companyId: string, userId: string) =>
+      fetchJson<{ deleted: boolean }>(
+        `/admin/companies/${encodeURIComponent(companyId)}/members/${encodeURIComponent(userId)}`,
+        {
+          method: 'DELETE',
+          auth: { token }
+        }
+      ),
     companyCourseAccess: (token: string, companyId: string) =>
       fetchJson<CompanyCourseAccessRecord[]>(`/admin/companies/${encodeURIComponent(companyId)}/courses`, {
         auth: { token }
       }),
+    companyStats: (token: string, companyId: string) =>
+      fetchJson<{ stats: CompanyDashboardStats; memberProgress: CompanyUserProgressRecord[] }>(
+        `/admin/companies/${encodeURIComponent(companyId)}/stats`,
+        { auth: { token } }
+      ),
     upsertCompanyCourseAccess: (
       token: string,
       companyId: string,
@@ -1148,6 +1291,58 @@ export const api = {
           method: 'DELETE',
           auth: { token }
         }
-      )
+      ),
+
+    companyCourseGroups: (token: string, companyId: string) =>
+      fetchJson<CompanyCourseGroup[]>(`/admin/companies/${encodeURIComponent(companyId)}/groups`, { auth: { token } }),
+    createCompanyCourseGroup: (token: string, companyId: string, payload: { name: string; description?: string }) =>
+      fetchJson<{ created: CompanyCourseGroup }>(`/admin/companies/${encodeURIComponent(companyId)}/groups`, {
+        method: 'POST',
+        auth: { token },
+        body: payload
+      }),
+    updateCompanyCourseGroup: (token: string, companyId: string, groupId: string, payload: { name?: string; description?: string }) =>
+      fetchJson<{ updated: CompanyCourseGroup }>(`/admin/companies/${encodeURIComponent(companyId)}/groups/${encodeURIComponent(groupId)}`, {
+        method: 'PATCH',
+        auth: { token },
+        body: payload
+      }),
+    deleteCompanyCourseGroup: (token: string, companyId: string, groupId: string) =>
+      fetchJson<{ deleted: boolean }>(`/admin/companies/${encodeURIComponent(companyId)}/groups/${encodeURIComponent(groupId)}`, {
+        method: 'DELETE',
+        auth: { token }
+      }),
+    addCourseToCompanyGroup: (token: string, companyId: string, groupId: string, moodleCourseId: number) =>
+      fetchJson<{ added: boolean }>(`/admin/companies/${encodeURIComponent(companyId)}/groups/${encodeURIComponent(groupId)}/courses/${moodleCourseId}`, {
+        method: 'PUT',
+        auth: { token }
+      }),
+    removeCourseFromCompanyGroup: (token: string, companyId: string, groupId: string, moodleCourseId: number) =>
+      fetchJson<{ deleted: boolean }>(`/admin/companies/${encodeURIComponent(companyId)}/groups/${encodeURIComponent(groupId)}/courses/${moodleCourseId}`, {
+        method: 'DELETE',
+        auth: { token }
+      }),
+    companyMemberAssignments: (token: string, companyId: string, userId: string) =>
+      fetchJson<{ groups: MemberCourseGroupAssoc[], courses: MemberCourseAssoc[] }>(`/admin/companies/${encodeURIComponent(companyId)}/members/${encodeURIComponent(userId)}/assignments`, { auth: { token } }),
+    addGroupToCompanyMember: (token: string, companyId: string, userId: string, groupId: string) =>
+      fetchJson<{ added: boolean }>(`/admin/companies/${encodeURIComponent(companyId)}/members/${encodeURIComponent(userId)}/groups/${encodeURIComponent(groupId)}`, {
+        method: 'PUT',
+        auth: { token }
+      }),
+    removeGroupFromCompanyMember: (token: string, companyId: string, userId: string, groupId: string) =>
+      fetchJson<{ deleted: boolean }>(`/admin/companies/${encodeURIComponent(companyId)}/members/${encodeURIComponent(userId)}/groups/${encodeURIComponent(groupId)}`, {
+        method: 'DELETE',
+        auth: { token }
+      }),
+    addCourseToCompanyMember: (token: string, companyId: string, userId: string, moodleCourseId: number) =>
+      fetchJson<{ added: boolean }>(`/admin/companies/${encodeURIComponent(companyId)}/members/${encodeURIComponent(userId)}/courses/${moodleCourseId}`, {
+        method: 'PUT',
+        auth: { token }
+      }),
+    removeCourseFromCompanyMember: (token: string, companyId: string, userId: string, moodleCourseId: number) =>
+      fetchJson<{ deleted: boolean }>(`/admin/companies/${encodeURIComponent(companyId)}/members/${encodeURIComponent(userId)}/courses/${moodleCourseId}`, {
+        method: 'DELETE',
+        auth: { token }
+      })
   }
 };

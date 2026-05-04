@@ -15,6 +15,7 @@ import {
   type EnterpriseOverviewResponse
 } from '../lib/api';
 import type { ContentAsset, HomeResponse } from '@pae-u/shared';
+import { EnterpriseGroupManager } from './EnterpriseGroupManager';
 import './public.css';
 
 type ViewState =
@@ -147,8 +148,8 @@ function saveCourseProgress(courseId: number, progress: CourseProgress): void {
 function fromApiProgress(record: PublicCourseProgressRecord): CourseProgress {
   const completedModuleIds = Array.isArray(record.completed_module_ids)
     ? record.completed_module_ids
-        .map((id) => Number(id))
-        .filter((id): id is number => Number.isInteger(id) && id > 0)
+      .map((id) => Number(id))
+      .filter((id): id is number => Number.isInteger(id) && id > 0)
     : [];
   return {
     completedModuleIds,
@@ -257,9 +258,9 @@ function webinarState(webinar: WebinarRecord, now = Date.now()): 'upcoming' | 'l
 function webinarLiveLinks(webinar: WebinarRecord): Array<{ platform: string; url: string }> {
   const links = Array.isArray(webinar.webinar_links)
     ? webinar.webinar_links.filter(
-        (item): item is { platform: string; url: string } =>
-          Boolean(item && typeof item.platform === 'string' && typeof item.url === 'string' && item.url.trim())
-      )
+      (item): item is { platform: string; url: string } =>
+        Boolean(item && typeof item.platform === 'string' && typeof item.url === 'string' && item.url.trim())
+    )
     : [];
   if (links.length > 0) {
     return links;
@@ -567,15 +568,15 @@ export function PublicApp() {
         setPublicSession((current) =>
           current
             ? {
-                ...current,
-                user: {
-                  ...current.user,
-                  fullName: result.user.fullName,
-                  email: result.user.email,
-                  locale: result.user.locale
-                },
-                expiresAt: result.expiresAt
-              }
+              ...current,
+              user: {
+                ...current.user,
+                fullName: result.user.fullName,
+                email: result.user.email,
+                locale: result.user.locale
+              },
+              expiresAt: result.expiresAt
+            }
             : current
         );
       })
@@ -2172,27 +2173,27 @@ export function PublicApp() {
 
           {rowsBeforeBestSellers
             .map((row) => (
-            <section
-              key={row.id}
-              className={`content-row-block ${row.id.startsWith('category-') ? 'category-anchor' : ''}`}
-              ref={(node) => {
-                if (row.id.startsWith('category-')) {
-                  categorySectionRefs.current[row.id] = node;
-                }
-              }}
-            >
-              <div className="section-header-row">
-                <div>
-                  <h2>{row.title}</h2>
-                  {row.subtitle ? <p className="row-subtitle">{row.subtitle}</p> : null}
+              <section
+                key={row.id}
+                className={`content-row-block ${row.id.startsWith('category-') ? 'category-anchor' : ''}`}
+                ref={(node) => {
+                  if (row.id.startsWith('category-')) {
+                    categorySectionRefs.current[row.id] = node;
+                  }
+                }}
+              >
+                <div className="section-header-row">
+                  <div>
+                    <h2>{row.title}</h2>
+                    {row.subtitle ? <p className="row-subtitle">{row.subtitle}</p> : null}
+                  </div>
                 </div>
-              </div>
-              <div className="content-row-scroll">
-                {row.items.map((item) => (
-                  <ContentCard key={`${row.id}-${item.id}`} item={item} onOpen={openItem} />
-                ))}
-              </div>
-            </section>
+                <div className="content-row-scroll">
+                  {row.items.map((item) => (
+                    <ContentCard key={`${row.id}-${item.id}`} item={item} onOpen={openItem} />
+                  ))}
+                </div>
+              </section>
             ))}
 
           {landingPodcasts.length > 0 ? (
@@ -3236,6 +3237,31 @@ export function PublicApp() {
                 </p>
               </article>
 
+              {enterpriseIsRepresentative && enterpriseOverview?.stats ? (
+                <div className="enterprise-stats-grid">
+                  <div className="enterprise-stat-box">
+                    <span className="stat-label">Total Integrantes</span>
+                    <span className="stat-value">{enterpriseOverview.stats.totalMembers}</span>
+                  </div>
+                  <div className="enterprise-stat-box">
+                    <span className="stat-label">Integrantes Activos</span>
+                    <span className="stat-value">{enterpriseOverview.stats.activeMembers}</span>
+                  </div>
+                  <div className="enterprise-stat-box">
+                    <span className="stat-label">Matrículas de Curso</span>
+                    <span className="stat-value">{enterpriseOverview.stats.totalEnrollments}</span>
+                  </div>
+                  <div className="enterprise-stat-box">
+                    <span className="stat-label">Progreso Promedio</span>
+                    <span className="stat-value">{enterpriseOverview.stats.averageProgress}%</span>
+                  </div>
+                  <div className="enterprise-stat-box">
+                    <span className="stat-label">Interacciones</span>
+                    <span className="stat-value">{enterpriseOverview.stats.totalInteractions}</span>
+                  </div>
+                </div>
+              ) : null}
+
               {enterpriseIsRepresentative ? (
                 <div className="grid-like-two">
                   <article className="card-like enterprise-panel-card">
@@ -3307,6 +3333,14 @@ export function PublicApp() {
                   </article>
                 </div>
               ) : null}
+
+              {enterpriseIsRepresentative && enterpriseOverview?.courseAccess && (
+                <EnterpriseGroupManager
+                  token={publicSession!.token}
+                  overview={enterpriseOverview}
+                  onRefresh={() => loadEnterpriseOverview(publicSession!.token)}
+                />
+              )}
 
               <article className="card-like enterprise-panel-card">
                 <h3>Colaboradores</h3>
@@ -3400,6 +3434,55 @@ export function PublicApp() {
                   </table>
                 </div>
               </article>
+
+              {enterpriseIsRepresentative ? (
+                <article className="card-like enterprise-panel-card">
+                  <h3>Progreso de Colaboradores</h3>
+                  <div className="simple-table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Colaborador</th>
+                          <th>Curso</th>
+                          <th>Progreso</th>
+                          <th>Interacciones</th>
+                          <th>Última Actividad</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(enterpriseOverview?.memberProgress ?? []).length === 0 ? (
+                          <tr>
+                            <td colSpan={5}>Aún no hay progreso registrado.</td>
+                          </tr>
+                        ) : (
+                          (enterpriseOverview?.memberProgress ?? []).map((progress, idx) => (
+                            <tr key={`enterprise-progress-${progress.user_id}-${progress.moodle_course_id}-${idx}`}>
+                              <td>
+                                {progress.full_name}
+                                <br />
+                                <small style={{ color: 'var(--text-muted)' }}>{progress.email}</small>
+                              </td>
+                              <td>{progress.course_name}</td>
+                              <td>
+                                <div className="progress-bar-wrap" style={{ width: '100px', background: 'var(--border-color)', height: '8px', borderRadius: '4px', overflow: 'hidden', display: 'inline-block', verticalAlign: 'middle', marginRight: '8px' }}>
+                                  <div style={{ width: `${progress.progress_percent}%`, background: 'var(--primary-color)', height: '100%' }}></div>
+                                </div>
+                                {progress.progress_percent}%
+                              </td>
+                              <td>{progress.interactions_count}</td>
+                              <td>
+                                {progress.last_activity_at
+                                  ? new Date(progress.last_activity_at).toLocaleDateString('es')
+                                  : '-'}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </article>
+              ) : null}
             </>
           )}
         </section>

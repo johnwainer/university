@@ -344,6 +344,38 @@ async function createSchema(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS company_course_access_active_idx ON company_course_access(company_id, is_active);
 
+    CREATE TABLE IF NOT EXISTS company_course_groups (
+      id TEXT PRIMARY KEY,
+      company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS company_course_group_items (
+      group_id TEXT NOT NULL REFERENCES company_course_groups(id) ON DELETE CASCADE,
+      moodle_course_id BIGINT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (group_id, moodle_course_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS company_member_courses (
+      company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      moodle_course_id BIGINT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (company_id, user_id, moodle_course_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS company_member_groups (
+      company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      group_id TEXT NOT NULL REFERENCES company_course_groups(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (company_id, user_id, group_id)
+    );
+
     CREATE TABLE IF NOT EXISTS external_integration_events (
       external_event_id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -574,23 +606,23 @@ export async function getTenantAndUser() {
   return {
     tenant: tenantResult.rows[0]
       ? {
-          id: tenantResult.rows[0].id,
-          slug: tenantResult.rows[0].slug,
-          name: tenantResult.rows[0].name,
-          locales: tenantResult.rows[0].locales,
-          currency: tenantResult.rows[0].currency,
-          branding: tenantResult.rows[0].branding
-        }
+        id: tenantResult.rows[0].id,
+        slug: tenantResult.rows[0].slug,
+        name: tenantResult.rows[0].name,
+        locales: tenantResult.rows[0].locales,
+        currency: tenantResult.rows[0].currency,
+        branding: tenantResult.rows[0].branding
+      }
       : null,
     user: userResult.rows[0]
       ? {
-          id: userResult.rows[0].id,
-          fullName: userResult.rows[0].full_name,
-          email: userResult.rows[0].email,
-          locale: userResult.rows[0].locale,
-          roles: userResult.rows[0].roles,
-          tenantId: userResult.rows[0].tenant_id
-        }
+        id: userResult.rows[0].id,
+        fullName: userResult.rows[0].full_name,
+        email: userResult.rows[0].email,
+        locale: userResult.rows[0].locale,
+        roles: userResult.rows[0].roles,
+        tenantId: userResult.rows[0].tenant_id
+      }
       : null
   };
 }
@@ -882,7 +914,7 @@ export async function listMoodleCoursesPage(input?: {
   visible?: boolean;
 }) {
   const page = Math.max(1, input?.page ?? 1);
-  const pageSize = Math.min(100, Math.max(1, input?.pageSize ?? 20));
+  const pageSize = Math.min(10000, Math.max(1, input?.pageSize ?? 20));
   const offset = (page - 1) * pageSize;
   const values: Array<string | number | boolean> = [];
   const where: string[] = [];
@@ -943,7 +975,7 @@ export async function listPlatformUsersPage(input?: {
   status?: 'active' | 'inactive';
 }) {
   const page = Math.max(1, input?.page ?? 1);
-  const pageSize = Math.min(100, Math.max(1, input?.pageSize ?? 20));
+  const pageSize = Math.min(10000, Math.max(1, input?.pageSize ?? 20));
   const offset = (page - 1) * pageSize;
   const values: Array<string | number> = [];
   const where: string[] = [];
@@ -1394,6 +1426,11 @@ export async function listCompanies() {
   return result.rows;
 }
 
+export async function deleteCompany(companyId: string) {
+  const result = await pool.query(`DELETE FROM companies WHERE id = $1`, [companyId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function getCompanyById(companyId: string) {
   const result = await pool.query(
     `
@@ -1502,6 +1539,14 @@ export async function setCompanyMemberStatus(input: {
   return result.rows[0] ?? null;
 }
 
+export async function removeCompanyMember(companyId: string, userId: string) {
+  const result = await pool.query(
+    `DELETE FROM company_members WHERE company_id = $1 AND user_id = $2`,
+    [companyId, userId]
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function listCompanyMembers(companyId: string) {
   const result = await pool.query(
     `
@@ -1516,7 +1561,19 @@ export async function listCompanyMembers(companyId: string) {
         u.email,
         u.locale,
         u.roles,
-        u.moodle_user_id
+        u.moodle_user_id,
+        (
+          SELECT COALESCE(json_agg(json_build_object('id', cg.id, 'name', cg.name)), '[]'::json)
+          FROM company_member_groups cmg
+          JOIN company_course_groups cg ON cg.id = cmg.group_id
+          WHERE cmg.company_id = cm.company_id AND cmg.user_id = cm.user_id
+        ) AS assigned_groups,
+        (
+          SELECT COALESCE(json_agg(json_build_object('id', cmc.moodle_course_id, 'name', mc.full_name)), '[]'::json)
+          FROM company_member_courses cmc
+          LEFT JOIN moodle_courses mc ON mc.moodle_course_id = cmc.moodle_course_id
+          WHERE cmc.company_id = cm.company_id AND cmc.user_id = cm.user_id
+        ) AS assigned_courses
       FROM company_members cm
       INNER JOIN users u ON u.id = cm.user_id
       WHERE cm.company_id = $1
@@ -2452,4 +2509,267 @@ export async function updatePodcast(
 export async function deletePodcast(podcastId: string) {
   const result = await pool.query(`DELETE FROM podcasts WHERE id = $1`, [podcastId]);
   return (result.rowCount ?? 0) > 0;
+}
+
+export async function createCompanyCourseGroup(input: {
+  id: string;
+  companyId: string;
+  name: string;
+  description?: string;
+}) {
+  const result = await pool.query(
+    `
+      INSERT INTO company_course_groups
+        (id, company_id, name, description, updated_at)
+      VALUES
+        ($1, $2, $3, $4, NOW())
+      RETURNING *
+    `,
+    [input.id, input.companyId, input.name, input.description || null]
+  );
+  return result.rows[0];
+}
+
+export async function updateCompanyCourseGroup(input: { id: string; name?: string; description?: string }) {
+  const fields: string[] = [];
+  const values: unknown[] = [input.id];
+  let idx = 2;
+
+  if (input.name !== undefined) {
+    fields.push(`name = $${idx++}`);
+    values.push(input.name);
+  }
+  if (input.description !== undefined) {
+    fields.push(`description = $${idx++}`);
+    values.push(input.description);
+  }
+
+  if (fields.length === 0) return true;
+  fields.push(`updated_at = NOW()`);
+
+  const result = await pool.query(
+    `UPDATE company_course_groups SET ${fields.join(', ')} WHERE id = $1 RETURNING *`,
+    values
+  );
+  return result.rows[0];
+}
+
+export async function deleteCompanyCourseGroup(id: string) {
+  const result = await pool.query(`DELETE FROM company_course_groups WHERE id = $1`, [id]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function listCompanyCourseGroups(companyId: string) {
+  const result = await pool.query(
+    `
+      SELECT
+        cg.id,
+        cg.company_id,
+        cg.name,
+        cg.description,
+        cg.created_at,
+        cg.updated_at,
+        COALESCE(
+          (SELECT json_agg(json_build_object('moodle_course_id', cgi.moodle_course_id, 'full_name', mc.full_name, 'short_name', mc.short_name))
+           FROM company_course_group_items cgi
+           LEFT JOIN moodle_courses mc ON mc.moodle_course_id = cgi.moodle_course_id
+           WHERE cgi.group_id = cg.id),
+          '[]'::json
+        ) AS items
+      FROM company_course_groups cg
+      WHERE cg.company_id = $1
+      ORDER BY cg.created_at ASC
+    `,
+    [companyId]
+  );
+  return result.rows;
+}
+
+export async function assignCourseToGroup(input: { groupId: string; moodleCourseId: number }) {
+  const result = await pool.query(
+    `
+      INSERT INTO company_course_group_items (group_id, moodle_course_id)
+      VALUES ($1, $2)
+      ON CONFLICT DO NOTHING
+      RETURNING *
+    `,
+    [input.groupId, input.moodleCourseId]
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function removeCourseFromGroup(input: { groupId: string; moodleCourseId: number }) {
+  const result = await pool.query(
+    `DELETE FROM company_course_group_items WHERE group_id = $1 AND moodle_course_id = $2`,
+    [input.groupId, input.moodleCourseId]
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function assignGroupToMember(input: { companyId: string; userId: string; groupId: string }) {
+  const result = await pool.query(
+    `
+      INSERT INTO company_member_groups (company_id, user_id, group_id)
+      VALUES ($1, $2, $3)
+      ON CONFLICT DO NOTHING
+      RETURNING *
+    `,
+    [input.companyId, input.userId, input.groupId]
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function removeGroupFromMember(input: { companyId: string; userId: string; groupId: string }) {
+  const result = await pool.query(
+    `DELETE FROM company_member_groups WHERE company_id = $1 AND user_id = $2 AND group_id = $3`,
+    [input.companyId, input.userId, input.groupId]
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function listCompanyMemberGroups(companyId: string, userId: string) {
+  const result = await pool.query(
+    `
+      SELECT cg.id, cg.name, cg.description
+      FROM company_member_groups cmg
+      INNER JOIN company_course_groups cg ON cg.id = cmg.group_id
+      WHERE cmg.company_id = $1 AND cmg.user_id = $2
+    `,
+    [companyId, userId]
+  );
+  return result.rows;
+}
+
+export async function listCompanyMemberCourses(companyId: string, userId: string) {
+  const result = await pool.query(
+    `
+      SELECT cmc.moodle_course_id, mc.full_name, mc.short_name
+      FROM company_member_courses cmc
+      LEFT JOIN moodle_courses mc ON mc.moodle_course_id = cmc.moodle_course_id
+      WHERE cmc.company_id = $1 AND cmc.user_id = $2
+    `,
+    [companyId, userId]
+  );
+  return result.rows;
+}
+
+export async function getMemberActiveMoodleCourseIds(companyId: string, userId: string) {
+  const result = await pool.query(
+    `
+      SELECT DISTINCT moodle_course_id
+      FROM (
+        SELECT moodle_course_id FROM company_member_courses WHERE company_id = $1 AND user_id = $2
+        UNION
+        SELECT cgi.moodle_course_id
+        FROM company_member_groups cmg
+        INNER JOIN company_course_group_items cgi ON cgi.group_id = cmg.group_id
+        WHERE cmg.company_id = $1 AND cmg.user_id = $2
+      ) AS combined
+    `,
+    [companyId, userId]
+  );
+  return result.rows.map((row) => Number(row.moodle_course_id));
+}
+
+export async function getGroupMembers(groupId: string) {
+  const result = await pool.query(
+    `
+      SELECT user_id, company_id
+      FROM company_member_groups
+      WHERE group_id = $1
+    `,
+    [groupId]
+  );
+  return result.rows;
+}
+
+export async function assignCourseToMember(input: { companyId: string; userId: string; moodleCourseId: number }) {
+  const result = await pool.query(
+    `
+      INSERT INTO company_member_courses (company_id, user_id, moodle_course_id)
+      VALUES ($1, $2, $3)
+      ON CONFLICT DO NOTHING
+      RETURNING *
+    `,
+    [input.companyId, input.userId, input.moodleCourseId]
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function removeCourseFromMember(input: { companyId: string; userId: string; moodleCourseId: number }) {
+  const result = await pool.query(
+    `DELETE FROM company_member_courses WHERE company_id = $1 AND user_id = $2 AND moodle_course_id = $3`,
+    [input.companyId, input.userId, input.moodleCourseId]
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function getCompanyDashboardStats(companyId: string) {
+  const result = await pool.query(
+    `
+      SELECT
+        (SELECT COUNT(*)::int FROM company_members WHERE company_id = $1) AS "totalMembers",
+        (SELECT COUNT(*)::int FROM company_members WHERE company_id = $1 AND status = 'active') AS "activeMembers",
+        (SELECT COUNT(*)::int FROM company_course_access cca INNER JOIN company_members cm ON cm.company_id = cca.company_id WHERE cca.company_id = $1) AS "totalEnrollments",
+        (
+          SELECT COALESCE(AVG(progress_percent), 0)::int
+          FROM public_course_progress pcp
+          INNER JOIN company_members cm ON cm.user_id = pcp.user_id
+          WHERE cm.company_id = $1
+        ) AS "averageProgress",
+        (
+          SELECT COALESCE(SUM(interactions_count), 0)::int
+          FROM public_course_progress pcp
+          INNER JOIN company_members cm ON cm.user_id = pcp.user_id
+          WHERE cm.company_id = $1
+        ) AS "totalInteractions",
+        (
+          SELECT MAX(last_activity_at)
+          FROM public_course_progress pcp
+          INNER JOIN company_members cm ON cm.user_id = pcp.user_id
+          WHERE cm.company_id = $1
+        ) AS "lastActivity"
+    `,
+    [companyId]
+  );
+  return {
+    totalMembers: result.rows[0].totalMembers ?? 0,
+    activeMembers: result.rows[0].activeMembers ?? 0,
+    totalEnrollments: result.rows[0].totalEnrollments ?? 0,
+    averageProgress: result.rows[0].averageProgress ?? 0,
+    totalInteractions: result.rows[0].totalInteractions ?? 0,
+    lastActivity: result.rows[0].lastActivity ?? null
+  };
+}
+
+export async function getCompanyUserProgress(companyId: string) {
+  const result = await pool.query(
+    `
+      SELECT
+        cm.user_id,
+        u.full_name,
+        u.email,
+        cm.status AS member_status,
+        mc.moodle_course_id,
+        mc.full_name AS course_name,
+        COALESCE(pcp.progress_percent, 0) AS progress_percent,
+        COALESCE(pcp.interactions_count, 0) AS interactions_count,
+        pcp.last_activity_at
+      FROM company_members cm
+      INNER JOIN users u ON u.id = cm.user_id
+      LEFT JOIN (
+        SELECT company_id, user_id, moodle_course_id FROM company_member_courses
+        UNION
+        SELECT cmg.company_id, cmg.user_id, cgi.moodle_course_id
+        FROM company_member_groups cmg
+        INNER JOIN company_course_group_items cgi ON cgi.group_id = cmg.group_id
+      ) AS user_courses ON user_courses.company_id = cm.company_id AND user_courses.user_id = cm.user_id
+      LEFT JOIN moodle_courses mc ON mc.moodle_course_id = user_courses.moodle_course_id
+      LEFT JOIN public_course_progress pcp ON pcp.user_id = cm.user_id AND pcp.moodle_course_id = user_courses.moodle_course_id
+      WHERE cm.company_id = $1
+      ORDER BY u.full_name ASC, mc.full_name ASC
+    `,
+    [companyId]
+  );
+  return result.rows;
 }

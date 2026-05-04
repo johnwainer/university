@@ -11,11 +11,14 @@ import {
   type CompanyRecord,
   type CompanyMemberRecord,
   type CompanyCourseAccessRecord,
+  type CompanyDashboardStats,
+  type CompanyUserProgressRecord,
   type PaginatedAdminUsersResponse,
   type MoodleCoursesResponse,
   type UserCoursesResponse
 } from '../lib/api';
 import './styles.css';
+import { CompaniesView } from './admin/views/CompaniesView';
 
 type AdminDashboardBase = {
   config: AdminConfig;
@@ -107,6 +110,7 @@ export function AdminApp() {
   const [syncingMoodleCourses, setSyncingMoodleCourses] = useState(false);
   const [syncingMoodleCategories, setSyncingMoodleCategories] = useState(false);
   const [syncingMoodleUsers, setSyncingMoodleUsers] = useState(false);
+  
   const [syncingMoodleAll, setSyncingMoodleAll] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [enrollingUser, setEnrollingUser] = useState(false);
@@ -119,20 +123,22 @@ export function AdminApp() {
   const [podcastsData, setPodcastsData] = useState<PodcastRecord[]>([]);
   const [externalEventsData, setExternalEventsData] = useState<ExternalIntegrationEventRecord[]>([]);
   const [externalGroupsData, setExternalGroupsData] = useState<ExternalIntegrationEventGroup[]>([]);
-  const [companiesData, setCompaniesData] = useState<CompanyRecord[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
-  const [selectedCompanyMembers, setSelectedCompanyMembers] = useState<CompanyMemberRecord[]>([]);
-  const [selectedCompanyCourses, setSelectedCompanyCourses] = useState<CompanyCourseAccessRecord[]>([]);
+  
+  
+  
+  
+  
+  
   const [externalTicketsEmail, setExternalTicketsEmail] = useState('');
   const [externalTicketsResult, setExternalTicketsResult] = useState<Array<Record<string, unknown>>>([]);
   const [loadingExternal, setLoadingExternal] = useState(false);
-  const [loadingCompanies, setLoadingCompanies] = useState(false);
+  
   const [syncingExternalEvents, setSyncingExternalEvents] = useState(false);
   const [externalGroupDrafts, setExternalGroupDrafts] = useState<Record<string, ExternalGroupDraft>>({});
   const [savingMoodleConfig, setSavingMoodleConfig] = useState(false);
-  const [savingCompany, setSavingCompany] = useState(false);
-  const [savingCompanyMember, setSavingCompanyMember] = useState(false);
-  const [savingCompanyCourse, setSavingCompanyCourse] = useState(false);
+  
+  
+  
   const [moodleConnectionForm, setMoodleConnectionForm] = useState<{ baseUrl: string; token: string }>({
     baseUrl: '',
     token: ''
@@ -151,21 +157,13 @@ export function AdminApp() {
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedUserCourses, setSelectedUserCourses] = useState<UserCoursesResponse | null>(null);
   const [newUser, setNewUser] = useState({ fullName: '', email: '', locale: 'es' });
-  const [companyForm, setCompanyForm] = useState({
-    name: '',
-    slug: '',
-    description: '',
-    contactEmail: '',
-    representativeUserId: '',
-    isActive: true
-  });
-  const [companyMemberForm, setCompanyMemberForm] = useState({
-    userId: '',
-    fullName: '',
-    email: '',
-    locale: 'es'
-  });
-  const [companyCourseId, setCompanyCourseId] = useState('');
+  
+  
+  
+  
+  
+  
+  
   const [creatingWebinar, setCreatingWebinar] = useState(false);
   const [editingWebinarId, setEditingWebinarId] = useState<string | null>(null);
   const [creatingPodcast, setCreatingPodcast] = useState(false);
@@ -308,6 +306,7 @@ export function AdminApp() {
     }
   };
 
+
   const loadWebinars = async (token: string) => {
     setLoadingWebinars(true);
     try {
@@ -349,31 +348,7 @@ export function AdminApp() {
     }
   };
 
-  const loadCompanies = async (token: string, companyIdToSelect?: string) => {
-    setLoadingCompanies(true);
-    try {
-      const companies = await api.admin.companies(token);
-      setCompaniesData(companies);
-      const targetCompanyId = companyIdToSelect ?? selectedCompanyId ?? companies[0]?.id ?? '';
-      if (!targetCompanyId) {
-        setSelectedCompanyId('');
-        setSelectedCompanyMembers([]);
-        setSelectedCompanyCourses([]);
-        return;
-      }
-      const [members, courses] = await Promise.all([
-        api.admin.companyMembers(token, targetCompanyId),
-        api.admin.companyCourseAccess(token, targetCompanyId)
-      ]);
-      setSelectedCompanyId(targetCompanyId);
-      setSelectedCompanyMembers(members);
-      setSelectedCompanyCourses(courses);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando empresas');
-    } finally {
-      setLoadingCompanies(false);
-    }
-  };
+  
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -387,7 +362,8 @@ export function AdminApp() {
           loadBase(sessionToken),
           loadUsers(sessionToken),
           loadCourses(sessionToken),
-          loadCompanies(sessionToken),
+
+          
           loadWebinars(sessionToken),
           loadPodcasts(sessionToken),
           loadExternalIntegration(sessionToken)
@@ -443,10 +419,7 @@ export function AdminApp() {
     setPodcastsData([]);
     setExternalEventsData([]);
     setExternalGroupsData([]);
-    setCompaniesData([]);
-    setSelectedCompanyId('');
-    setSelectedCompanyMembers([]);
-    setSelectedCompanyCourses([]);
+
     setExternalGroupDrafts({});
     setExternalTicketsResult([]);
     setError(null);
@@ -466,156 +439,12 @@ export function AdminApp() {
       loadBase(sessionToken),
       loadUsers(sessionToken),
       loadCourses(sessionToken),
-      loadCompanies(sessionToken),
+
+      
       loadWebinars(sessionToken),
       loadPodcasts(sessionToken),
       loadExternalIntegration(sessionToken)
     ]);
-  };
-
-  const onCreateCompany = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!sessionToken || !companyForm.representativeUserId) {
-      return;
-    }
-    setSavingCompany(true);
-    setError(null);
-    setInfo(null);
-    try {
-      const created = await api.admin.createCompany(sessionToken, {
-        name: companyForm.name.trim(),
-        slug: companyForm.slug.trim() || undefined,
-        description: companyForm.description.trim() || undefined,
-        contactEmail: companyForm.contactEmail.trim() || undefined,
-        representativeUserId: companyForm.representativeUserId,
-        isActive: companyForm.isActive
-      });
-      setInfo(`Empresa creada: ${created.company.name}`);
-      setCompanyForm({
-        name: '',
-        slug: '',
-        description: '',
-        contactEmail: '',
-        representativeUserId: '',
-        isActive: true
-      });
-      await Promise.all([loadCompanies(sessionToken, created.company.id), loadBase(sessionToken)]);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear la empresa');
-    } finally {
-      setSavingCompany(false);
-    }
-  };
-
-  const onSelectCompany = async (companyId: string) => {
-    if (!sessionToken || !companyId) {
-      return;
-    }
-    try {
-      const [members, courses] = await Promise.all([
-        api.admin.companyMembers(sessionToken, companyId),
-        api.admin.companyCourseAccess(sessionToken, companyId)
-      ]);
-      setSelectedCompanyId(companyId);
-      setSelectedCompanyMembers(members);
-      setSelectedCompanyCourses(courses);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo cargar la empresa seleccionada');
-    }
-  };
-
-  const onAddCompanyMember = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!sessionToken || !selectedCompanyId) {
-      return;
-    }
-    setSavingCompanyMember(true);
-    setError(null);
-    setInfo(null);
-    try {
-      await api.admin.addCompanyMember(sessionToken, selectedCompanyId, {
-        userId: companyMemberForm.userId || undefined,
-        fullName: companyMemberForm.fullName || undefined,
-        email: companyMemberForm.email || undefined,
-        locale: companyMemberForm.locale || 'es',
-        role: 'collaborator'
-      });
-      setInfo('Colaborador agregado y sincronizado.');
-      setCompanyMemberForm({
-        userId: '',
-        fullName: '',
-        email: '',
-        locale: 'es'
-      });
-      await Promise.all([onSelectCompany(selectedCompanyId), loadBase(sessionToken), loadUsers(sessionToken)]);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo agregar colaborador');
-    } finally {
-      setSavingCompanyMember(false);
-    }
-  };
-
-  const onToggleCompanyMemberStatus = async (member: CompanyMemberRecord) => {
-    if (!sessionToken || !selectedCompanyId) {
-      return;
-    }
-    setSavingCompanyMember(true);
-    setError(null);
-    setInfo(null);
-    try {
-      const nextStatus = member.status === 'active' ? 'inactive' : 'active';
-      await api.admin.updateCompanyMemberStatus(sessionToken, selectedCompanyId, member.user_id, {
-        status: nextStatus
-      });
-      setInfo(`Colaborador ${nextStatus === 'active' ? 'activado' : 'desactivado'} y sincronizado.`);
-      await Promise.all([onSelectCompany(selectedCompanyId), loadBase(sessionToken), loadUsers(sessionToken)]);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar colaborador');
-    } finally {
-      setSavingCompanyMember(false);
-    }
-  };
-
-  const onAssignCompanyCourse = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!sessionToken || !selectedCompanyId || !companyCourseId) {
-      return;
-    }
-    setSavingCompanyCourse(true);
-    setError(null);
-    setInfo(null);
-    try {
-      await api.admin.upsertCompanyCourseAccess(sessionToken, selectedCompanyId, Number(companyCourseId), {
-        isActive: true
-      });
-      setInfo('Curso asignado a la empresa y sincronizado.');
-      setCompanyCourseId('');
-      await Promise.all([onSelectCompany(selectedCompanyId), loadBase(sessionToken)]);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo asignar curso empresarial');
-    } finally {
-      setSavingCompanyCourse(false);
-    }
-  };
-
-  const onToggleCompanyCourse = async (course: CompanyCourseAccessRecord) => {
-    if (!sessionToken || !selectedCompanyId) {
-      return;
-    }
-    setSavingCompanyCourse(true);
-    setError(null);
-    setInfo(null);
-    try {
-      await api.admin.upsertCompanyCourseAccess(sessionToken, selectedCompanyId, Number(course.moodle_course_id), {
-        isActive: !course.is_active
-      });
-      setInfo(`Curso empresarial ${course.is_active ? 'desactivado' : 'activado'} y sincronizado.`);
-      await Promise.all([onSelectCompany(selectedCompanyId), loadBase(sessionToken)]);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar curso empresarial');
-    } finally {
-      setSavingCompanyCourse(false);
-    }
   };
 
   const onSubmitWebinar = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -737,8 +566,7 @@ export function AdminApp() {
     try {
       const response = await api.admin.updateWebinar(sessionToken, webinarId, payload);
       setInfo(
-        `Webinar actualizado: ${response.webinar.title} · activo=${response.webinar.is_active ? 'sí' : 'no'} · landing=${
-          response.webinar.show_on_landing ? 'sí' : 'no'
+        `Webinar actualizado: ${response.webinar.title} · activo=${response.webinar.is_active ? 'sí' : 'no'} · landing=${response.webinar.show_on_landing ? 'sí' : 'no'
         }`
       );
       await Promise.all([loadWebinars(sessionToken), loadBase(sessionToken)]);
@@ -839,8 +667,7 @@ export function AdminApp() {
     try {
       const response = await api.admin.updatePodcast(sessionToken, podcastId, payload);
       setInfo(
-        `Podcast actualizado: ${response.podcast.title} · activo=${response.podcast.is_active ? 'sí' : 'no'} · landing=${
-          response.podcast.show_on_landing ? 'sí' : 'no'
+        `Podcast actualizado: ${response.podcast.title} · activo=${response.podcast.is_active ? 'sí' : 'no'} · landing=${response.podcast.show_on_landing ? 'sí' : 'no'
         }`
       );
       await Promise.all([loadPodcasts(sessionToken), loadBase(sessionToken)]);
@@ -1049,8 +876,7 @@ export function AdminApp() {
     try {
       const result = await api.admin.moodleSyncCategories(sessionToken);
       setInfo(
-        `Categorías sincronizadas: ${result.totalCategories}, actualizadas: ${result.upsertedCategories}${
-          result.source ? ` (${result.source})` : ''
+        `Categorías sincronizadas: ${result.totalCategories}, actualizadas: ${result.upsertedCategories}${result.source ? ` (${result.source})` : ''
         }.`
       );
       await Promise.all([loadBase(sessionToken), loadCourses(sessionToken)]);
@@ -1093,8 +919,7 @@ export function AdminApp() {
     try {
       const result = await api.admin.moodleSyncAll(sessionToken);
       setInfo(
-        `Sync completo OK. Categorías: ${result.categories.upsertedCategories}, cursos: ${
-          result.courses.upsertedCourses ?? 0
+        `Sync completo OK. Categorías: ${result.categories.upsertedCategories}, cursos: ${result.courses.upsertedCourses ?? 0
         }, usuarios: ${result.users.upsertedUsers}.`
       );
       await Promise.all([loadBase(sessionToken), loadCourses(sessionToken), loadUsers(sessionToken)]);
@@ -1204,8 +1029,7 @@ export function AdminApp() {
         syncMoodle: true
       });
       setInfo(
-        `Proceso masivo: ${response.processed}/${response.requested} usuarios ${
-          status === 'inactive' ? 'desactivados' : 'activados'
+        `Proceso masivo: ${response.processed}/${response.requested} usuarios ${status === 'inactive' ? 'desactivados' : 'activados'
         }. Fallos: ${response.failures.length}.`
       );
       setSelectedUserIds([]);
@@ -1753,6 +1577,7 @@ export function AdminApp() {
                   <button onClick={() => void onSyncMoodleUsers()} disabled={syncingMoodleUsers || loadingUsers}>
                     {syncingMoodleUsers ? 'Sincronizando usuarios...' : 'Sync usuarios'}
                   </button>
+                  
                 </div>
               </article>
               <article className="card scroll-card">
@@ -1835,273 +1660,15 @@ export function AdminApp() {
             </section>
           ) : null}
 
-          {activeSection === 'enterprise' ? (
-            <section className="grid-2">
-              <article className="card">
-                <h2>Crear empresa</h2>
-                <form className="login-form" onSubmit={onCreateCompany}>
-                  <label>Nombre empresa</label>
-                  <input
-                    value={companyForm.name}
-                    onChange={(event) => setCompanyForm((current) => ({ ...current, name: event.target.value }))}
-                    placeholder="Empresa ABC"
-                    required
-                  />
-                  <label>Slug (opcional)</label>
-                  <input
-                    value={companyForm.slug}
-                    onChange={(event) => setCompanyForm((current) => ({ ...current, slug: event.target.value }))}
-                    placeholder="empresa-abc"
-                  />
-                  <label>Descripción</label>
-                  <input
-                    value={companyForm.description}
-                    onChange={(event) => setCompanyForm((current) => ({ ...current, description: event.target.value }))}
-                    placeholder="Programa empresarial"
-                  />
-                  <label>Email de contacto</label>
-                  <input
-                    type="email"
-                    value={companyForm.contactEmail}
-                    onChange={(event) => setCompanyForm((current) => ({ ...current, contactEmail: event.target.value }))}
-                    placeholder="rrhh@empresa.com"
-                  />
-                  <label>Representante</label>
-                  <select
-                    value={companyForm.representativeUserId}
-                    onChange={(event) =>
-                      setCompanyForm((current) => ({ ...current, representativeUserId: event.target.value }))
-                    }
-                    required
-                  >
-                    <option value="">Selecciona representante</option>
-                    {currentUsers
-                      .filter((user) => user.status === 'active')
-                      .map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.full_name} ({user.email})
-                        </option>
-                      ))}
-                  </select>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={companyForm.isActive}
-                      onChange={(event) => setCompanyForm((current) => ({ ...current, isActive: event.target.checked }))}
-                    />{' '}
-                    Empresa activa
-                  </label>
-                  <button type="submit" disabled={savingCompany}>
-                    {savingCompany ? 'Creando empresa...' : 'Crear empresa'}
-                  </button>
-                </form>
-              </article>
-
-              <article className="card scroll-card">
-                <h2>Empresas ({companiesData.length})</h2>
-                {loadingCompanies ? <p>Cargando empresas...</p> : null}
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Empresa</th>
-                      <th>Representante</th>
-                      <th>Miembros</th>
-                      <th>Estado</th>
-                      <th>Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {companiesData.length === 0 ? (
-                      <tr>
-                        <td colSpan={5}>No hay empresas creadas.</td>
-                      </tr>
-                    ) : (
-                      companiesData.map((company) => (
-                        <tr key={company.id}>
-                          <td>{company.name}</td>
-                          <td>{company.representative_name ?? company.representative_email ?? '-'}</td>
-                          <td>{company.members_total ?? 0}</td>
-                          <td>{company.is_active ? 'activa' : 'inactiva'}</td>
-                          <td>
-                            <button className="ghost" onClick={() => void onSelectCompany(company.id)}>
-                              Gestionar
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </article>
-
-              <article className="card">
-                <h2>Agregar colaborador</h2>
-                {!selectedCompanyId ? (
-                  <p>Selecciona una empresa para gestionar sus colaboradores.</p>
-                ) : (
-                  <form className="login-form" onSubmit={onAddCompanyMember}>
-                    <label>Usuario existente (opcional)</label>
-                    <select
-                      value={companyMemberForm.userId}
-                      onChange={(event) =>
-                        setCompanyMemberForm((current) => ({ ...current, userId: event.target.value }))
-                      }
-                    >
-                      <option value="">Crear nuevo colaborador</option>
-                      {currentUsers
-                        .filter((user) => user.status === 'active')
-                        .map((user) => (
-                          <option key={user.id} value={user.id}>
-                            {user.full_name} ({user.email})
-                          </option>
-                        ))}
-                    </select>
-                    <label>Nombre (si es nuevo)</label>
-                    <input
-                      value={companyMemberForm.fullName}
-                      onChange={(event) =>
-                        setCompanyMemberForm((current) => ({ ...current, fullName: event.target.value }))
-                      }
-                      placeholder="Carlos Gómez"
-                    />
-                    <label>Email (si es nuevo)</label>
-                    <input
-                      type="email"
-                      value={companyMemberForm.email}
-                      onChange={(event) =>
-                        setCompanyMemberForm((current) => ({ ...current, email: event.target.value }))
-                      }
-                      placeholder="carlos@empresa.com"
-                    />
-                    <label>Idioma</label>
-                    <input
-                      value={companyMemberForm.locale}
-                      onChange={(event) =>
-                        setCompanyMemberForm((current) => ({ ...current, locale: event.target.value }))
-                      }
-                      placeholder="es"
-                    />
-                    <button type="submit" disabled={savingCompanyMember}>
-                      {savingCompanyMember ? 'Agregando...' : 'Agregar colaborador'}
-                    </button>
-                  </form>
-                )}
-              </article>
-
-              <article className="card scroll-card">
-                <h2>Colaboradores de la empresa</h2>
-                {!selectedCompanyId ? (
-                  <p>Selecciona una empresa para ver colaboradores.</p>
-                ) : (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Nombre</th>
-                        <th>Email</th>
-                        <th>Rol</th>
-                        <th>Estado</th>
-                        <th>ID externo</th>
-                        <th>Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedCompanyMembers.length === 0 ? (
-                        <tr>
-                          <td colSpan={6}>No hay colaboradores en esta empresa.</td>
-                        </tr>
-                      ) : (
-                        selectedCompanyMembers.map((member) => (
-                          <tr key={`${member.company_id}-${member.user_id}`}>
-                            <td>{member.full_name}</td>
-                            <td>{member.email}</td>
-                            <td>{member.member_role}</td>
-                            <td>{member.status}</td>
-                            <td>{member.moodle_user_id ?? '-'}</td>
-                            <td>
-                              {member.member_role !== 'representative' ? (
-                                <button
-                                  className={member.status === 'active' ? 'danger' : 'ghost'}
-                                  onClick={() => void onToggleCompanyMemberStatus(member)}
-                                  disabled={savingCompanyMember}
-                                >
-                                  {member.status === 'active' ? 'Desactivar' : 'Activar'}
-                                </button>
-                              ) : (
-                                <span>-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                )}
-              </article>
-
-              <article className="card">
-                <h2>Asignar cursos a la empresa</h2>
-                {!selectedCompanyId ? (
-                  <p>Selecciona una empresa para asignar cursos.</p>
-                ) : (
-                  <form className="login-form" onSubmit={onAssignCompanyCourse}>
-                    <label>Curso</label>
-                    <select value={companyCourseId} onChange={(event) => setCompanyCourseId(event.target.value)} required>
-                      <option value="">Selecciona curso</option>
-                      {(coursesData?.items ?? []).map((course) => (
-                        <option key={course.moodle_course_id} value={String(course.moodle_course_id)}>
-                          {course.full_name}
-                        </option>
-                      ))}
-                    </select>
-                    <button type="submit" disabled={savingCompanyCourse}>
-                      {savingCompanyCourse ? 'Asignando...' : 'Asignar curso'}
-                    </button>
-                  </form>
-                )}
-              </article>
-
-              <article className="card scroll-card">
-                <h2>Cursos habilitados por empresa</h2>
-                {!selectedCompanyId ? (
-                  <p>Selecciona una empresa para ver cursos.</p>
-                ) : (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>ID curso</th>
-                        <th>Nombre</th>
-                        <th>Estado</th>
-                        <th>Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedCompanyCourses.length === 0 ? (
-                        <tr>
-                          <td colSpan={4}>No hay cursos asignados.</td>
-                        </tr>
-                      ) : (
-                        selectedCompanyCourses.map((course) => (
-                          <tr key={`${course.company_id}-${course.moodle_course_id}`}>
-                            <td>{course.moodle_course_id}</td>
-                            <td>{course.full_name ?? course.short_name ?? '-'}</td>
-                            <td>{course.is_active ? 'activo' : 'inactivo'}</td>
-                            <td>
-                              <button
-                                className={course.is_active ? 'danger' : 'ghost'}
-                                onClick={() => void onToggleCompanyCourse(course)}
-                                disabled={savingCompanyCourse}
-                              >
-                                {course.is_active ? 'Desactivar' : 'Activar'}
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                )}
-              </article>
-            </section>
+                    {activeSection === 'enterprise' ? (
+            <CompaniesView 
+              sessionToken={sessionToken} 
+              setError={setError} 
+              setInfo={setInfo} 
+              currentUsers={usersData?.items || []} 
+              loadUsers={loadUsers} 
+              loadBase={loadBase} 
+            />
           ) : null}
 
           {activeSection === 'integrations' ? (

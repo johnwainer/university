@@ -23,6 +23,12 @@ La API corre por defecto en `http://localhost:4000`.
 La web corre por defecto en `http://localhost:5173` y funciona como `Admin Control Center`.
 Adminer corre en `http://localhost:8080`.
 Moodle local (perfil compose) corre en `http://localhost:8081`.
+Login directo de Moodle: `http://localhost:8081/login/index.php`
+
+Credenciales locales del admin de Moodle:
+
+- usuario: `admin`
+- contraseña: `PaeuMoodleAdmin!2026`
 
 ## Admin del intermediador
 

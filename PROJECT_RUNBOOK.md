@@ -14,6 +14,7 @@ Este archivo es la guía única para entender, levantar y operar el proyecto `pa
 Regla de oro:
 - Ningún frontend debe consumir Moodle ni servicios externos directo.
 - Todo entra/sale por `apps/api`.
+- Jamás dejar archivos compilados (.js, .jsx) colgados en las carpetas de código fuente fuente (.tsx), ya que Vite les dará prioridad superior al construir.
 
 ## 2) Estructura del repo
 
@@ -112,6 +113,12 @@ Valores por defecto en ejemplo:
 ## 6.2 Moodle local
 
 Se define durante el wizard inicial en `http://localhost:8081`.
+Credenciales locales fijadas para administración:
+
+- usuario: `admin`
+- contraseña: `PaeuMoodleAdmin!2026`
+- login web: `http://localhost:8081/login/index.php`
+
 DB de Moodle en wizard:
 
 - host: `moodle-db`
@@ -144,6 +151,7 @@ DB de Moodle en wizard:
 6. Configurar conexión Moodle desde Admin del intermediador:
    - sección Conexiones/Moodle
    - o endpoint `PUT /api/admin/moodle/config`
+7. La base local usa `lthub/moodle:education-4.1.14-1` en `http://localhost:8081` y el contenedor escucha internamente en `80`.
 
 ## 8) Componentes funcionales implementados (actual)
 
@@ -256,7 +264,14 @@ Todas cuelgan de `/api` por `rewriteUrl` en Fastify.
 - `GET /api/admin/podcasts` + CRUD
 - `GET /api/admin/integration/external/events/grouped`
 - `PATCH /api/admin/integration/external/groups/:groupKey`
-- `GET /api/admin/companies` + CRUD miembros/cursos
+- `GET /api/admin/companies` + CRUD (Creación, Edición, Eliminación)
+- `GET /api/admin/companies/:companyId/members` + CRUD (Añadir, Desactivar, Eliminar)
+- `GET /api/admin/companies/:companyId/courses` + CRUD
+- `GET /api/admin/companies/:companyId/groups` + CRUD (Paquetes de cursos)
+- `PUT /api/admin/companies/:companyId/groups/:groupId/courses/:moodleCourseId` (Añadir curso a paquete)
+- `GET /api/admin/companies/:companyId/members/:userId/assignments` (Accesos por colaborador)
+- `PUT /api/admin/companies/:companyId/members/:userId/groups/:groupId` (Asignar paquete a colaborador)
+- `PUT /api/admin/companies/:companyId/members/:userId/courses/:moodleCourseId` (Asignar curso a colaborador)
 
 ## 11) Sincronización y consistencia
 

@@ -35,7 +35,8 @@ services:
       - moodle_db_data:/var/lib/mysql
 
   moodle:
-    image: lthub/moodle:4.5.10
+    image: lthub/moodle:education-4.1.14-1
+    platform: linux/amd64
     profiles: ["moodle"]
     ports:
       - "8081:80"

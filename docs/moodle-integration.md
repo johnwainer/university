@@ -20,7 +20,15 @@ En el instalador de Moodle usa:
 - DB password: `moodle`
 - URL del sitio: `http://localhost:8081`
 
+La imagen actual usa `lthub/moodle:education-4.1.14-1` y escucha en el puerto interno `80`, mapeado al host como `8081`.
+
 Durante el asistente se crea la cuenta admin de Moodle.
+
+Si la instalación ya existe, el admin local del proyecto es:
+
+- usuario: `admin`
+- contraseña: `PaeuMoodleAdmin!2026`
+- login: `http://localhost:8081/login/index.php`
 
 ## 2. Habilitar Web Services
 
