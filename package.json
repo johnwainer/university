@@ -1,5 +1,5 @@
 {
-  "name": "pae-u",
+  "name": "atlas-online-university",
   "private": true,
   "version": "0.1.0",
   "workspaces": [
@@ -7,9 +7,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @pae-u/api & npm run dev -w @pae-u/web",
-    "dev:api": "npm run dev -w @pae-u/api",
-    "dev:web": "npm run dev -w @pae-u/web",
+    "dev": "npm run dev -w @atlas/api & npm run dev -w @atlas/web",
+    "dev:api": "npm run dev -w @atlas/api",
+    "dev:web": "npm run dev -w @atlas/web",
     "build": "npm run build -ws",
     "check": "npm run check -ws",
     "check:runbook": "node scripts/check-runbook-update.mjs"

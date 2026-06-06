@@ -6,7 +6,7 @@ import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypt
 import { execFileSync } from 'node:child_process';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { demoBlueprint } from '@pae-u/shared';
+import { demoBlueprint } from '@atlas/shared';
 import { config, getMoodleConfig, hasMoodleConfig, setMoodleConfig } from './config.js';
 // University OS modules (Fases 1-5) — wired below after initDb() and before app.listen()
 import { migrateSis } from './modules/sis/schema.js';
@@ -157,7 +157,7 @@ type PublicAuthSession = {
 const publicSessions = new Map<string, PublicAuthSession>();
 const publicSessionTtlMinutes = Math.max(60, Number(process.env.PUBLIC_SESSION_TTL_MINUTES ?? 43200));
 let moodleSyncInFlight: Promise<void> | null = null;
-const moodleInteractionPrefix = 'PAEU_INTERACTION::';
+const moodleInteractionPrefix = 'ATLAS_INTERACTION::';
 
 const demoVideoCandidates = [
   process.env.DEMO_VIDEO_PATH,
@@ -499,7 +499,7 @@ function loadMoodleCategoriesFromDockerFallback(): NormalizedMoodleCategory[] {
       'docker',
       [
         'exec',
-        'pae-u-moodle-db-1',
+        'atlas-moodle-db',
         'mariadb',
         '-N',
         '-umoodle',
@@ -2477,7 +2477,7 @@ function splitName(fullName: string): { firstname: string; lastname: string } {
 }
 
 function generateTemporaryPassword(): string {
-  return `Paeu!${Math.random().toString(36).slice(2, 7)}${Date.now().toString().slice(-4)}`;
+  return `Atlas!${Math.random().toString(36).slice(2, 7)}${Date.now().toString().slice(-4)}`;
 }
 
 function normalizeCompanySlug(input: string): string {

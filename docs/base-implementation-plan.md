@@ -3,7 +3,7 @@
 ## 1. Sección ejecutiva
 
 ### 1.1 Visión del producto
-PAE-U es una plataforma SaaS OTT multi-tenant, bilingüe (`es/en`), orientada a combinar distribución de contenido multimedia, e-learning y monetización digital sobre una arquitectura cloud-native en AWS. Moodle actúa como backoffice principal para la operación académica y administrativa, mientras una API intermedia protege a los clientes y desacopla la evolución del ecosistema.
+Atlas Online University es una plataforma SaaS OTT multi-tenant, bilingüe (`es/en`), orientada a combinar distribución de contenido multimedia, e-learning y monetización digital sobre una arquitectura cloud-native en AWS. Moodle actúa como backoffice principal para la operación académica y administrativa, mientras una API intermedia protege a los clientes y desacopla la evolución del ecosistema.
 
 ### 1.2 Alcance del MVP
 El MVP cubre:

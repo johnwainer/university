@@ -1,10 +1,10 @@
-# PAE-U Runbook Maestro (Operación Local + Handoff de Agente)
+# Atlas Online University Runbook Maestro (Operación Local + Handoff de Agente)
 
-Este archivo es la guía única para entender, levantar y operar el proyecto `pae-u` sin contexto previo.
+Este archivo es la guía única para entender, levantar y operar el proyecto `atlas` sin contexto previo.
 
 ## 1) Qué es este proyecto
 
-`PAE-U` es una plataforma OTT + LMS con:
+`Atlas Online University` es una plataforma OTT + LMS con:
 
 - `Moodle` como backoffice académico (cursos, módulos, actividades, progreso).
 - `API Intermediador` (BFF + dominio) como capa obligatoria para TODO.
@@ -52,7 +52,7 @@ Nota importante de DB local:
 - Por eso, para usar la DB de compose, deja `DATABASE_URL` así:
 
 ```env
-DATABASE_URL=postgresql://pae:pae@localhost:65432/pae_u
+DATABASE_URL=postgresql://atlas:atlas@localhost:65432/atlas
 ```
 
 ## 5) Levantar todo en local (completo)
@@ -107,8 +107,8 @@ Tomadas de `.env`:
 - password: `ADMIN_PASSWORD`
 
 Valores por defecto en ejemplo:
-- `admin@pae-u.local`
-- `PaeuAdmin!2026`
+- `admin@atlas.local`
+- `AtlasAdmin!2026`
 
 ## 6.2 Moodle local
 
@@ -116,7 +116,7 @@ Se define durante el wizard inicial en `http://localhost:8081`.
 Credenciales locales fijadas para administración:
 
 - usuario: `admin`
-- contraseña: `PaeuMoodleAdmin!2026`
+- contraseña: `AtlasMoodle!2026`
 - login web: `http://localhost:8081/login/index.php`
 
 DB de Moodle en wizard:
@@ -299,8 +299,8 @@ npm run check
 o por app:
 
 ```bash
-npm run -w @pae-u/api check
-npm run -w @pae-u/web check
+npm run -w @atlas/api check
+npm run -w @atlas/web check
 ```
 
 ## 12.2 Build
@@ -343,7 +343,7 @@ curl http://localhost:4000/api/v1/catalog
 
 ## 14) Onboarding express para otro agente (paso a paso exacto)
 
-1. `cd /Users/john/Documents/pae-u`
+1. `cd /Users/john/Documents/atlas`
 2. `cp .env.example .env` (si no existe).
 3. Ajustar `DATABASE_URL` a puerto `65432`.
 4. `docker compose up -d postgres redis adminer`

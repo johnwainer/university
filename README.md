@@ -1,4 +1,4 @@
-# PAE-U OTT + LMS SaaS Foundation
+# Atlas Online University OTT + LMS SaaS Foundation
 
 Monorepo base para una plataforma OTT multi-tenant con Moodle como backoffice, API intermedia y frontend web en React.
 
@@ -28,7 +28,7 @@ Login directo de Moodle: `http://localhost:8081/login/index.php`
 Credenciales locales del admin de Moodle:
 
 - usuario: `admin`
-- contraseña: `PaeuMoodleAdmin!2026`
+- contraseña: `AtlasMoodle!2026`
 
 ## Admin del intermediador
 

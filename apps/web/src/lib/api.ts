@@ -4,7 +4,7 @@ import type {
   HomeResponse,
   Offer,
   PlatformBlueprintResponse
-} from '@pae-u/shared';
+} from '@atlas/shared';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api';
 

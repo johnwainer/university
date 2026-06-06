@@ -477,7 +477,7 @@ export function CrmView({
                 type="email"
                 value={contactForm.ownerEmail}
                 onChange={(e) => setContactForm((c) => ({ ...c, ownerEmail: e.target.value }))}
-                placeholder="asesor@university.local"
+                placeholder="asesor@atlas.edu"
               />
               <label>Estado</label>
               <input

@@ -1,8 +1,8 @@
-# PAE-U en AWS: Plan de Infraestructura Real (1000 MAU, video-first)
+# Atlas Online University en AWS: Plan de Infraestructura Real (1000 MAU, video-first)
 
 ## 1. Objetivo
 
-Desplegar `PAE-U` completo en AWS, con alta disponibilidad real, seguridad fuerte y costos contenidos.
+Desplegar `Atlas Online University` completo en AWS, con alta disponibilidad real, seguridad fuerte y costos contenidos.
 
 Supuesto de carga inicial:
 - ~1000 usuarios activos/mes.

@@ -1,4 +1,4 @@
-# Plan de Implementación — PAE-U como "University Operating System"
+# Plan de Implementación — Atlas Online University como "University Operating System"
 
 > Origen: análisis de `gi.md` (research de SIS/CRM/LMS/HR/Contabilidad/Syllabus) mapeado
 > sobre la plataforma actual (`apps/api` intermediador + Moodle + `apps/web`).

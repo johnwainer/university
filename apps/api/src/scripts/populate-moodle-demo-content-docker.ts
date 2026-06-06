@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { config } from '../config.js';
 
-const CONTAINER = 'pae-u-moodle-1';
+const CONTAINER = 'atlas-moodle';
 
 function runDocker(args: string[]) {
   return execFileSync('docker', args, { encoding: 'utf8' });

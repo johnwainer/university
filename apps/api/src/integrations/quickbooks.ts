@@ -95,8 +95,8 @@ export async function pushInvoice(invoice: InvoiceInput): Promise<GlPushResult> 
         SalesItemLineDetail: {}
       }
     ],
-    CustomerMemo: { value: `pae-u invoice ${invoice.id}` },
-    PrivateNote: `pae-u:invoice:${invoice.id}`,
+    CustomerMemo: { value: `atlas invoice ${invoice.id}` },
+    PrivateNote: `atlas:invoice:${invoice.id}`,
     ...(invoice.currency ? { CurrencyRef: { value: invoice.currency } } : {})
   };
   const result = await qboPost<{ Invoice?: { Id?: string }; SalesReceipt?: { Id?: string } }>(
@@ -115,7 +115,7 @@ export async function pushPayment(payment: PaymentInput): Promise<GlPushResult> 
   const amount = toAmount(payment.amount);
   const payload = {
     TotalAmt: amount,
-    PrivateNote: `pae-u:payment:${payment.id}`,
+    PrivateNote: `atlas:payment:${payment.id}`,
     ...(payment.currency ? { CurrencyRef: { value: payment.currency } } : {})
   };
   const result = await qboPost<{ Payment?: { Id?: string } }>('payment', payload);

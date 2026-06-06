@@ -1,4 +1,4 @@
-# Moodle Integration Guide (PAE-U Intermediador)
+# Moodle Integration Guide (Atlas Online University Intermediador)
 
 ## 1. Levantar Moodle local
 
@@ -27,7 +27,7 @@ Durante el asistente se crea la cuenta admin de Moodle.
 Si la instalación ya existe, el admin local del proyecto es:
 
 - usuario: `admin`
-- contraseña: `PaeuMoodleAdmin!2026`
+- contraseña: `AtlasMoodle!2026`
 - login: `http://localhost:8081/login/index.php`
 
 ## 2. Habilitar Web Services
@@ -40,7 +40,7 @@ En Moodle:
 ## 3. Crear servicio y token
 
 1. `Site administration` -> `Server` -> `Web services` -> `External services`.
-2. Crear servicio (por ejemplo `PAE-U Intermediator`) y marcarlo como enabled.
+2. Crear servicio (por ejemplo `Atlas Online University Intermediator`) y marcarlo como enabled.
 3. Agregar funciones:
    - `core_webservice_get_site_info`
    - `core_course_get_courses`
@@ -75,7 +75,7 @@ npm run dev:api
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:4000/admin/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@pae-u.local","password":"PaeuAdmin!2026"}' | \
+  -d '{"email":"admin@atlas.local","password":"AtlasAdmin!2026"}' | \
   node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).token))")
 
 curl -H "Authorization: Bearer $TOKEN" http://localhost:4000/admin/moodle/status

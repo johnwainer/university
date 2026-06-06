@@ -12,12 +12,12 @@ export const config = {
   },
   admin: {
     apiKey: process.env.ADMIN_API_KEY ?? 'dev-admin-key',
-    email: process.env.ADMIN_EMAIL ?? 'admin@university.local',
-    password: process.env.ADMIN_PASSWORD ?? 'UnivAdmin!2026',
+    email: process.env.ADMIN_EMAIL ?? 'admin@atlas.edu',
+    password: process.env.ADMIN_PASSWORD ?? 'AtlasAdmin!2026',
     sessionTtlMinutes: Number(process.env.ADMIN_SESSION_TTL_MINUTES ?? 720)
   },
   db: {
-    url: process.env.DATABASE_URL ?? 'postgresql://pae:pae@localhost:5432/pae_u'
+    url: process.env.DATABASE_URL ?? 'postgresql://atlas:atlas@localhost:5432/atlas'
   },
   moodle: {
     baseUrl: process.env.MOODLE_BASE_URL ?? '',

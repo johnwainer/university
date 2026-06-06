@@ -54,7 +54,7 @@ Todas las rutas `admin` aceptan:
 ```bash
 curl -X POST \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@pae-u.local","password":"PaeuAdmin!2026"}' \
+  -d '{"email":"admin@atlas.local","password":"AtlasAdmin!2026"}' \
   http://localhost:4000/admin/auth/login
 ```
 
@@ -101,7 +101,7 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -d '{
     "fullName":"Maria Demo",
-    "email":"maria.demo@pae-u.local",
+    "email":"maria.demo@atlas.local",
     "locale":"es",
     "roles":["learner"]
   }' \

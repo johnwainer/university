@@ -9,7 +9,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@pae-u/shared": ["packages/shared/src"]
+      "@atlas/shared": ["packages/shared/src"]
     }
   }
 }

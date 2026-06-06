@@ -1,5 +1,5 @@
 {
-  "name": "@pae-u/api",
+  "name": "@atlas/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
   "dependencies": {
     "@fastify/cors": "^11.1.0",
     "@fastify/sensible": "^6.0.3",
-    "@pae-u/shared": "0.1.0",
+    "@atlas/shared": "0.1.0",
     "dotenv": "^17.2.3",
     "fastify": "^5.2.1",
     "pg": "^8.13.3",

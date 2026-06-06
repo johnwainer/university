@@ -26,10 +26,10 @@ export interface CredentialsContext {
 }
 
 function makeSerial(): string {
-  // Human-readable certificate serial, e.g. PAEU-3F9A1C-7B2E.
+  // Human-readable certificate serial, e.g. ATLAS-3F9A1C-7B2E.
   const a = randomBytes(3).toString('hex').toUpperCase();
   const b = randomBytes(2).toString('hex').toUpperCase();
-  return `PAEU-${a}-${b}`;
+  return `ATLAS-${a}-${b}`;
 }
 
 function makeVerificationCode(): string {

@@ -9,7 +9,7 @@ import {
   type ContentAsset,
   type Entitlement,
   type Offer
-} from '@pae-u/shared';
+} from '@atlas/shared';
 import { config } from './config.js';
 
 export const pool = new Pool({ connectionString: config.db.url });
@@ -114,6 +114,60 @@ const courseThemePool = [
   'Aprendizaje enfocado en casos reales, ejercicios y feedback continuo.',
   'Trayecto de especialización con recursos descargables y actividades interactivas.'
 ];
+
+// Bilingual (es/en) catalog metadata for the Atlas Online University Moodle courses,
+// keyed by course shortname. Used by the Moodle mirror so every course is shown in
+// Spanish (title/summary) and English (titleEn/summaryEn).
+const COURSE_I18N: Record<string, { es: { title: string; summary: string }; en: { title: string; summary: string } }> = {
+  BUS101: {
+    es: { title: 'Introducción a la Analítica de Negocios', summary: 'Fundamentos del análisis de datos aplicado a decisiones de negocio: métricas, visualización e interpretación.' },
+    en: { title: 'Introduction to Business Analytics', summary: 'Foundations of data analysis applied to business decisions: metrics, visualization and interpretation.' }
+  },
+  MKT201: {
+    es: { title: 'Principios de Marketing', summary: 'Conceptos esenciales de marketing: segmentación, posicionamiento, marca y estrategia digital.' },
+    en: { title: 'Principles of Marketing', summary: 'Essential marketing concepts: segmentation, positioning, branding and digital strategy.' }
+  },
+  ACC110: {
+    es: { title: 'Contabilidad Financiera', summary: 'Bases de la contabilidad: estados financieros, registro de transacciones y análisis financiero.' },
+    en: { title: 'Financial Accounting', summary: 'Accounting fundamentals: financial statements, recording transactions and financial analysis.' }
+  },
+  CS110: {
+    es: { title: 'Introducción a la Programación con Python', summary: 'Pensamiento algorítmico, estructuras básicas y resolución de problemas reales con Python.' },
+    en: { title: 'Introduction to Programming with Python', summary: 'Algorithmic thinking, basic structures and solving real problems with Python.' }
+  },
+  CS210: {
+    es: { title: 'Estructuras de Datos y Algoritmos', summary: 'Listas, árboles, grafos y análisis de complejidad para resolver problemas de forma eficiente.' },
+    en: { title: 'Data Structures & Algorithms', summary: 'Lists, trees, graphs and complexity analysis to solve problems efficiently.' }
+  },
+  CLD230: {
+    es: { title: 'Fundamentos de Computación en la Nube', summary: 'Modelos de servicio, despliegue, escalabilidad y seguridad en plataformas cloud.' },
+    en: { title: 'Cloud Computing Fundamentals', summary: 'Service models, deployment, scalability and security on cloud platforms.' }
+  },
+  PH101: {
+    es: { title: 'Fundamentos de Salud Pública', summary: 'Determinantes de la salud, epidemiología básica y sistemas de salud poblacional.' },
+    en: { title: 'Foundations of Public Health', summary: 'Health determinants, basic epidemiology and population health systems.' }
+  },
+  BIO140: {
+    es: { title: 'Anatomía y Fisiología I', summary: 'Estructura y función de los sistemas del cuerpo humano con enfoque clínico introductorio.' },
+    en: { title: 'Anatomy & Physiology I', summary: 'Structure and function of the human body systems with an introductory clinical focus.' }
+  },
+  ART150: {
+    es: { title: 'Panorama del Arte Occidental', summary: 'Recorrido por movimientos, obras y contextos del arte occidental desde la antigüedad.' },
+    en: { title: 'Survey of Western Art', summary: 'A tour of movements, works and contexts of Western art from antiquity onward.' }
+  },
+  ENG101: {
+    es: { title: 'Escritura y Composición Académica', summary: 'Redacción clara, argumentación, citación y estructura de textos académicos.' },
+    en: { title: 'Academic Writing & Composition', summary: 'Clear writing, argumentation, citation and the structure of academic texts.' }
+  },
+  PSY101: {
+    es: { title: 'Introducción a la Psicología', summary: 'Principios del comportamiento humano: cognición, emoción, desarrollo y métodos.' },
+    en: { title: 'Introduction to Psychology', summary: 'Principles of human behavior: cognition, emotion, development and methods.' }
+  },
+  EDU310: {
+    es: { title: 'Diseño Instruccional para Adultos', summary: 'Modelos de diseño instruccional y andragogía para programas de reskilling efectivos.' },
+    en: { title: 'Instructional Design for Adult Learners', summary: 'Instructional design models and andragogy for effective reskilling programs.' }
+  }
+};
 
 async function createSchema(): Promise<void> {
   await pool.query(`
@@ -550,7 +604,7 @@ async function seedBaseData(): Promise<void> {
       description:
         'Una sesión en vivo con metodologías de investigación, fuentes académicas y herramientas para producción científica.',
       heroImage:
-        'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=1600&q=80',
+        'https://images.unsplash.com/photo-1591453089816-0fbb971b454c?auto=format&fit=crop&w=1600&q=80',
       sourceType: 'youtube',
       sourceUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
       replayUrl: '',
@@ -747,8 +801,16 @@ export async function syncMoodleCoursesWithCategories(
     const slugBase = toSlug(shortname) || `course-${course.id}`;
     const title = course.fullname || shortname;
     const summary = course.summary?.trim() || 'Course synchronized from Moodle';
-    const heroImage = `https://picsum.photos/seed/paeu-course-${course.id}/1400/800`;
+    const heroImage = `https://picsum.photos/seed/atlas-course-${course.id}/1400/800`;
     const themedSummary = `${summary} ${courseThemePool[Math.abs(Number(course.id)) % courseThemePool.length]}`.trim();
+    // Bilingual (es/en) catalog metadata. Known Atlas courses use the curated map;
+    // any other course falls back to its Moodle title in both languages so EN never breaks.
+    const i18n = COURSE_I18N[shortname.toUpperCase()];
+    const assetTitle = i18n ? i18n.es.title : title;
+    const assetTitleEn = i18n ? i18n.en.title : title;
+    const assetSummary = i18n ? i18n.es.summary : themedSummary;
+    const assetSummaryEn = i18n ? i18n.en.summary : themedSummary;
+    const assetLanguage = i18n ? 'es' : language;
     const categoryName =
       (typeof course.categoryid === 'number' ? categoryNameById[course.categoryid] : undefined) ??
       extractCategoryFromSummary(course.summary) ??
@@ -786,12 +848,14 @@ export async function syncMoodleCoursesWithCategories(
     const moodleCourseAsset = {
       id: `moodle-course-${course.id}`,
       slug: `moodle-${slugBase}-${course.id}`,
-      title,
-      summary: themedSummary,
+      title: assetTitle,
+      summary: assetSummary,
+      titleEn: assetTitleEn,
+      summaryEn: assetSummaryEn,
       kind: 'course',
       accessModel: 'purchase',
       durationMinutes: 120,
-      language,
+      language: assetLanguage,
       tags: [categoryName, 'Moodle'],
       heroImage,
       categoryName,

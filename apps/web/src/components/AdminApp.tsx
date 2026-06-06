@@ -95,12 +95,12 @@ const webinarPlatformOptions = [
   'external'
 ] as const;
 
-const ADMIN_SESSION_STORAGE = 'pae-u-admin-session-token';
+const ADMIN_SESSION_STORAGE = 'atlas-admin-session-token';
 const PAGE_SIZE = 20;
 
 export function AdminApp() {
   const [sessionToken, setSessionToken] = useState<string>(() => localStorage.getItem(ADMIN_SESSION_STORAGE) ?? '');
-  const [loginEmail, setLoginEmail] = useState('admin@university.local');
+  const [loginEmail, setLoginEmail] = useState('admin@atlas.edu');
   const [loginPassword, setLoginPassword] = useState('');
   const [activeSection, setActiveSection] = useState<PanelSection>('overview');
   const [loadingBase, setLoadingBase] = useState(false);
@@ -911,7 +911,7 @@ export function AdminApp() {
               type="email"
               value={loginEmail}
               onChange={(event) => setLoginEmail(event.target.value)}
-              placeholder="admin@university.local"
+              placeholder="admin@atlas.edu"
               required
             />
             <label htmlFor="admin-password">Contraseña</label>
