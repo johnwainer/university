@@ -173,7 +173,7 @@ export function CompaniesView({
   };
 
   const onDeleteCompany = async (id: string) => {
-    if (!sessionToken || !confirm('¿Estás seguro de eliminar permanentemente esta empresa y todo lo asociado?')) return;
+    if (!sessionToken || !confirm('¿Estás seguro de eliminar permanentemente este departamento y todo lo asociado?')) return;
     try {
       await api.admin.deleteCompany(sessionToken, id);
       setInfo('Empresa eliminada.');
@@ -198,11 +198,11 @@ export function CompaniesView({
         locale: companyMemberForm.locale || 'es',
         role: 'collaborator'
       });
-      setInfo('Colaborador agregado y sincronizado.');
+      setInfo('Estudiante agregado y sincronizado.');
       setCompanyMemberForm({ userId: '', fullName: '', email: '', locale: 'es' });
       await Promise.all([onSelectCompany(selectedCompanyId), loadBase(sessionToken), loadUsers(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo agregar colaborador');
+      setError(reason instanceof Error ? reason.message : 'No se pudo agregar estudiante');
     } finally {
       setSavingCompanyMember(false);
     }
@@ -223,20 +223,20 @@ export function CompaniesView({
       setEditingCompanyMemberId(null);
       await Promise.all([onSelectCompany(selectedCompanyId), loadBase(sessionToken), loadUsers(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar colaborador');
+      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar estudiante');
     } finally {
       setSavingCompanyMember(false);
     }
   };
 
   const onDeleteCompanyMember = async (userId: string) => {
-    if (!sessionToken || !selectedCompanyId || !confirm('¿Estás seguro de eliminar a este colaborador?')) return;
+    if (!sessionToken || !selectedCompanyId || !confirm('¿Estás seguro de eliminar a este estudiante?')) return;
     try {
       await api.admin.deleteCompanyMember(sessionToken, selectedCompanyId, userId);
-      setInfo('Colaborador eliminado y desmatriculado de cursos de empresa.');
+      setInfo('Estudiante eliminado y desmatriculado de cursos del departamento.');
       await Promise.all([onSelectCompany(selectedCompanyId), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo eliminar el colaborador');
+      setError(reason instanceof Error ? reason.message : 'No se pudo eliminar el estudiante');
     }
   };
 
@@ -253,7 +253,7 @@ export function CompaniesView({
       const assignments = await api.admin.companyMemberAssignments(sessionToken, selectedCompanyId, userId);
       setMemberAssignments(assignments);
     } catch {
-      setError('Error cargando los accesos del colaborador.');
+      setError('Error cargando los accesos del estudiante.');
       setExpandedMemberId(null);
     }
   };
@@ -264,7 +264,7 @@ export function CompaniesView({
     setSavingMemberAssignment(true);
     try {
       await api.admin.addGroupToCompanyMember(sessionToken, selectedCompanyId, userId, memberGroupFormId);
-      setInfo('Paquete asignado al colaborador.');
+      setInfo('Paquete asignado al estudiante.');
       setMemberGroupFormId('');
       const assignments = await api.admin.companyMemberAssignments(sessionToken, selectedCompanyId, userId);
       setMemberAssignments(assignments);
@@ -276,11 +276,11 @@ export function CompaniesView({
   };
 
   const onRemoveGroupFromMember = async (userId: string, groupId: string) => {
-    if (!sessionToken || !selectedCompanyId || !confirm('¿Quitar este paquete del colaborador?')) return;
+    if (!sessionToken || !selectedCompanyId || !confirm('¿Quitar este paquete del estudiante?')) return;
     setSavingMemberAssignment(true);
     try {
       await api.admin.removeGroupFromCompanyMember(sessionToken, selectedCompanyId, userId, groupId);
-      setInfo('Paquete removido del colaborador.');
+      setInfo('Paquete removido del estudiante.');
       const assignments = await api.admin.companyMemberAssignments(sessionToken, selectedCompanyId, userId);
       setMemberAssignments(assignments);
     } catch (reason) {
@@ -308,7 +308,7 @@ export function CompaniesView({
   };
 
   const onRemoveCourseFromMember = async (userId: string, moodleCourseId: number) => {
-    if (!sessionToken || !selectedCompanyId || !confirm('¿Quitar este curso adicional del colaborador?')) return;
+    if (!sessionToken || !selectedCompanyId || !confirm('¿Quitar este curso adicional del estudiante?')) return;
     setSavingMemberAssignment(true);
     try {
       await api.admin.removeCourseFromCompanyMember(sessionToken, selectedCompanyId, userId, moodleCourseId);
@@ -454,13 +454,13 @@ export function CompaniesView({
           <input
             value={companyForm.slug}
             onChange={(event) => setCompanyForm((current) => ({ ...current, slug: event.target.value }))}
-            placeholder="empresa-abc"
+            placeholder="departamento-ciencias"
           />
           <label>Descripción</label>
           <input
             value={companyForm.description}
             onChange={(event) => setCompanyForm((current) => ({ ...current, description: event.target.value }))}
-            placeholder="Programa empresarial"
+            placeholder="Programa académico del departamento"
           />
           <label>Email de contacto</label>
           <input
@@ -507,8 +507,8 @@ export function CompaniesView({
       </article>
 
       <article className="card scroll-card">
-        <h2>Empresas ({companiesData.length})</h2>
-        {loadingCompanies ? <p>Cargando empresas...</p> : null}
+        <h2>Departamentos ({companiesData.length})</h2>
+        {loadingCompanies ? <p>Cargando departamentos...</p> : null}
         <table>
           <thead>
             <tr>
@@ -559,7 +559,7 @@ export function CompaniesView({
 
       <article className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2>Agregar colaborador</h2>
+          <h2>Agregar estudiante</h2>
           {selectedCompanyId && (
             <button className="ghost" onClick={() => void onSyncEnterprise(selectedCompanyId)} disabled={syncingEnterprise}>
               {syncingEnterprise ? 'Sincronizando...' : 'Sync Moodle'}
@@ -567,7 +567,7 @@ export function CompaniesView({
           )}
         </div>
         {!selectedCompanyId ? (
-          <p>Selecciona una empresa para gestionar sus colaboradores.</p>
+          <p>Selecciona un departamento para gestionar sus estudiantes.</p>
         ) : (
           <form className="login-form" onSubmit={onAddCompanyMember}>
             <label>Usuario existente (opcional)</label>
@@ -577,7 +577,7 @@ export function CompaniesView({
                 setCompanyMemberForm((current) => ({ ...current, userId: event.target.value }))
               }
             >
-              <option value="">Crear nuevo colaborador</option>
+              <option value="">Crear nuevo estudiante</option>
               {currentUsers
                 .filter((user) => user.status === 'active')
                 .map((user) => (
@@ -612,7 +612,7 @@ export function CompaniesView({
               placeholder="es"
             />
             <button type="submit" disabled={savingCompanyMember}>
-              {savingCompanyMember ? 'Agregando...' : 'Agregar colaborador'}
+              {savingCompanyMember ? 'Agregando...' : 'Agregar estudiante'}
             </button>
           </form>
         )}
@@ -679,9 +679,9 @@ export function CompaniesView({
 
 
       <article className="card scroll-card">
-        <h2>Colaboradores de la empresa</h2>
+        <h2>Estudiantes del departamento</h2>
         {!selectedCompanyId ? (
-          <p>Selecciona una empresa para ver colaboradores.</p>
+          <p>Selecciona un departamento para ver estudiantes.</p>
         ) : (
           <table>
             <thead>
@@ -698,7 +698,7 @@ export function CompaniesView({
             <tbody>
               {selectedCompanyMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>No hay colaboradores en esta empresa.</td>
+                  <td colSpan={7}>No hay estudiantes en este departamento.</td>
                 </tr>
               ) : (
                 selectedCompanyMembers.map((member) => (
@@ -740,7 +740,7 @@ export function CompaniesView({
                                   fullName: editingCompanyMemberForm.fullName,
                                   email: editingCompanyMemberForm.email,
                                   role: editingCompanyMemberForm.role
-                                }, 'Colaborador actualizado.')}
+                                }, 'Estudiante actualizado.')}
                                 disabled={savingCompanyMember}
                               >
                                 Guardar
@@ -805,7 +805,7 @@ export function CompaniesView({
                                 </button>
                                 <button
                                   className="ghost"
-                                  onClick={() => void onUpdateCompanyMember(member, { status: member.status === 'active' ? 'inactive' : 'active' }, `Colaborador ${member.status === 'active' ? 'desactivado' : 'activado'}.`)}
+                                  onClick={() => void onUpdateCompanyMember(member, { status: member.status === 'active' ? 'inactive' : 'active' }, `Estudiante ${member.status === 'active' ? 'desactivado' : 'activado'}.`)}
                                   disabled={savingCompanyMember}
                                 >
                                   {member.status === 'active' ? 'Desactivar' : 'Activar'}
@@ -946,7 +946,7 @@ export function CompaniesView({
             <tbody>
               {selectedCompanyCourses.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>No hay cursos habilitados para esta empresa.</td>
+                  <td colSpan={6}>No hay cursos habilitados para este departamento.</td>
                 </tr>
               ) : (
                 selectedCompanyCourses.map((course) => (
@@ -1047,7 +1047,7 @@ export function CompaniesView({
       
       {selectedCompanyId && selectedCompanyMemberProgress.length > 0 && (
       <article className="card scroll-card">
-        <h2>Rendimiento por Colaborador</h2>
+        <h2>Rendimiento por Estudiante</h2>
         <div style={{ width: '100%', height: '350px' }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -1086,7 +1086,7 @@ export function CompaniesView({
                <table>
                 <thead>
                   <tr>
-                    <th>Colaborador</th>
+                    <th>Estudiante</th>
                     <th>Curso</th>
                     <th>Progreso</th>
                   </tr>
@@ -1095,7 +1095,7 @@ export function CompaniesView({
                    {selectedCompanyMemberProgress.map((prog, idx) => (
                       <tr key={idx}>
                         <td>{prog.full_name}</td>
-                        <td>{prog.course_name ?? <span style={{ color: 'var(--text-muted)' }}>Sin cursos asignados</span>}</td>
+                        <td>{prog.course_name ?? <span style={{ color: 'var(--text-muted)' }}>Sin cursos inscritos</span>}</td>
                         <td>{prog.progress_percent}%</td>
                       </tr>
                    ))}

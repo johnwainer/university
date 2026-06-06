@@ -42,6 +42,8 @@ export interface ContentAsset {
   slug: string;
   title: string;
   summary: string;
+  titleEn?: string;
+  summaryEn?: string;
   kind: ContentKind;
   accessModel: AccessModel;
   durationMinutes?: number;
@@ -127,38 +129,38 @@ const interactiveEvents: InteractiveEvent[] = [
     type: 'quiz',
     startsAtSec: 120,
     endsAtSec: 180,
-    prompt: 'What is the key topic covered in this block?',
-    options: ['Product strategy', 'Linear algebra', 'Cooking basics']
+    prompt: '¿Cuál es el concepto central abordado en este bloque temático?',
+    options: ['Teoría del conocimiento', 'Álgebra lineal', 'Metodología de investigación']
   },
   {
     id: 'ie-cta-1',
     type: 'cta',
     startsAtSec: 420,
     endsAtSec: 520,
-    prompt: 'Download the learning guide for this lesson.',
-    ctaUrl: 'https://example.com/guide'
+    prompt: 'Descarga la guía de estudio complementaria para esta lección.',
+    ctaUrl: 'https://example.com/guia-estudio'
   }
 ];
 
 export const demoTenant: Tenant = {
   id: 'tenant-pae-u',
-  slug: 'pae-u',
-  name: 'PAE-U',
+  slug: 'university',
+  name: 'University',
   locales: ['es', 'en'],
   currency: 'USD',
   branding: {
-    logoUrl: 'https://dummyimage.com/180x48/0f172a/ffffff&text=PAE-U',
-    primaryColor: '#bf360c',
-    accentColor: '#f59e0b',
-    heroGradient: 'linear-gradient(135deg, #101820 0%, #bf360c 48%, #f59e0b 100%)'
+    logoUrl: 'https://dummyimage.com/180x48/0f172a/ffffff&text=University',
+    primaryColor: '#1e3a5f',
+    accentColor: '#c9a84c',
+    heroGradient: 'linear-gradient(135deg, #0a0d17 0%, #1e3a5f 50%, #c9a84c 100%)'
   }
 };
 
 export const demoUser: UserProfile = {
   id: 'user-1',
-  fullName: 'Alex Johnson',
-  email: 'alex@example.com',
-  locale: 'en',
+  fullName: 'María González',
+  email: 'mgonzalez@university.edu',
+  locale: 'es',
   roles: ['tenant_admin', 'learner'],
   tenantId: demoTenant.id
 };
@@ -166,80 +168,218 @@ export const demoUser: UserProfile = {
 export const demoCatalog: ContentAsset[] = [
   {
     id: 'vod-1',
-    slug: 'ott-growth-masterclass',
-    title: 'OTT Growth Masterclass',
-    summary: 'VoD premium series about monetization, catalog design and audience retention.',
+    slug: 'introduccion-filosofia-moderna',
+    title: 'Introducción a la Filosofía Moderna',
+    summary: 'Serie de clases magistrales en video sobre el pensamiento filosófico desde Descartes hasta Kant. Explora el racionalismo, el empirismo y la crítica de la razón pura.',
     kind: 'vod',
     accessModel: 'subscription',
-    durationMinutes: 92,
-    language: 'en',
-    tags: ['OTT', 'Growth', 'Premium'],
-    heroImage: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1400&q=80',
+    durationMinutes: 110,
+    language: 'es',
+    tags: ['Filosofía', 'Humanidades', 'Historia del pensamiento'],
+    heroImage: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=1400&q=80',
     playback: {
-      hlsUrl: 'https://example.com/hls/ott-growth-masterclass.m3u8',
+      hlsUrl: 'https://example.com/hls/introduccion-filosofia-moderna.m3u8',
       drm: true,
-      subtitles: ['en', 'es'],
+      subtitles: ['es', 'en'],
+      interactiveEvents
+    }
+  },
+  {
+    id: 'vod-2',
+    slug: 'historia-del-arte-occidental',
+    title: 'Historia del Arte Occidental',
+    summary: 'Recorrido visual y analítico desde el arte clásico grecolatino hasta las vanguardias del siglo XX. Incluye análisis de obras, contexto histórico y movimientos artísticos.',
+    kind: 'vod',
+    accessModel: 'free',
+    durationMinutes: 85,
+    language: 'es',
+    tags: ['Arte', 'Historia', 'Cultura'],
+    heroImage: 'https://images.unsplash.com/photo-1572947650440-e8a97ef053b2?auto=format&fit=crop&w=1400&q=80',
+    playback: {
+      hlsUrl: 'https://example.com/hls/historia-del-arte-occidental.m3u8',
+      drm: false,
+      subtitles: ['es'],
+      interactiveEvents
+    }
+  },
+  {
+    id: 'vod-3',
+    slug: 'calculo-diferencial-e-integral',
+    title: 'Cálculo Diferencial e Integral',
+    summary: 'Curso en video sobre límites, derivadas e integrales. Pensado para estudiantes de ingeniería, ciencias y economía que requieren bases sólidas en análisis matemático.',
+    kind: 'vod',
+    accessModel: 'subscription',
+    durationMinutes: 145,
+    language: 'es',
+    tags: ['Matemáticas', 'Ingeniería', 'Ciencias exactas'],
+    heroImage: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=1400&q=80',
+    playback: {
+      hlsUrl: 'https://example.com/hls/calculo-diferencial-e-integral.m3u8',
+      drm: true,
+      subtitles: ['es', 'en'],
       interactiveEvents
     }
   },
   {
     id: 'live-1',
-    slug: 'global-edtech-summit',
-    title: 'Global EdTech Summit Live',
-    summary: 'Live event with surveys, contests and CTA overlays for audience conversion.',
+    slug: 'conferencia-ciencias-sociales-2026',
+    title: 'Conferencia Internacional de Ciencias Sociales 2026',
+    summary: 'Evento académico en vivo con ponencias de investigadores de universidades de América Latina, Europa y Estados Unidos. Incluye paneles, preguntas del público y presentación de investigaciones.',
+    kind: 'live',
+    accessModel: 'free',
+    durationMinutes: 240,
+    language: 'es',
+    tags: ['Conferencia', 'Ciencias sociales', 'Investigación'],
+    heroImage: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1400&q=80',
+    playback: {
+      hlsUrl: 'https://example.com/hls/conferencia-ciencias-sociales-2026.m3u8',
+      drm: false,
+      subtitles: ['es', 'en', 'pt'],
+      interactiveEvents
+    },
+    startsAt: '2026-06-15T14:00:00Z',
+    endsAt: '2026-06-15T18:00:00Z',
+    concurrentViewersTarget: 10000
+  } as LiveEvent,
+  {
+    id: 'live-2',
+    slug: 'simposio-inteligencia-artificial-etica',
+    title: 'Simposio: Inteligencia Artificial y Ética',
+    summary: 'Panel académico en vivo sobre los desafíos éticos, legales y sociales de la inteligencia artificial. Expertos de derecho, filosofía e ingeniería debaten el futuro regulatorio de la IA.',
     kind: 'live',
     accessModel: 'purchase',
     durationMinutes: 180,
     language: 'es',
-    tags: ['Live', 'EdTech', 'Interactive'],
-    heroImage: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=1400&q=80',
+    tags: ['IA', 'Ética', 'Tecnología', 'Derecho'],
+    heroImage: 'https://images.unsplash.com/photo-1677442135703-1787eea5ce01?auto=format&fit=crop&w=1400&q=80',
     playback: {
-      hlsUrl: 'https://example.com/hls/global-edtech-summit-live.m3u8',
+      hlsUrl: 'https://example.com/hls/simposio-ia-etica.m3u8',
       drm: true,
       subtitles: ['es', 'en'],
       interactiveEvents
     },
-    startsAt: '2026-04-10T18:00:00Z',
-    endsAt: '2026-04-10T21:00:00Z',
-    concurrentViewersTarget: 50000
+    startsAt: '2026-07-20T17:00:00Z',
+    endsAt: '2026-07-20T20:00:00Z',
+    concurrentViewersTarget: 5000
   } as LiveEvent,
   {
     id: 'course-1',
-    slug: 'saas-operator-program',
-    title: 'SaaS Operator Certification',
-    summary: 'Structured Moodle course with lessons, assessments and certificate tracking.',
+    slug: 'fundamentos-de-economia',
+    title: 'Fundamentos de Economía',
+    summary: 'Curso estructurado sobre microeconomía y macroeconomía. Analiza oferta y demanda, estructuras de mercado, política fiscal, inflación y crecimiento económico con casos reales.',
     kind: 'course',
-    accessModel: 'purchase',
-    durationMinutes: 600,
-    language: 'en',
-    tags: ['Course', 'Moodle', 'Certification'],
-    heroImage: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1400&q=80',
+    accessModel: 'subscription',
+    durationMinutes: 720,
+    language: 'es',
+    tags: ['Economía', 'Ciencias sociales', 'Política pública'],
+    heroImage: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1400&q=80',
     moodleCourseId: 'mdl-2048',
-    modules: 8,
-    lessons: 36,
+    modules: 10,
+    lessons: 42,
     progress: {
-      completionRate: 42,
-      status: 'in_progress',
+      completionRate: 0,
+      status: 'not_started',
       certificateEligible: false
     }
-  } as Course
+  } as Course,
+  {
+    id: 'course-2',
+    slug: 'metodologia-de-la-investigacion',
+    title: 'Metodología de la Investigación Científica',
+    summary: 'Curso completo sobre diseño de investigación académica: formulación de hipótesis, revisión de literatura, métodos cuantitativos y cualitativos, análisis de datos y redacción de tesis.',
+    kind: 'course',
+    accessModel: 'subscription',
+    durationMinutes: 540,
+    language: 'es',
+    tags: ['Investigación', 'Metodología', 'Tesis', 'Academia'],
+    heroImage: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=1400&q=80',
+    moodleCourseId: 'mdl-2049',
+    modules: 8,
+    lessons: 32,
+    progress: {
+      completionRate: 0,
+      status: 'not_started',
+      certificateEligible: false
+    }
+  } as Course,
+  {
+    id: 'course-3',
+    slug: 'derecho-constitucional',
+    title: 'Derecho Constitucional',
+    summary: 'Curso sobre los principios fundamentales del Estado de derecho, derechos fundamentales, separación de poderes, control de constitucionalidad y jurisprudencia comparada.',
+    kind: 'course',
+    accessModel: 'purchase',
+    durationMinutes: 660,
+    language: 'es',
+    tags: ['Derecho', 'Constitución', 'Jurisprudencia'],
+    heroImage: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=1400&q=80',
+    moodleCourseId: 'mdl-2050',
+    modules: 9,
+    lessons: 38,
+    progress: {
+      completionRate: 0,
+      status: 'not_started',
+      certificateEligible: false
+    }
+  } as Course,
+  {
+    id: 'course-4',
+    slug: 'introduccion-a-la-programacion',
+    title: 'Introducción a la Programación',
+    summary: 'Curso inicial de ciencias de la computación. Aprende pensamiento algorítmico, estructuras de datos básicas, lógica de programación y resuelve problemas reales usando Python.',
+    kind: 'course',
+    accessModel: 'free',
+    durationMinutes: 480,
+    language: 'es',
+    tags: ['Programación', 'Ciencias de la computación', 'Python'],
+    heroImage: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=1400&q=80',
+    moodleCourseId: 'mdl-2051',
+    modules: 7,
+    lessons: 28,
+    progress: {
+      completionRate: 0,
+      status: 'not_started',
+      certificateEligible: false
+    }
+  } as Course,
+  {
+    id: 'bundle-1',
+    slug: 'programa-ciencias-sociales',
+    title: 'Programa de Ciencias Sociales',
+    summary: 'Paquete académico que integra Economía, Sociología, Ciencias Políticas e Historia Contemporánea. Ideal para estudiantes que buscan una formación integral en humanidades.',
+    kind: 'bundle',
+    accessModel: 'purchase',
+    durationMinutes: 1800,
+    language: 'es',
+    tags: ['Programa', 'Ciencias sociales', 'Humanidades'],
+    heroImage: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1400&q=80'
+  }
 ];
 
 export const demoOffers: Offer[] = [
   {
     id: 'offer-sub-monthly',
-    name: 'Global Access Monthly',
-    description: 'Access all premium VoD, live events and starter learning catalog.',
-    price: 19,
+    name: 'Matrícula Mensual',
+    description: 'Acceso ilimitado a todos los cursos, clases magistrales en video y eventos académicos en vivo del catálogo de University.',
+    price: 29,
     currency: 'USD',
     billingPeriod: 'monthly',
     type: 'subscription'
   },
   {
+    id: 'offer-sub-yearly',
+    name: 'Matrícula Anual',
+    description: 'Acceso completo durante un año académico completo. Incluye certificados digitales, acceso a biblioteca de recursos y soporte académico.',
+    price: 249,
+    currency: 'USD',
+    billingPeriod: 'yearly',
+    type: 'subscription'
+  },
+  {
     id: 'offer-course-pack',
-    name: 'Certification Pack',
-    description: 'One-time purchase bundle for professional courses and certificates.',
-    price: 149,
+    name: 'Paquete de Certificación',
+    description: 'Compra única para acceder a un programa de certificación completo con evaluaciones, proyectos y certificado oficial de University.',
+    price: 199,
     currency: 'USD',
     type: 'bundle'
   }

@@ -275,9 +275,9 @@ export function EnterpriseGroupManager({
             </div>
 
             <div className="card-like enterprise-panel-card">
-                <h3>Asignación a Colaboradores</h3>
+                <h3>Asignación a Estudiantes</h3>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                    Selecciona un colaborador para enrolarlo en cursos individuales o grupos completos.
+                    Selecciona un estudiante para inscribirlo en cursos individuales o grupos completos.
                 </p>
 
                 <select

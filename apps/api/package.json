@@ -7,8 +7,6 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json",
-    "import:pasos:cursos": "tsx src/scripts/import-pasos-cursos.ts",
-    "import:pasos:cursos:docker": "tsx src/scripts/import-pasos-cursos-docker.ts",
     "populate:moodle:demo:docker": "tsx src/scripts/populate-moodle-demo-content-docker.ts"
   },
   "dependencies": {

@@ -82,28 +82,6 @@ type PodcastInput = {
   displayOrder?: number;
 };
 
-type ExternalIntegrationEventInput = {
-  externalEventId: string;
-  title: string;
-  description?: string | null;
-  startsAt?: string | null;
-  endsAt?: string | null;
-  isActive: boolean;
-  eventUrl?: string | null;
-  venue?: string | null;
-  modality?: string | null;
-  bannerUrl?: string | null;
-  bannerFrameUrl?: string | null;
-  emailBannerUrl?: string | null;
-  ticketFrameUrl?: string | null;
-  disclaimerUrl?: string | null;
-  groupKey: string;
-  groupLabel: string;
-  tier: 'general' | 'vip' | 'virtual' | 'diamante' | 'other';
-  visibleOnLanding?: boolean;
-  displayOrder?: number;
-  raw: Record<string, unknown>;
-};
 
 function toSlug(input: string): string {
   return input
@@ -376,41 +354,6 @@ async function createSchema(): Promise<void> {
       PRIMARY KEY (company_id, user_id, group_id)
     );
 
-    CREATE TABLE IF NOT EXISTS external_integration_events (
-      external_event_id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      description TEXT,
-      starts_at TIMESTAMPTZ,
-      ends_at TIMESTAMPTZ,
-      is_active BOOLEAN NOT NULL DEFAULT true,
-      event_url TEXT,
-      venue TEXT,
-      modality TEXT,
-      banner_url TEXT,
-      banner_frame_url TEXT,
-      email_banner_url TEXT,
-      ticket_frame_url TEXT,
-      disclaimer_url TEXT,
-      group_key TEXT NOT NULL,
-      group_label TEXT NOT NULL,
-      tier TEXT NOT NULL DEFAULT 'other',
-      visible_on_landing BOOLEAN NOT NULL DEFAULT true,
-      display_order INTEGER NOT NULL DEFAULT 0,
-      raw JSONB NOT NULL,
-      synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS external_integration_events_group_idx
-      ON external_integration_events(group_key, tier, display_order, starts_at DESC);
-    CREATE INDEX IF NOT EXISTS external_integration_events_active_idx
-      ON external_integration_events(is_active, visible_on_landing);
-    ALTER TABLE external_integration_events ADD COLUMN IF NOT EXISTS banner_url TEXT;
-    ALTER TABLE external_integration_events ADD COLUMN IF NOT EXISTS banner_frame_url TEXT;
-    ALTER TABLE external_integration_events ADD COLUMN IF NOT EXISTS email_banner_url TEXT;
-    ALTER TABLE external_integration_events ADD COLUMN IF NOT EXISTS ticket_frame_url TEXT;
-    ALTER TABLE external_integration_events ADD COLUMN IF NOT EXISTS disclaimer_url TEXT;
-
     ALTER TABLE public_course_interactions ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS moodle_user_id BIGINT;
@@ -418,6 +361,59 @@ async function createSchema(): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users(email);
     CREATE UNIQUE INDEX IF NOT EXISTS users_moodle_user_id_unique_idx ON users(moodle_user_id)
       WHERE moodle_user_id IS NOT NULL;
+
+    -- Academic tables
+    CREATE TABLE IF NOT EXISTS academic_terms (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+      name TEXT NOT NULL,
+      code TEXT NOT NULL UNIQUE,
+      start_date DATE NOT NULL,
+      end_date DATE NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS departments (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+      name TEXT NOT NULL,
+      code TEXT NOT NULL UNIQUE,
+      description TEXT,
+      dean_name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS degree_programs (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+      name TEXT NOT NULL,
+      code TEXT NOT NULL UNIQUE,
+      degree_level TEXT NOT NULL CHECK (degree_level IN ('certificate','associate','bachelor','master','doctoral','professional')),
+      department_id TEXT REFERENCES departments(id) ON DELETE SET NULL,
+      credit_hours_required INTEGER NOT NULL DEFAULT 120,
+      description TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    ALTER TABLE moodle_courses ADD COLUMN IF NOT EXISTS credit_hours INTEGER NOT NULL DEFAULT 3;
+    ALTER TABLE moodle_courses ADD COLUMN IF NOT EXISTS department_id TEXT REFERENCES departments(id) ON DELETE SET NULL;
+
+    CREATE TABLE IF NOT EXISTS student_enrollments (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      term_id TEXT NOT NULL REFERENCES academic_terms(id) ON DELETE CASCADE,
+      moodle_course_id BIGINT NOT NULL,
+      degree_program_id TEXT REFERENCES degree_programs(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'enrolled' CHECK (status IN ('enrolled','withdrawn','completed','auditing')),
+      grade TEXT,
+      grade_points NUMERIC(4,2),
+      credit_hours INTEGER NOT NULL DEFAULT 3,
+      enrolled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ,
+      UNIQUE (user_id, term_id, moodle_course_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS student_enrollments_user_idx ON student_enrollments(user_id);
+    CREATE INDEX IF NOT EXISTS student_enrollments_term_idx ON student_enrollments(term_id);
   `);
 }
 
@@ -548,20 +544,20 @@ async function seedBaseData(): Promise<void> {
     nextMonth.setHours(19, 0, 0, 0);
     const endsAt = new Date(nextMonth.getTime() + 90 * 60000);
     await createWebinar({
-      slug: 'webinar-mentalidad-ventas',
-      title: 'Webinar en Vivo: Mentalidad y Ventas de Alto Impacto',
-      subtitle: 'Masterclass mensual PAE-U',
+      slug: 'seminario-investigacion-academica',
+      title: 'Seminario en Vivo: Introducción a la Investigación Académica',
+      subtitle: 'Sesión inaugural del semestre',
       description:
-        'Una sesión en vivo con estrategias accionables para mejorar conversión, energía comercial y foco de ejecución.',
+        'Una sesión en vivo con metodologías de investigación, fuentes académicas y herramientas para producción científica.',
       heroImage:
-        'https://images.unsplash.com/photo-1515168833906-d2a3b82b302a?auto=format&fit=crop&w=1600&q=80',
+        'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=1600&q=80',
       sourceType: 'youtube',
       sourceUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
       replayUrl: '',
       startsAt: nextMonth.toISOString(),
       endsAt: endsAt.toISOString(),
-      timezone: 'America/Bogota',
-      ctaLabel: 'Reservar cupo',
+      timezone: 'America/New_York',
+      ctaLabel: 'Inscribirse',
       isActive: true,
       showOnLanding: true,
       webinarLinks: [
@@ -570,22 +566,30 @@ async function seedBaseData(): Promise<void> {
           url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
         }
       ],
-      freeReservationUrl: 'https://www.pasosalexito.com/',
+      freeReservationUrl: '',
       vipReservationUrl: ''
     });
   }
 
   const hasPodcast = await pool.query(`SELECT id FROM podcasts LIMIT 1`);
   if (!hasPodcast.rows[0]) {
-    await createPodcast({
-      title: 'Podcast PAE-U: Mentalidad, ventas y ejecución',
-      videoCode: 'dQw4w9WgXcQ',
-      videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-      publishedAt: new Date().toISOString(),
-      isActive: true,
-      showOnLanding: true,
-      displayOrder: 0
-    });
+    const cambridgeVideos = [
+      { id: 'cambridge-1', title: 'Welcome to Cambridge', code: 'LlCwHnp3kL4', order: 0 },
+      { id: 'cambridge-2', title: 'Medieval History of the University of Cambridge', code: 'BUR7swYAYls', order: 1 },
+      { id: 'cambridge-3', title: 'University of Cambridge International Summer Programme', code: 'TgOWtFQKyWw', order: 2 },
+      { id: 'cambridge-4', title: 'Cambridge University', code: 'AxQouD_mnuo', order: 3 }
+    ];
+    for (const v of cambridgeVideos) {
+      await createPodcast({
+        title: v.title,
+        videoCode: v.code,
+        videoUrl: `https://www.youtube.com/watch?v=${v.code}`,
+        publishedAt: new Date().toISOString(),
+        isActive: true,
+        showOnLanding: true,
+        displayOrder: v.order
+      });
+    }
   }
 }
 
@@ -1711,8 +1715,7 @@ export async function getAdminSnapshot() {
     companiesResult,
     companyMembersResult,
     webinarsResult,
-    podcastsResult,
-    externalEventsResult
+    podcastsResult
   ] = await Promise.all([
     pool.query(`SELECT current_database() AS database, NOW() AS now`),
     pool.query(`SELECT COUNT(*)::int AS count FROM tenants`),
@@ -1727,8 +1730,7 @@ export async function getAdminSnapshot() {
     pool.query(`SELECT COUNT(*)::int AS count FROM companies WHERE is_active = true`),
     pool.query(`SELECT COUNT(*)::int AS count FROM company_members WHERE status = 'active'`),
     pool.query(`SELECT COUNT(*)::int AS count FROM webinars`),
-    pool.query(`SELECT COUNT(*)::int AS count FROM podcasts`),
-    pool.query(`SELECT COUNT(*)::int AS count FROM external_integration_events`)
+    pool.query(`SELECT COUNT(*)::int AS count FROM podcasts`)
   ]);
 
   return {
@@ -1746,263 +1748,8 @@ export async function getAdminSnapshot() {
     companies: companiesResult.rows[0]?.count ?? 0,
     companyMembers: companyMembersResult.rows[0]?.count ?? 0,
     webinars: webinarsResult.rows[0]?.count ?? 0,
-    podcasts: podcastsResult.rows[0]?.count ?? 0,
-    externalEvents: externalEventsResult.rows[0]?.count ?? 0
+    podcasts: podcastsResult.rows[0]?.count ?? 0
   };
-}
-
-export async function upsertExternalIntegrationEvents(events: ExternalIntegrationEventInput[]): Promise<number> {
-  let total = 0;
-  for (const event of events) {
-    await pool.query(
-      `
-        INSERT INTO external_integration_events (
-          external_event_id,
-          title,
-          description,
-          starts_at,
-          ends_at,
-          is_active,
-          event_url,
-          venue,
-          modality,
-          banner_url,
-          banner_frame_url,
-          email_banner_url,
-          ticket_frame_url,
-          disclaimer_url,
-          group_key,
-          group_label,
-          tier,
-          visible_on_landing,
-          display_order,
-          raw,
-          synced_at,
-          updated_at
-        )
-        VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20::jsonb, NOW(), NOW()
-        )
-        ON CONFLICT (external_event_id) DO UPDATE
-        SET title = EXCLUDED.title,
-            description = EXCLUDED.description,
-            starts_at = EXCLUDED.starts_at,
-            ends_at = EXCLUDED.ends_at,
-            is_active = EXCLUDED.is_active,
-            event_url = EXCLUDED.event_url,
-            venue = EXCLUDED.venue,
-            modality = EXCLUDED.modality,
-            banner_url = EXCLUDED.banner_url,
-            banner_frame_url = EXCLUDED.banner_frame_url,
-            email_banner_url = EXCLUDED.email_banner_url,
-            ticket_frame_url = EXCLUDED.ticket_frame_url,
-            disclaimer_url = EXCLUDED.disclaimer_url,
-            group_key = external_integration_events.group_key,
-            group_label = external_integration_events.group_label,
-            tier = external_integration_events.tier,
-            visible_on_landing = external_integration_events.visible_on_landing,
-            display_order = external_integration_events.display_order,
-            raw = EXCLUDED.raw,
-            synced_at = NOW(),
-            updated_at = NOW()
-      `,
-      [
-        event.externalEventId,
-        event.title,
-        event.description ?? null,
-        event.startsAt ?? null,
-        event.endsAt ?? null,
-        event.isActive,
-        event.eventUrl ?? null,
-        event.venue ?? null,
-        event.modality ?? null,
-        event.bannerUrl ?? null,
-        event.bannerFrameUrl ?? null,
-        event.emailBannerUrl ?? null,
-        event.ticketFrameUrl ?? null,
-        event.disclaimerUrl ?? null,
-        event.groupKey,
-        event.groupLabel,
-        event.tier,
-        event.visibleOnLanding ?? true,
-        event.displayOrder ?? 0,
-        JSON.stringify(event.raw)
-      ]
-    );
-    total += 1;
-  }
-  return total;
-}
-
-export async function listExternalIntegrationEvents(input?: {
-  activeOnly?: boolean;
-  landingOnly?: boolean;
-}) {
-  const values: Array<boolean> = [];
-  const where: string[] = [];
-  if (input?.activeOnly) {
-    values.push(true);
-    where.push(`is_active = $${values.length}`);
-  }
-  if (input?.landingOnly) {
-    values.push(true);
-    where.push(`visible_on_landing = $${values.length}`);
-  }
-  const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
-  const result = await pool.query(
-    `
-      SELECT
-        external_event_id,
-        title,
-        description,
-        starts_at,
-        ends_at,
-        is_active,
-        event_url,
-        venue,
-        modality,
-        banner_url,
-        banner_frame_url,
-        email_banner_url,
-        ticket_frame_url,
-        disclaimer_url,
-        group_key,
-        group_label,
-        tier,
-        visible_on_landing,
-        display_order,
-        raw,
-        synced_at,
-        created_at,
-        updated_at
-      FROM external_integration_events
-      ${whereSql}
-      ORDER BY group_key ASC, display_order ASC, starts_at DESC NULLS LAST, title ASC
-    `,
-    values
-  );
-  return result.rows;
-}
-
-export async function updateExternalIntegrationEvent(
-  eventId: string,
-  input: Partial<{
-    groupKey: string;
-    groupLabel: string;
-    tier: 'general' | 'vip' | 'virtual' | 'diamante' | 'other';
-    isActive: boolean;
-    visibleOnLanding: boolean;
-    displayOrder: number;
-  }>
-) {
-  const existing = await pool.query(`SELECT * FROM external_integration_events WHERE external_event_id = $1 LIMIT 1`, [eventId]);
-  const row = existing.rows[0];
-  if (!row) {
-    return null;
-  }
-  const result = await pool.query(
-    `
-      UPDATE external_integration_events
-      SET group_key = $2,
-          group_label = $3,
-          tier = $4,
-          is_active = $5,
-          visible_on_landing = $6,
-          display_order = $7,
-          updated_at = NOW()
-      WHERE external_event_id = $1
-      RETURNING *
-    `,
-    [
-      eventId,
-      input.groupKey ?? row.group_key,
-      input.groupLabel ?? row.group_label,
-      input.tier ?? row.tier,
-      input.isActive ?? row.is_active,
-      input.visibleOnLanding ?? row.visible_on_landing,
-      input.displayOrder ?? row.display_order
-    ]
-  );
-  return result.rows[0] ?? null;
-}
-
-export async function listGroupedExternalIntegrationEvents(input?: {
-  activeOnly?: boolean;
-  landingOnly?: boolean;
-}) {
-  const rows = await listExternalIntegrationEvents(input);
-  const groups = new Map<
-    string,
-    {
-      groupKey: string;
-      groupLabel: string;
-      displayOrder: number;
-      startsAt: string | null;
-      visibleOnLanding: boolean;
-      isActive: boolean;
-      events: Array<Record<string, unknown>>;
-    }
-  >();
-
-  for (const row of rows) {
-    const key = String(row.group_key);
-    if (!groups.has(key)) {
-      groups.set(key, {
-        groupKey: key,
-        groupLabel: String(row.group_label ?? key),
-        displayOrder: Number(row.display_order ?? 0),
-        startsAt: row.starts_at ? new Date(row.starts_at).toISOString() : null,
-        visibleOnLanding: Boolean(row.visible_on_landing),
-        isActive: Boolean(row.is_active),
-        events: []
-      });
-    }
-    const group = groups.get(key)!;
-    if (row.starts_at) {
-      const candidate = new Date(row.starts_at).toISOString();
-      if (!group.startsAt || Date.parse(candidate) < Date.parse(group.startsAt)) {
-        group.startsAt = candidate;
-      }
-    }
-    const candidateOrder = Number(row.display_order ?? 0);
-    if (Number.isFinite(candidateOrder)) {
-      group.displayOrder = Math.min(group.displayOrder, candidateOrder);
-    }
-    group.visibleOnLanding = group.visibleOnLanding || Boolean(row.visible_on_landing);
-    group.isActive = group.isActive || Boolean(row.is_active);
-    group.events.push(row);
-  }
-
-  return [...groups.values()].sort((a, b) => {
-    const aTs = a.startsAt ? Date.parse(a.startsAt) : Number.MAX_SAFE_INTEGER;
-    const bTs = b.startsAt ? Date.parse(b.startsAt) : Number.MAX_SAFE_INTEGER;
-    return aTs - bTs;
-  });
-}
-
-export async function updateExternalIntegrationGroup(
-  groupKey: string,
-  input: Partial<{
-    groupLabel: string;
-    displayOrder: number;
-    visibleOnLanding: boolean;
-    isActive: boolean;
-  }>
-) {
-  const result = await pool.query(
-    `
-      UPDATE external_integration_events
-      SET group_label = COALESCE($2, group_label),
-          display_order = COALESCE($3, display_order),
-          visible_on_landing = COALESCE($4, visible_on_landing),
-          is_active = COALESCE($5, is_active),
-          updated_at = NOW()
-      WHERE group_key = $1
-      RETURNING external_event_id
-    `,
-    [groupKey, input.groupLabel ?? null, input.displayOrder ?? null, input.visibleOnLanding ?? null, input.isActive ?? null]
-  );
-  return result.rowCount ?? 0;
 }
 
 export async function createTenant(input: {

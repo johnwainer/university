@@ -112,7 +112,6 @@ export type AdminStatus = {
       companyMembers: number;
       webinars: number;
       podcasts: number;
-      externalEvents: number;
       catalogByKind: Array<{ kind: string; count: number }>;
     };
   };
@@ -138,17 +137,6 @@ export type AdminStatus = {
       syncedAt: string;
       total: number;
       source?: string;
-    }
-    | null;
-  };
-  externalIntegration: {
-    configured: boolean;
-    baseUrl: string;
-    lastEventsSync:
-    | {
-      syncedAt: string;
-      totalFetched: number;
-      upserted: number;
     }
     | null;
   };
@@ -378,31 +366,6 @@ export type PublicMyCoursesResponse = {
   progressRecords: PublicCourseProgressRecord[];
 };
 
-export type PublicUserTicketRecord = {
-  id_ticket: number;
-  id_event: number;
-  code: string;
-  date: string;
-  email: string;
-  name: string | null;
-  phone: string | null;
-  status: string;
-  event?: {
-    id?: number;
-    name?: string;
-    city?: string;
-    country?: string;
-    start_date?: string;
-    end_date?: string;
-    checkout_url?: string;
-    banner_url?: string;
-    banner_frame_url?: string;
-    ticket_frame_url?: string;
-  } | null;
-  qr_url?: string | null;
-  ticket_url?: string | null;
-  [key: string]: unknown;
-};
 
 export type LegalPageResponse = {
   id: number;
@@ -450,49 +413,6 @@ export type PodcastRecord = {
   display_order: number;
   created_at: string;
   updated_at: string;
-};
-
-export type ExternalIntegrationEventRecord = {
-  external_event_id: string;
-  title: string;
-  description: string | null;
-  starts_at: string | null;
-  ends_at: string | null;
-  is_active: boolean;
-  event_url: string | null;
-  venue: string | null;
-  modality: string | null;
-  banner_url: string | null;
-  banner_frame_url: string | null;
-  email_banner_url: string | null;
-  ticket_frame_url: string | null;
-  disclaimer_url: string | null;
-  group_key: string;
-  group_label: string;
-  tier: 'general' | 'vip' | 'virtual' | 'diamante' | 'other';
-  visible_on_landing: boolean;
-  display_order: number;
-  raw: Record<string, unknown>;
-  synced_at: string;
-  created_at: string;
-  updated_at: string;
-};
-
-export type ExternalIntegrationEventGroup = {
-  groupKey: string;
-  groupLabel: string;
-  displayOrder: number;
-  startsAt: string | null;
-  visibleOnLanding: boolean;
-  isActive: boolean;
-  heroImage: string;
-  venue: string | null;
-  city: string | null;
-  country: string | null;
-  siteUrl: string | null;
-  modalities: string[];
-  ticketTypes: string[];
-  events: ExternalIntegrationEventRecord[];
 };
 
 export type CompanyRecord = {
@@ -591,13 +511,64 @@ export type EnterpriseOverviewResponse = {
   memberProgress?: CompanyUserProgressRecord[];
 };
 
+export type AcademicTermRecord = {
+  id: string;
+  name: string;
+  code: string;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type DepartmentRecord = {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  dean_name: string | null;
+  created_at: string;
+};
+
+export type DegreeProgram = {
+  id: string;
+  name: string;
+  code: string;
+  degree_level: 'certificate' | 'associate' | 'bachelor' | 'master' | 'doctoral' | 'professional';
+  credit_hours_required: number;
+  description: string | null;
+  is_active: boolean;
+  department_name: string | null;
+};
+
+export type TranscriptRecord = {
+  id: string;
+  moodle_course_id: number;
+  status: 'enrolled' | 'withdrawn' | 'completed' | 'auditing';
+  grade: string | null;
+  grade_points: number | null;
+  credit_hours: number;
+  enrolled_at: string;
+  completed_at: string | null;
+  term_name: string;
+  term_code: string;
+  course_name: string | null;
+};
+
+export type GpaRecord = {
+  cumulative_gpa: number | null;
+  completed_credits: number;
+  total_enrollments: number;
+};
+
 export const api = {
   home: () => fetchJson<HomeResponse>('/v1/home'),
   catalog: () => fetchJson<ContentAsset[]>('/v1/catalog'),
   webinars: () => fetchJson<WebinarRecord[]>('/v1/webinars'),
   podcasts: () => fetchJson<PodcastRecord[]>('/v1/podcasts'),
-  integrationEventsGrouped: () => fetchJson<ExternalIntegrationEventGroup[]>('/v1/integration/events/grouped'),
   catalogBySlug: (slug: string) => fetchJson<CatalogContentDetailResponse>(`/v1/catalog/${encodeURIComponent(slug)}`),
+  terms: () => fetchJson<AcademicTermRecord[]>('/v1/terms'),
+  degrees: () => fetchJson<DegreeProgram[]>('/v1/degrees'),
   publicAuth: {
     register: (payload: { fullName: string; email: string; password: string; locale?: string }) =>
       fetchJson<{
@@ -658,10 +629,6 @@ export const api = {
       }),
     meCourses: (token: string) =>
       fetchJson<PublicMyCoursesResponse>('/v1/me/courses', {
-        auth: { token }
-      }),
-    meTickets: (token: string) =>
-      fetchJson<{ email: string; total: number; tickets: PublicUserTicketRecord[] }>('/v1/me/tickets', {
         auth: { token }
       }),
     enterpriseOverview: (token: string) =>
@@ -797,7 +764,11 @@ export const api = {
           method: 'DELETE',
           auth: { token }
         }
-      )
+      ),
+    transcript: (token: string) =>
+      fetchJson<TranscriptRecord[]>('/v1/me/transcript', { auth: { token } }),
+    gpa: (token: string) =>
+      fetchJson<GpaRecord>('/v1/me/gpa', { auth: { token } })
   },
   courseContent: (moodleCourseId: number, token: string) =>
     fetchJson<MoodleCourseContentResponse>(`/v1/courses/${moodleCourseId}/content`, {
@@ -1117,58 +1088,6 @@ export const api = {
         method: 'DELETE',
         auth: { token }
       }),
-    externalEvents: (token: string) =>
-      fetchJson<ExternalIntegrationEventRecord[]>('/admin/integration/external/events', { auth: { token } }),
-    externalGroupedEvents: (token: string) =>
-      fetchJson<ExternalIntegrationEventGroup[]>('/admin/integration/external/events/grouped', { auth: { token } }),
-    externalSyncEvents: (token: string) =>
-      fetchJson<{ synced: boolean; totalFetched: number; upserted: number; syncedAt: string }>(
-        '/admin/integration/external/sync/events',
-        { method: 'POST', auth: { token } }
-      ),
-    externalTickets: (token: string, email: string) =>
-      fetchJson<{ email: string; total: number; tickets: Array<Record<string, unknown>> }>(
-        `/admin/integration/external/tickets?email=${encodeURIComponent(email)}`,
-        { auth: { token } }
-      ),
-    updateExternalEvent: (
-      token: string,
-      eventId: string,
-      payload: Partial<{
-        groupKey: string;
-        groupLabel: string;
-        tier: 'general' | 'vip' | 'virtual' | 'diamante' | 'other';
-        isActive: boolean;
-        visibleOnLanding: boolean;
-        displayOrder: number;
-      }>
-    ) =>
-      fetchJson<{ updated: boolean; event: ExternalIntegrationEventRecord }>(
-        `/admin/integration/external/events/${encodeURIComponent(eventId)}`,
-        {
-          method: 'PATCH',
-          auth: { token },
-          body: payload
-        }
-      ),
-    updateExternalGroup: (
-      token: string,
-      groupKey: string,
-      payload: Partial<{
-        groupLabel: string;
-        displayOrder: number;
-        visibleOnLanding: boolean;
-        isActive: boolean;
-      }>
-    ) =>
-      fetchJson<{ updated: boolean; groupKey: string; affectedEvents: number }>(
-        `/admin/integration/external/groups/${encodeURIComponent(groupKey)}`,
-        {
-          method: 'PATCH',
-          auth: { token },
-          body: payload
-        }
-      ),
     companies: (token: string) => fetchJson<CompanyRecord[]>('/admin/companies', { auth: { token } }),
     createCompany: (
       token: string,
@@ -1343,6 +1262,18 @@ export const api = {
       fetchJson<{ deleted: boolean }>(`/admin/companies/${encodeURIComponent(companyId)}/members/${encodeURIComponent(userId)}/courses/${moodleCourseId}`, {
         method: 'DELETE',
         auth: { token }
-      })
+      }),
+    terms: (token: string) =>
+      fetchJson<AcademicTermRecord[]>('/admin/terms', { auth: { token } }),
+    createTerm: (token: string, payload: { name: string; code: string; startDate: string; endDate: string; isActive?: boolean }) =>
+      fetchJson<AcademicTermRecord>('/admin/terms', { method: 'POST', auth: { token }, body: payload }),
+    departments: (token: string) =>
+      fetchJson<DepartmentRecord[]>('/admin/departments', { auth: { token } }),
+    createDepartment: (token: string, payload: { name: string; code: string; description?: string; deanName?: string }) =>
+      fetchJson<DepartmentRecord>('/admin/departments', { method: 'POST', auth: { token }, body: payload }),
+    degreePrograms: (token: string) =>
+      fetchJson<DegreeProgram[]>('/admin/degree-programs', { auth: { token } }),
+    createDegreeProgram: (token: string, payload: { name: string; code: string; degreeLevel: string; departmentId?: string; creditHoursRequired?: number; description?: string }) =>
+      fetchJson<DegreeProgram>('/admin/degree-programs', { method: 'POST', auth: { token }, body: payload })
   }
 };

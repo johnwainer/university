@@ -6,8 +6,6 @@ import {
   type AdminStatus,
   type WebinarRecord,
   type PodcastRecord,
-  type ExternalIntegrationEventRecord,
-  type ExternalIntegrationEventGroup,
   type CompanyRecord,
   type CompanyMemberRecord,
   type CompanyCourseAccessRecord,
@@ -19,6 +17,11 @@ import {
 } from '../lib/api';
 import './styles.css';
 import { CompaniesView } from './admin/views/CompaniesView';
+import { SisView } from './admin/views/SisView';
+import { CrmView } from './admin/views/CrmView';
+import { ComplianceView } from './admin/views/ComplianceView';
+import { BackofficeView } from './admin/views/BackofficeView';
+import { CredentialsView } from './admin/views/CredentialsView';
 
 type AdminDashboardBase = {
   config: AdminConfig;
@@ -43,6 +46,11 @@ type PanelSection =
   | 'webinars'
   | 'podcasts'
   | 'integrations'
+  | 'sis'
+  | 'crm'
+  | 'compliance'
+  | 'backoffice'
+  | 'credentials'
   | 'routes';
 
 type WebinarFormState = {
@@ -74,13 +82,6 @@ type PodcastFormState = {
   showOnLanding: boolean;
 };
 
-type ExternalGroupDraft = {
-  groupLabel: string;
-  displayOrder: string;
-  visibleOnLanding: boolean;
-  isActive: boolean;
-};
-
 const webinarPlatformOptions = [
   'youtube',
   'zoom',
@@ -99,7 +100,7 @@ const PAGE_SIZE = 20;
 
 export function AdminApp() {
   const [sessionToken, setSessionToken] = useState<string>(() => localStorage.getItem(ADMIN_SESSION_STORAGE) ?? '');
-  const [loginEmail, setLoginEmail] = useState('admin@pae-u.local');
+  const [loginEmail, setLoginEmail] = useState('admin@university.local');
   const [loginPassword, setLoginPassword] = useState('');
   const [activeSection, setActiveSection] = useState<PanelSection>('overview');
   const [loadingBase, setLoadingBase] = useState(false);
@@ -121,20 +122,6 @@ export function AdminApp() {
   const [coursesData, setCoursesData] = useState<MoodleCoursesResponse | null>(null);
   const [webinarsData, setWebinarsData] = useState<WebinarRecord[]>([]);
   const [podcastsData, setPodcastsData] = useState<PodcastRecord[]>([]);
-  const [externalEventsData, setExternalEventsData] = useState<ExternalIntegrationEventRecord[]>([]);
-  const [externalGroupsData, setExternalGroupsData] = useState<ExternalIntegrationEventGroup[]>([]);
-  
-  
-  
-  
-  
-  
-  const [externalTicketsEmail, setExternalTicketsEmail] = useState('');
-  const [externalTicketsResult, setExternalTicketsResult] = useState<Array<Record<string, unknown>>>([]);
-  const [loadingExternal, setLoadingExternal] = useState(false);
-  
-  const [syncingExternalEvents, setSyncingExternalEvents] = useState(false);
-  const [externalGroupDrafts, setExternalGroupDrafts] = useState<Record<string, ExternalGroupDraft>>({});
   const [savingMoodleConfig, setSavingMoodleConfig] = useState(false);
   
   
@@ -181,7 +168,7 @@ export function AdminApp() {
     startsAt: '',
     endsAt: '',
     timezone: 'America/Bogota',
-    ctaLabel: 'Reservar cupo',
+    ctaLabel: 'Inscribirse',
     isActive: true,
     showOnLanding: true,
     webinarLinks: [],
@@ -331,24 +318,6 @@ export function AdminApp() {
     }
   };
 
-  const loadExternalIntegration = async (token: string) => {
-    setLoadingExternal(true);
-    try {
-      const [events, groups] = await Promise.all([
-        api.admin.externalEvents(token),
-        api.admin.externalGroupedEvents(token)
-      ]);
-      setExternalEventsData(events);
-      setExternalGroupsData(groups);
-      setExternalGroupDrafts({});
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando integración externa');
-    } finally {
-      setLoadingExternal(false);
-    }
-  };
-
-  
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -365,8 +334,7 @@ export function AdminApp() {
 
           
           loadWebinars(sessionToken),
-          loadPodcasts(sessionToken),
-          loadExternalIntegration(sessionToken)
+          loadPodcasts(sessionToken)
         ]);
       } catch {
         onLogout();
@@ -417,11 +385,6 @@ export function AdminApp() {
     setCoursesData(null);
     setWebinarsData([]);
     setPodcastsData([]);
-    setExternalEventsData([]);
-    setExternalGroupsData([]);
-
-    setExternalGroupDrafts({});
-    setExternalTicketsResult([]);
     setError(null);
     setInfo(null);
     setSelectedUserCourses(null);
@@ -442,8 +405,7 @@ export function AdminApp() {
 
       
       loadWebinars(sessionToken),
-      loadPodcasts(sessionToken),
-      loadExternalIntegration(sessionToken)
+      loadPodcasts(sessionToken)
     ]);
   };
 
@@ -468,7 +430,7 @@ export function AdminApp() {
         startsAt: new Date(webinarForm.startsAt).toISOString(),
         endsAt: webinarForm.endsAt ? new Date(webinarForm.endsAt).toISOString() : undefined,
         timezone: webinarForm.timezone.trim() || 'America/Bogota',
-        ctaLabel: webinarForm.ctaLabel.trim() || 'Reservar cupo',
+        ctaLabel: webinarForm.ctaLabel.trim() || 'Inscribirse',
         isActive: webinarForm.isActive,
         showOnLanding: webinarForm.showOnLanding,
         webinarLinks: webinarForm.webinarLinks.filter((link) => link.platform.trim() && link.url.trim()),
@@ -477,10 +439,10 @@ export function AdminApp() {
       };
       if (editingWebinarId) {
         const updated = await api.admin.updateWebinar(sessionToken, editingWebinarId, payload);
-        setInfo(`Webinar actualizado: ${updated.webinar.title}`);
+        setInfo(`Seminario actualizado: ${updated.webinar.title}`);
       } else {
         const created = await api.admin.createWebinar(sessionToken, payload);
-        setInfo(`Webinar creado: ${created.webinar.title}`);
+        setInfo(`Seminario creado: ${created.webinar.title}`);
       }
       setWebinarForm((current) => ({
         ...current,
@@ -519,7 +481,7 @@ export function AdminApp() {
       startsAt: toDatetimeLocal(webinar.starts_at),
       endsAt: toDatetimeLocal(webinar.ends_at),
       timezone: webinar.timezone ?? 'America/Bogota',
-      ctaLabel: webinar.cta_label ?? 'Reservar cupo',
+      ctaLabel: webinar.cta_label ?? 'Inscribirse',
       isActive: webinar.is_active,
       showOnLanding: webinar.show_on_landing,
       webinarLinks: Array.isArray(webinar.webinar_links)
@@ -545,7 +507,7 @@ export function AdminApp() {
       startsAt: '',
       endsAt: '',
       timezone: 'America/Bogota',
-      ctaLabel: 'Reservar cupo',
+      ctaLabel: 'Inscribirse',
       isActive: true,
       showOnLanding: true,
       webinarLinks: [],
@@ -566,7 +528,7 @@ export function AdminApp() {
     try {
       const response = await api.admin.updateWebinar(sessionToken, webinarId, payload);
       setInfo(
-        `Webinar actualizado: ${response.webinar.title} · activo=${response.webinar.is_active ? 'sí' : 'no'} · landing=${response.webinar.show_on_landing ? 'sí' : 'no'
+        `Seminario actualizado: ${response.webinar.title} · activo=${response.webinar.is_active ? 'sí' : 'no'} · landing=${response.webinar.show_on_landing ? 'sí' : 'no'
         }`
       );
       await Promise.all([loadWebinars(sessionToken), loadBase(sessionToken)]);
@@ -583,7 +545,7 @@ export function AdminApp() {
     setInfo(null);
     try {
       await api.admin.deleteWebinar(sessionToken, webinarId);
-      setInfo('Webinar eliminado.');
+      setInfo('Seminario eliminado.');
       await Promise.all([loadWebinars(sessionToken), loadBase(sessionToken)]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'No se pudo eliminar webinar');
@@ -688,124 +650,6 @@ export function AdminApp() {
       await Promise.all([loadPodcasts(sessionToken), loadBase(sessionToken)]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'No se pudo eliminar podcast');
-    }
-  };
-
-  const onSyncExternalEvents = async () => {
-    if (!sessionToken) {
-      return;
-    }
-    setSyncingExternalEvents(true);
-    setError(null);
-    setInfo(null);
-    try {
-      const result = await api.admin.externalSyncEvents(sessionToken);
-      setInfo(`Eventos externos sincronizados: ${result.upserted}/${result.totalFetched}.`);
-      await Promise.all([loadBase(sessionToken), loadExternalIntegration(sessionToken)]);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo sincronizar eventos externos');
-    } finally {
-      setSyncingExternalEvents(false);
-    }
-  };
-
-  const onFindExternalTickets = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!sessionToken || !externalTicketsEmail.trim()) {
-      return;
-    }
-    setError(null);
-    setInfo(null);
-    try {
-      const result = await api.admin.externalTickets(sessionToken, externalTicketsEmail.trim().toLowerCase());
-      setExternalTicketsResult(result.tickets);
-      setInfo(`Tickets encontrados: ${result.total}`);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudieron consultar tickets');
-    }
-  };
-
-  const onQuickGroupExternalEvent = async (
-    eventId: string,
-    payload: Partial<{
-      tier: 'general' | 'vip' | 'virtual' | 'diamante' | 'other';
-      visibleOnLanding: boolean;
-      isActive: boolean;
-    }>
-  ) => {
-    if (!sessionToken) {
-      return;
-    }
-    setError(null);
-    setInfo(null);
-    try {
-      const response = await api.admin.updateExternalEvent(sessionToken, eventId, payload);
-      setInfo(`Evento actualizado: ${response.event.title}`);
-      await Promise.all([loadExternalIntegration(sessionToken), loadBase(sessionToken)]);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar evento externo');
-    }
-  };
-
-  const getExternalGroupDraft = (group: ExternalIntegrationEventGroup): ExternalGroupDraft => {
-    return (
-      externalGroupDrafts[group.groupKey] ?? {
-        groupLabel: group.groupLabel,
-        displayOrder: String(group.displayOrder ?? 0),
-        visibleOnLanding: group.visibleOnLanding,
-        isActive: group.isActive
-      }
-    );
-  };
-
-  const onChangeExternalGroupDraft = (
-    group: ExternalIntegrationEventGroup,
-    patch: Partial<ExternalGroupDraft>
-  ) => {
-    setExternalGroupDrafts((current) => ({
-      ...current,
-      [group.groupKey]: {
-        ...(current[group.groupKey] ?? {
-          groupLabel: group.groupLabel,
-          displayOrder: String(group.displayOrder ?? 0),
-          visibleOnLanding: group.visibleOnLanding,
-          isActive: group.isActive
-        }),
-        ...patch
-      }
-    }));
-  };
-
-  const onCancelExternalGroupDraft = (groupKey: string) => {
-    setExternalGroupDrafts((current) => {
-      const { [groupKey]: _removed, ...rest } = current;
-      return rest;
-    });
-  };
-
-  const onSaveExternalGroupDraft = async (group: ExternalIntegrationEventGroup) => {
-    if (!sessionToken) {
-      return;
-    }
-    const draft = getExternalGroupDraft(group);
-    const displayOrder = Number.parseInt(draft.displayOrder, 10);
-    if (!Number.isInteger(displayOrder) || displayOrder < 0 || displayOrder > 999) {
-      setError('El orden del grupo debe ser un número entre 0 y 999.');
-      return;
-    }
-    setError(null);
-    setInfo(null);
-    try {
-      await api.admin.updateExternalGroup(sessionToken, group.groupKey, {
-        groupLabel: draft.groupLabel.trim() || group.groupLabel,
-        displayOrder,
-        visibleOnLanding: draft.visibleOnLanding,
-        isActive: draft.isActive
-      });
-      setInfo(`Agrupación actualizada: ${group.groupLabel}`);
-      await Promise.all([loadExternalIntegration(sessionToken), loadBase(sessionToken)]);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar agrupación');
     }
   };
 
@@ -1057,7 +901,7 @@ export function AdminApp() {
     return (
       <main className="admin-shell">
         <section className="login-card">
-          <p className="eyebrow">PAE-U ADMIN</p>
+          <p className="eyebrow">UNIVERSITY ADMIN</p>
           <h1>Iniciar sesión</h1>
           <p>Panel central del intermediador. Desde aquí se administra usuarios, cursos, rutas y conexiones con Moodle.</p>
           <form onSubmit={onLogin} className="login-form">
@@ -1067,7 +911,7 @@ export function AdminApp() {
               type="email"
               value={loginEmail}
               onChange={(event) => setLoginEmail(event.target.value)}
-              placeholder="admin@pae-u.local"
+              placeholder="admin@university.local"
               required
             />
             <label htmlFor="admin-password">Contraseña</label>
@@ -1091,7 +935,7 @@ export function AdminApp() {
     <main className="admin-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">PAE-U</p>
+          <p className="eyebrow">UNIVERSITY</p>
           <h1>Panel Administrativo</h1>
         </div>
         <div className="topbar-actions">
@@ -1135,16 +979,31 @@ export function AdminApp() {
           className={activeSection === 'enterprise' ? 'active' : ''}
           onClick={() => setActiveSection('enterprise')}
         >
-          Empresas
+          Departamentos
         </button>
         <button className={activeSection === 'webinars' ? 'active' : ''} onClick={() => setActiveSection('webinars')}>
-          Webinars
+          Seminarios
         </button>
         <button className={activeSection === 'podcasts' ? 'active' : ''} onClick={() => setActiveSection('podcasts')}>
           Podcasts
         </button>
         <button className={activeSection === 'integrations' ? 'active' : ''} onClick={() => setActiveSection('integrations')}>
           Integraciones
+        </button>
+        <button className={activeSection === 'sis' ? 'active' : ''} onClick={() => setActiveSection('sis')}>
+          SIS / Académico
+        </button>
+        <button className={activeSection === 'crm' ? 'active' : ''} onClick={() => setActiveSection('crm')}>
+          CRM / Admisión
+        </button>
+        <button className={activeSection === 'compliance' ? 'active' : ''} onClick={() => setActiveSection('compliance')}>
+          Cumplimiento
+        </button>
+        <button className={activeSection === 'backoffice' ? 'active' : ''} onClick={() => setActiveSection('backoffice')}>
+          Back-office
+        </button>
+        <button className={activeSection === 'credentials' ? 'active' : ''} onClick={() => setActiveSection('credentials')}>
+          Credenciales
         </button>
         <button className={activeSection === 'routes' ? 'active' : ''} onClick={() => setActiveSection('routes')}>
           Rutas API
@@ -1188,24 +1047,19 @@ export function AdminApp() {
                 <span>Categorías Moodle: {baseData.status.db.entities.moodleCategories}</span>
               </article>
               <article className="card metric">
-                <h2>Webinars</h2>
+                <h2>Seminarios</h2>
                 <strong>{baseData.status.db.entities.webinars}</strong>
                 <span>Configurables desde este panel</span>
               </article>
               <article className="card metric">
-                <h2>Podcasts</h2>
+                <h2>Clases magistrales</h2>
                 <strong>{baseData.status.db.entities.podcasts}</strong>
                 <span>Videos de YouTube en landing</span>
               </article>
               <article className="card metric">
-                <h2>Eventos externos</h2>
-                <strong>{baseData.status.db.entities.externalEvents}</strong>
-                <span>Sincronizados desde API externa</span>
-              </article>
-              <article className="card metric">
-                <h2>Empresas</h2>
+                <h2>Departamentos</h2>
                 <strong>{baseData.status.db.entities.companies}</strong>
-                <span>Colaboradores activos: {baseData.status.db.entities.companyMembers}</span>
+                <span>Estudiantes activos: {baseData.status.db.entities.companyMembers}</span>
               </article>
               <article className="card metric">
                 <h2>Último sync</h2>
@@ -1253,14 +1107,6 @@ export function AdminApp() {
                     API: {baseData.config.server.host}:{baseData.config.server.port}
                   </li>
                   <li>Moodle URL: {baseData.config.moodle.baseUrl ?? 'no configurado'}</li>
-                  <li>Integración externa: {baseData.status.externalIntegration.configured ? 'sí' : 'no'}</li>
-                  <li>URL externa: {baseData.status.externalIntegration.baseUrl}</li>
-                  <li>
-                    Último sync eventos externos:{' '}
-                    {baseData.status.externalIntegration.lastEventsSync?.syncedAt
-                      ? new Date(baseData.status.externalIntegration.lastEventsSync.syncedAt).toLocaleString()
-                      : 'nunca'}
-                  </li>
                 </ul>
               </article>
 
@@ -1340,7 +1186,7 @@ export function AdminApp() {
                       type="email"
                       value={newUser.email}
                       onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))}
-                      placeholder="ana@pae-u.com"
+                      placeholder="ana@university.edu"
                       required
                     />
                     <label htmlFor="locale">Idioma</label>
@@ -1671,189 +1517,24 @@ export function AdminApp() {
             />
           ) : null}
 
-          {activeSection === 'integrations' ? (
-            <section className="grid-1">
-              <article className="card">
-                <h2>Integración externa: eventos y tickets</h2>
-                <div className="inline-actions">
-                  <button onClick={() => void onSyncExternalEvents()} disabled={syncingExternalEvents || loadingExternal}>
-                    {syncingExternalEvents ? 'Sincronizando eventos...' : 'Sync eventos externos'}
-                  </button>
-                  <button className="ghost" onClick={() => void loadExternalIntegration(sessionToken)} disabled={loadingExternal}>
-                    {loadingExternal ? 'Actualizando...' : 'Refrescar datos'}
-                  </button>
-                </div>
-                <form className="toolbar-grid" onSubmit={onFindExternalTickets}>
-                  <input
-                    type="email"
-                    value={externalTicketsEmail}
-                    onChange={(event) => setExternalTicketsEmail(event.target.value)}
-                    placeholder="Consultar tickets por email"
-                    required
-                  />
-                  <button type="submit">Buscar tickets</button>
-                </form>
-                {externalTicketsResult.length > 0 ? (
-                  <p>Última consulta: {externalTicketsResult.length} ticket(s).</p>
-                ) : null}
-              </article>
+          {activeSection === 'sis' ? (
+            <SisView sessionToken={sessionToken} setError={setError} setInfo={setInfo} />
+          ) : null}
 
-              <article className="card scroll-card">
-                <h2>Eventos sincronizados ({externalEventsData.length})</h2>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Evento</th>
-                      <th>Grupo</th>
-                      <th>Tier</th>
-                      <th>Landing</th>
-                      <th>Activo</th>
-                      <th>Acciones rápidas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loadingExternal ? (
-                      <tr>
-                        <td colSpan={6}>Cargando eventos externos...</td>
-                      </tr>
-                    ) : externalEventsData.length === 0 ? (
-                      <tr>
-                        <td colSpan={6}>No hay eventos externos sincronizados.</td>
-                      </tr>
-                    ) : (
-                      externalEventsData.map((event) => (
-                        <tr key={event.external_event_id}>
-                          <td>
-                            <strong>{event.title}</strong>
-                            <br />
-                            <span>{event.starts_at ? new Date(event.starts_at).toLocaleString() : 'sin fecha'}</span>
-                          </td>
-                          <td>{event.group_label}</td>
-                          <td>{event.tier}</td>
-                          <td>{event.visible_on_landing ? 'sí' : 'no'}</td>
-                          <td>{event.is_active ? 'sí' : 'no'}</td>
-                          <td>
-                            <div className="inline-actions">
-                              <button
-                                className="ghost"
-                                onClick={() =>
-                                  void onQuickGroupExternalEvent(event.external_event_id, {
-                                    tier: event.tier === 'vip' ? 'general' : 'vip'
-                                  })
-                                }
-                              >
-                                Toggle VIP
-                              </button>
-                              <button
-                                className="ghost"
-                                onClick={() =>
-                                  void onQuickGroupExternalEvent(event.external_event_id, {
-                                    visibleOnLanding: !event.visible_on_landing
-                                  })
-                                }
-                              >
-                                {event.visible_on_landing ? 'Ocultar' : 'Mostrar'}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </article>
+          {activeSection === 'crm' ? (
+            <CrmView sessionToken={sessionToken} setError={setError} setInfo={setInfo} />
+          ) : null}
 
-              <article className="card scroll-card">
-                <h2>Agrupaciones resultantes ({externalGroupsData.length})</h2>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Grupo</th>
-                      <th>Orden</th>
-                      <th>Tickets</th>
-                      <th>Sitio</th>
-                      <th>Eventos</th>
-                      <th>Inicio referencia</th>
-                      <th>Landing</th>
-                      <th>Activo</th>
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {externalGroupsData.length === 0 ? (
-                      <tr>
-                        <td colSpan={9}>Sin grupos aún.</td>
-                      </tr>
-                    ) : (
-                      externalGroupsData.map((group) => {
-                        const draft = getExternalGroupDraft(group);
-                        return (
-                          <tr key={group.groupKey}>
-                            <td>
-                              <input
-                                value={draft.groupLabel}
-                                onChange={(event) => onChangeExternalGroupDraft(group, { groupLabel: event.target.value })}
-                                placeholder="Nombre agrupación"
-                              />
-                              <br />
-                              <span>{group.groupKey}</span>
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                min={0}
-                                max={999}
-                                value={draft.displayOrder}
-                                onChange={(event) => onChangeExternalGroupDraft(group, { displayOrder: event.target.value })}
-                                style={{ width: '90px' }}
-                              />
-                            </td>
-                            <td>{group.ticketTypes.join(', ') || 'n/a'}</td>
-                            <td>
-                              {group.siteUrl ? (
-                                <a href={group.siteUrl} target="_blank" rel="noreferrer">
-                                  Abrir
-                                </a>
-                              ) : (
-                                'n/a'
-                              )}
-                            </td>
-                            <td>{group.events.length}</td>
-                            <td>{group.startsAt ? new Date(group.startsAt).toLocaleString() : 'n/a'}</td>
-                            <td>
-                              <input
-                                type="checkbox"
-                                checked={draft.visibleOnLanding}
-                                onChange={(event) =>
-                                  onChangeExternalGroupDraft(group, { visibleOnLanding: event.target.checked })
-                                }
-                              />
-                            </td>
-                            <td>
-                              <input
-                                type="checkbox"
-                                checked={draft.isActive}
-                                onChange={(event) => onChangeExternalGroupDraft(group, { isActive: event.target.checked })}
-                              />
-                            </td>
-                            <td>
-                              <div className="inline-actions">
-                                <button className="ghost" onClick={() => void onSaveExternalGroupDraft(group)}>
-                                  Guardar
-                                </button>
-                                <button className="ghost" onClick={() => onCancelExternalGroupDraft(group.groupKey)}>
-                                  Cancelar
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </article>
-            </section>
+          {activeSection === 'compliance' ? (
+            <ComplianceView sessionToken={sessionToken} setError={setError} setInfo={setInfo} />
+          ) : null}
+
+          {activeSection === 'backoffice' ? (
+            <BackofficeView sessionToken={sessionToken} setError={setError} setInfo={setInfo} />
+          ) : null}
+
+          {activeSection === 'credentials' ? (
+            <CredentialsView sessionToken={sessionToken} setError={setError} setInfo={setInfo} />
           ) : null}
 
           {activeSection === 'routes' ? (
@@ -1889,20 +1570,20 @@ export function AdminApp() {
           {activeSection === 'webinars' ? (
             <section className="grid-2">
               <article className="card">
-                <h2>{editingWebinarId ? 'Editar webinar' : 'Crear webinar'}</h2>
+                <h2>{editingWebinarId ? 'Editar seminario' : 'Crear seminario'}</h2>
                 <form className="login-form" onSubmit={onSubmitWebinar}>
                   <label>Slug</label>
                   <input
                     value={webinarForm.slug}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, slug: event.target.value }))}
-                    placeholder="webinar-ventas-marzo"
+                    placeholder="seminario-investigacion-marzo"
                     required
                   />
                   <label>Título</label>
                   <input
                     value={webinarForm.title}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, title: event.target.value }))}
-                    placeholder="Webinar en Vivo: Ventas de Alto Impacto"
+                    placeholder="Seminario en Vivo: Introducción a la Investigación"
                     required
                   />
                   <label>Subtítulo</label>
@@ -2049,7 +1730,7 @@ export function AdminApp() {
                       checked={webinarForm.isActive}
                       onChange={(event) => setWebinarForm((current) => ({ ...current, isActive: event.target.checked }))}
                     />{' '}
-                    Webinar activo
+                    Seminario activo
                   </label>
                   <label>
                     <input
@@ -2062,7 +1743,7 @@ export function AdminApp() {
                     Mostrar en landing pública
                   </label>
                   <button type="submit" disabled={creatingWebinar}>
-                    {creatingWebinar ? 'Guardando webinar...' : editingWebinarId ? 'Guardar cambios' : 'Crear webinar'}
+                    {creatingWebinar ? 'Guardando seminario...' : editingWebinarId ? 'Guardar cambios' : 'Crear seminario'}
                   </button>
                   {editingWebinarId ? (
                     <button type="button" className="ghost" onClick={onCancelWebinarEdit}>
@@ -2073,8 +1754,8 @@ export function AdminApp() {
               </article>
 
               <article className="card scroll-card">
-                <h2>Webinars configurados</h2>
-                {loadingWebinars ? <p>Cargando webinars...</p> : null}
+                <h2>Seminarios configurados</h2>
+                {loadingWebinars ? <p>Cargando seminarios...</p> : null}
                 <table>
                   <thead>
                     <tr>
@@ -2090,7 +1771,7 @@ export function AdminApp() {
                   <tbody>
                     {webinarsData.length === 0 ? (
                       <tr>
-                        <td colSpan={7}>No hay webinars creados.</td>
+                        <td colSpan={7}>No hay seminarios creados.</td>
                       </tr>
                     ) : (
                       webinarsData.map((webinar) => (
@@ -2143,7 +1824,7 @@ export function AdminApp() {
                   <input
                     value={podcastForm.title}
                     onChange={(event) => setPodcastForm((current) => ({ ...current, title: event.target.value }))}
-                    placeholder="Podcast: Ventas de alto impacto"
+                    placeholder="Clase magistral: Introducción a la Economía"
                     required
                   />
                   <label>Video YouTube (URL o código)</label>

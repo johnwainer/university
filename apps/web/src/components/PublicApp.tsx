@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 import {
   api,
   type CatalogContentDetailResponse,
@@ -7,15 +9,14 @@ import {
   type MoodleCourseContentResponse,
   type PublicCourseProgressRecord,
   type PublicMyCoursesResponse,
-  type PublicUserTicketRecord,
   type PublicSession,
   type WebinarRecord,
   type PodcastRecord,
-  type ExternalIntegrationEventGroup,
   type EnterpriseOverviewResponse
 } from '../lib/api';
 import type { ContentAsset, HomeResponse } from '@pae-u/shared';
 import { EnterpriseGroupManager } from './EnterpriseGroupManager';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import './public.css';
 
 type ViewState =
@@ -24,7 +25,6 @@ type ViewState =
   | { type: 'detail'; slug: string }
   | { type: 'course'; slug: string }
   | { type: 'my-courses' }
-  | { type: 'my-tickets' }
   | { type: 'profile' }
   | { type: 'enterprise' }
   | { type: 'terms' }
@@ -170,6 +170,17 @@ function toApiProgress(progress: CourseProgress) {
     progressPercent: progress.progressPercent,
     lastActivityAt: progress.lastActivityAt ?? undefined
   };
+}
+
+function localizeAsset(item: ContentAsset, lang: string): ContentAsset {
+  if (lang === 'en' && item.titleEn) {
+    return {
+      ...item,
+      title: item.titleEn,
+      summary: item.summaryEn ?? item.summary
+    };
+  }
+  return item;
 }
 
 function ContentBadge({ kind }: { kind: ContentAsset['kind'] }) {
@@ -409,13 +420,14 @@ function ContentCard({
 }
 
 export function PublicApp() {
+  const { t, i18n: i18nInstance } = useTranslation();
+  const currentLang = i18nInstance.language?.startsWith('en') ? 'en' : 'es';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [catalog, setCatalog] = useState<ContentAsset[]>([]);
   const [webinars, setWebinars] = useState<WebinarRecord[]>([]);
   const [podcasts, setPodcasts] = useState<PodcastRecord[]>([]);
-  const [externalEventGroups, setExternalEventGroups] = useState<ExternalIntegrationEventGroup[]>([]);
   const [view, setView] = useState<ViewState>({ type: 'home' });
   const [search, setSearch] = useState('');
   const [catalogGroupFilter, setCatalogGroupFilter] = useState('all');
@@ -475,8 +487,6 @@ export function PublicApp() {
   const [heroIndex, setHeroIndex] = useState(0);
   const [myCourses, setMyCourses] = useState<PublicMyCoursesResponse | null>(null);
   const [myCoursesLoading, setMyCoursesLoading] = useState(false);
-  const [myTickets, setMyTickets] = useState<PublicUserTicketRecord[]>([]);
-  const [myTicketsLoading, setMyTicketsLoading] = useState(false);
   const [enterpriseOverview, setEnterpriseOverview] = useState<EnterpriseOverviewResponse | null>(null);
   const [enterpriseLoading, setEnterpriseLoading] = useState(false);
   const [enterpriseSaving, setEnterpriseSaving] = useState(false);
@@ -486,7 +496,6 @@ export function PublicApp() {
     locale: 'es'
   });
   const [enterpriseCourseId, setEnterpriseCourseId] = useState('');
-  const [ticketPreview, setTicketPreview] = useState<{ url: string; title: string } | null>(null);
   const [podcastPreview, setPodcastPreview] = useState<{ title: string; embedUrl: string } | null>(null);
   const [progressByCourseId, setProgressByCourseId] = useState<Record<number, CourseProgress>>({});
   const [legalTerms, setLegalTerms] = useState<LegalPageResponse | null>(null);
@@ -519,18 +528,16 @@ export function PublicApp() {
       setLoading(true);
       setError(null);
       try {
-        const [homeResponse, catalogResponse, webinarsResponse, podcastsResponse, externalGroupsResponse] = await Promise.all([
+        const [homeResponse, catalogResponse, webinarsResponse, podcastsResponse] = await Promise.all([
           api.home(),
           api.catalog(),
           api.webinars(),
-          api.podcasts(),
-          api.integrationEventsGrouped().catch(() => [] as ExternalIntegrationEventGroup[])
+          api.podcasts()
         ]);
         setHome(homeResponse);
         setCatalog(catalogResponse);
         setWebinars(webinarsResponse);
         setPodcasts(podcastsResponse);
-        setExternalEventGroups(externalGroupsResponse);
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : 'Error cargando la plataforma');
       } finally {
@@ -598,17 +605,22 @@ export function PublicApp() {
     });
   }, [publicSession?.user.fullName, publicSession?.user.email, publicSession?.user.locale, publicSession]);
 
+  const localizedCatalog = useMemo(
+    () => catalog.map((item) => localizeAsset(item, currentLang)),
+    [catalog, currentLang]
+  );
+
   const heroItems = useMemo(() => {
     if (!home) {
       return [] as ContentAsset[];
     }
-    const courseItems = catalog.filter((item) => item.kind === 'course');
+    const courseItems = localizedCatalog.filter((item) => item.kind === 'course');
     if (courseItems.length === 0) {
       return [] as ContentAsset[];
     }
     const shuffled = [...courseItems].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 5);
-  }, [home, catalog]);
+  }, [home, localizedCatalog]);
 
   useEffect(() => {
     setHeroIndex(0);
@@ -681,23 +693,9 @@ export function PublicApp() {
     }
   };
 
-  const loadMyTickets = async (token: string) => {
-    setMyTicketsLoading(true);
-    try {
-      const result = await api.publicAuth.meTickets(token);
-      setMyTickets(Array.isArray(result.tickets) ? result.tickets : []);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudieron cargar tus tickets');
-      setMyTickets([]);
-    } finally {
-      setMyTicketsLoading(false);
-    }
-  };
-
   const hydrateAuthenticatedData = async (session: PublicSession) => {
     await Promise.all([
       loadMyCourses(session.token),
-      loadMyTickets(session.token),
       loadEnterpriseOverview(session.token)
     ]);
   };
@@ -717,7 +715,6 @@ export function PublicApp() {
   useEffect(() => {
     if (!publicSession?.token) {
       setMyCourses(null);
-      setMyTickets([]);
       setEnterpriseOverview(null);
       return;
     }
@@ -811,24 +808,24 @@ export function PublicApp() {
   const filteredCatalog = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) {
-      return catalog;
+      return localizedCatalog;
     }
-    return catalog.filter((item) => {
+    return localizedCatalog.filter((item) => {
       return (
         item.title.toLowerCase().includes(query) ||
         toPlainText(item.summary).toLowerCase().includes(query) ||
         item.tags.some((tag) => tag.toLowerCase().includes(query))
       );
     });
-  }, [catalog, search]);
+  }, [localizedCatalog, search]);
 
   const catalogGroups = useMemo(() => {
     const values = new Set<string>();
-    for (const item of catalog) {
+    for (const item of localizedCatalog) {
       values.add(getCourseCategoryLabel(item));
     }
     return [...values].sort((a, b) => a.localeCompare(b, 'es'));
-  }, [catalog]);
+  }, [localizedCatalog]);
 
   const catalogViewItems = useMemo(() => {
     const enrolledIds = new Set<number>(
@@ -886,8 +883,8 @@ export function PublicApp() {
       return [];
     }
 
-    const courseItems = catalog.filter((item) => item.kind === 'course');
-    const liveItems = catalog.filter((item) => item.kind === 'live');
+    const courseItems = localizedCatalog.filter((item) => item.kind === 'course');
+    const liveItems = localizedCatalog.filter((item) => item.kind === 'live');
 
     const categoryCounter = new Map<string, ContentAsset[]>();
     for (const course of courseItems) {
@@ -918,20 +915,20 @@ export function PublicApp() {
     const base: ContentRow[] = [
       {
         id: 'continue-learning',
-        title: 'Continuar aprendiendo',
-        subtitle: 'Tus cursos más relevantes',
+        title: t('home.continueLearning'),
+        subtitle: t('home.continueLearningSubtitle'),
         items: home.continueLearning.length > 0 ? home.continueLearning : courseItems
       },
       {
         id: 'all-courses',
-        title: 'Todos los cursos',
-        subtitle: 'Descubre programas prácticos para crecer personal y profesionalmente',
+        title: t('home.allCourses'),
+        subtitle: t('home.allCoursesSubtitle'),
         items: courseItems
       }
     ];
 
     return [...base, ...categoryRowsOrdered].filter((row) => row.items.length > 0);
-  }, [home, catalog]);
+  }, [home, localizedCatalog, t]);
 
   const topMenuCategories = useMemo(() => {
     return rows
@@ -948,8 +945,8 @@ export function PublicApp() {
   }, [myCourses]);
 
   const myCourseItems = useMemo(() => {
-    return catalog.filter((item) => item.kind === 'course' && enrolledCourseIds.has(getAssetMoodleCourseId(item) ?? -1));
-  }, [catalog, enrolledCourseIds]);
+    return localizedCatalog.filter((item) => item.kind === 'course' && enrolledCourseIds.has(getAssetMoodleCourseId(item) ?? -1));
+  }, [localizedCatalog, enrolledCourseIds]);
 
   const flatModules = useMemo<FlatModule[]>(() => {
     if (!courseContent?.available) {
@@ -1380,8 +1377,6 @@ export function PublicApp() {
     setPublicSession(null);
     localStorage.removeItem(PUBLIC_SESSION_STORAGE);
     setMyCourses(null);
-    setMyTickets([]);
-    setTicketPreview(null);
     if (view.type === 'course') {
       setView({ type: 'home' });
     }
@@ -1445,7 +1440,7 @@ export function PublicApp() {
       setEnterpriseMemberForm({ fullName: '', email: '', locale: 'es' });
       await Promise.all([loadEnterpriseOverview(publicSession.token), loadUsersSafeFromEnterprise()]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo agregar colaborador');
+      setError(reason instanceof Error ? reason.message : 'No se pudo agregar miembro al departamento');
     } finally {
       setEnterpriseSaving(false);
     }
@@ -1455,7 +1450,7 @@ export function PublicApp() {
     if (!publicSession?.token) {
       return;
     }
-    await Promise.all([loadMyCourses(publicSession.token), loadMyTickets(publicSession.token)]).catch(() => undefined);
+    await loadMyCourses(publicSession.token).catch(() => undefined);
   };
 
   const onEnterpriseToggleMember = async (userId: string, nextStatus: 'active' | 'inactive') => {
@@ -1470,7 +1465,7 @@ export function PublicApp() {
       });
       await loadEnterpriseOverview(publicSession.token);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar colaborador');
+      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar miembro');
     } finally {
       setEnterpriseSaving(false);
     }
@@ -1490,7 +1485,7 @@ export function PublicApp() {
       setEnterpriseCourseId('');
       await Promise.all([loadEnterpriseOverview(publicSession.token), loadMyCourses(publicSession.token)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo asignar curso empresarial');
+      setError(reason instanceof Error ? reason.message : 'No se pudo asignar curso al departamento');
     } finally {
       setEnterpriseSaving(false);
     }
@@ -1508,7 +1503,7 @@ export function PublicApp() {
       });
       await Promise.all([loadEnterpriseOverview(publicSession.token), loadMyCourses(publicSession.token)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar curso empresarial');
+      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar curso del departamento');
     } finally {
       setEnterpriseSaving(false);
     }
@@ -1574,67 +1569,6 @@ export function PublicApp() {
     return () => window.removeEventListener('mousedown', onClickOutside);
   }, [sectionsMenuOpen]);
 
-  const landingEventGroups = useMemo(() => {
-    const now = Date.now();
-    const toTs = (value: string | null | undefined) => {
-      if (!value) {
-        return Number.MAX_SAFE_INTEGER;
-      }
-      const ts = Date.parse(value);
-      return Number.isNaN(ts) ? Number.MAX_SAFE_INTEGER : ts;
-    };
-    return (externalEventGroups ?? [])
-      .filter((group) => group.visibleOnLanding && group.isActive && group.events.length > 0)
-      .sort((a, b) => {
-        const aTs = toTs(a.startsAt);
-        const bTs = toTs(b.startsAt);
-        const aUpcoming = aTs >= now;
-        const bUpcoming = bTs >= now;
-        if (aUpcoming && !bUpcoming) {
-          return -1;
-        }
-        if (!aUpcoming && bUpcoming) {
-          return 1;
-        }
-        if (aUpcoming && bUpcoming) {
-          return aTs - bTs;
-        }
-        return bTs - aTs;
-      });
-  }, [externalEventGroups]);
-
-  const ticketGroups = useMemo(() => {
-    const groups = new Map<
-      string,
-      {
-        key: string;
-        title: string;
-        city: string;
-        country: string;
-        startDate: string;
-        hero: string;
-        tickets: PublicUserTicketRecord[];
-      }
-    >();
-    for (const ticket of myTickets) {
-      const event = ticket.event ?? {};
-      const eventId = String(ticket.id_event ?? event.id ?? ticket.code ?? 'ticket');
-      if (!groups.has(eventId)) {
-        groups.set(eventId, {
-          key: eventId,
-          title: String(event.name ?? 'Evento con ticket'),
-          city: String(event.city ?? ''),
-          country: String(event.country ?? ''),
-          startDate: String(event.start_date ?? ticket.date ?? ''),
-          hero: String(event.banner_frame_url ?? event.ticket_frame_url ?? event.banner_url ?? ''),
-          tickets: []
-        });
-      }
-      groups.get(eventId)?.tickets.push(ticket);
-    }
-    return [...groups.values()].sort((a, b) => Date.parse(a.startDate) - Date.parse(b.startDate));
-  }, [myTickets]);
-
   useEffect(() => {
     if (view.type !== 'home') {
       return;
@@ -1662,11 +1596,11 @@ export function PublicApp() {
   }, [view.type, rows]);
 
   if (loading) {
-    return <main className="public-shell">Cargando PAE-U...</main>;
+    return <main className="public-shell">{t('nav.loading')}</main>;
   }
 
   if (error && !home) {
-    return <main className="public-shell">Error: {error}</main>;
+    return <main className="public-shell">{t('nav.error')}: {error}</main>;
   }
 
   const activeLegalDocument = view.type === 'terms' ? legalTerms : view.type === 'privacy' ? legalPrivacy : null;
@@ -1694,10 +1628,9 @@ export function PublicApp() {
   const enterpriseAvailable = Boolean(enterpriseOverview?.available);
   const enterpriseIsRepresentative = enterpriseOverview?.role === 'representative';
   const topMenuSectionLinks: Array<{ id: string; title: string }> = [
-    ...(landingEventGroups.length > 0 ? [{ id: 'events', title: 'Eventos' }] : []),
-    ...(publicSession ? [{ id: 'my-courses-home', title: 'Mis cursos' }] : []),
-    ...(sortedLandingWebinars.length > 0 ? [{ id: 'webinars', title: 'Webinars' }] : []),
-    ...(landingPodcasts.length > 0 ? [{ id: 'podcasts', title: 'Podcasts' }] : []),
+    ...(publicSession ? [{ id: 'my-courses-home', title: t('home.myCourses') }] : []),
+    ...(sortedLandingWebinars.length > 0 ? [{ id: 'webinars', title: t('home.liveEvents') }] : []),
+    ...(landingPodcasts.length > 0 ? [{ id: 'podcasts', title: t('home.podcasts') }] : []),
     ...topMenuCategories
   ];
 
@@ -1705,11 +1638,6 @@ export function PublicApp() {
     <main className="public-shell netflix-ui">
       <header className="public-topbar netflix-topbar">
         <button className="brand-btn" onClick={() => setView({ type: 'home' })}>
-          <img
-            className="brand-logo"
-            src="https://www.pasosalexito.com/wp-content/uploads/2024/06/pasos_al_exito_360_light_logo-1-1.webp"
-            alt="Pasos al Exito"
-          />
           <span className="brand-suffix">University</span>
         </button>
         <nav className="public-nav">
@@ -1722,7 +1650,7 @@ export function PublicApp() {
                 setSectionsMenuOpen(false);
               }}
             >
-              <span className="featured-star">★</span> Empresas
+              <span className="featured-star">★</span> {t('nav.enterprise')}
             </button>
             <button
               className={view.type === 'catalog' ? 'active' : ''}
@@ -1732,7 +1660,7 @@ export function PublicApp() {
                 setSectionsMenuOpen(false);
               }}
             >
-              Explorar
+              {t('nav.catalog')}
             </button>
             {topMenuSectionLinks.length > 0 ? (
               <div className="sections-menu-wrap" ref={sectionsMenuRef}>
@@ -1740,7 +1668,7 @@ export function PublicApp() {
                   className={`category-nav-btn sections-menu-trigger ${sectionsMenuOpen ? 'active' : ''}`}
                   onClick={() => setSectionsMenuOpen((current) => !current)}
                 >
-                  Secciones <span className={`profile-caret ${sectionsMenuOpen ? 'open' : ''}`}>▾</span>
+                  {t('nav.sections')} <span className={`profile-caret ${sectionsMenuOpen ? 'open' : ''}`}>▾</span>
                 </button>
                 {sectionsMenuOpen ? (
                   <div className="sections-dropdown">
@@ -1761,13 +1689,14 @@ export function PublicApp() {
               </div>
             ) : null}
           </div>
+          <LanguageSwitcher compact />
           <button
             className={`mobile-menu-toggle ${mobileMenuOpen ? 'active' : ''}`}
-            aria-label="Abrir menú"
-            title="Abrir menú"
+            aria-label={t('nav.menu')}
+            title={t('nav.menu')}
             onClick={() => setMobileMenuOpen((current) => !current)}
           >
-            {mobileMenuOpen ? 'Cerrar' : 'Menú'}
+            {mobileMenuOpen ? t('nav.closeMenu') : t('nav.menu')}
           </button>
           {mobileMenuOpen ? (
             <div className="mobile-menu-sheet">
@@ -1778,7 +1707,7 @@ export function PublicApp() {
                   setMobileMenuOpen(false);
                 }}
               >
-                <span className="featured-star">★</span> Empresas
+                <span className="featured-star">★</span> {t('nav.enterprise')}
               </button>
               <button
                 className={view.type === 'catalog' ? 'active' : ''}
@@ -1787,7 +1716,7 @@ export function PublicApp() {
                   setMobileMenuOpen(false);
                 }}
               >
-                Explorar
+                {t('nav.catalog')}
               </button>
               {topMenuSectionLinks.map((section) => (
                 <button
@@ -1800,13 +1729,16 @@ export function PublicApp() {
                   {section.title}
                 </button>
               ))}
+              <div className="mobile-lang-switcher">
+                <LanguageSwitcher />
+              </div>
             </div>
           ) : null}
           <div className="account-menu-wrap" ref={accountMenuRef}>
             <button
               className={`profile-icon-btn ${publicSession?.token ? 'logged' : 'guest'}`}
-              aria-label={publicSession?.token ? 'Perfil' : 'Ingresar'}
-              title={publicSession?.token ? 'Perfil' : 'Ingresar'}
+              aria-label={publicSession?.token ? t('nav.account') : t('nav.login')}
+              title={publicSession?.token ? t('nav.account') : t('nav.login')}
               onClick={() => {
                 if (!publicSession?.token) {
                   setAuthMode('login');
@@ -1820,7 +1752,7 @@ export function PublicApp() {
               <span className={`profile-avatar ${publicSession?.token ? 'user' : 'guest'}`}>
                 {publicSession?.user?.fullName?.trim().charAt(0).toUpperCase() || '👤'}
               </span>
-              {!publicSession?.token ? <span className="profile-label">Ingresar</span> : null}
+              {!publicSession?.token ? <span className="profile-label">{t('nav.login')}</span> : null}
               {publicSession?.token ? <span className={`profile-caret ${accountMenuOpen ? 'open' : ''}`}>▾</span> : null}
             </button>
             {publicSession && accountMenuOpen ? (
@@ -1835,7 +1767,7 @@ export function PublicApp() {
                     setAccountMenuOpen(false);
                   }}
                 >
-                  Mis cursos
+                  {t('nav.myCourses')}
                 </button>
                 <button
                   onClick={() => {
@@ -1843,25 +1775,15 @@ export function PublicApp() {
                     setAccountMenuOpen(false);
                   }}
                 >
-                  Empresas
+                  {t('nav.enterprise')}
                 </button>
-                {ticketGroups.length > 0 ? (
-                  <button
-                    onClick={() => {
-                      setView({ type: 'my-tickets' });
-                      setAccountMenuOpen(false);
-                    }}
-                  >
-                    Mis entradas
-                  </button>
-                ) : null}
                 <button
                   onClick={() => {
                     setView({ type: 'profile' });
                     setAccountMenuOpen(false);
                   }}
                 >
-                  Mi perfil
+                  {t('nav.profile')}
                 </button>
                 <button
                   className="danger"
@@ -1870,7 +1792,7 @@ export function PublicApp() {
                     setAccountMenuOpen(false);
                   }}
                 >
-                  Salir
+                  {t('nav.logout')}
                 </button>
               </div>
             ) : null}
@@ -1890,9 +1812,9 @@ export function PublicApp() {
                 <h1>{activeHero.title}</h1>
                 <p>{snippet(activeHero.summary, activeHero.title, 260)}</p>
                 <div className="hero-actions">
-                  <button onClick={() => openItem(activeHero)}>{activeHero.kind === 'course' ? 'Entrar al curso' : 'Ver ahora'}</button>
+                  <button onClick={() => openItem(activeHero)}>{activeHero.kind === 'course' ? t('hero.enterCourse') : t('hero.watchNow')}</button>
                   <button className="ghost-btn" onClick={() => setView({ type: 'catalog' })}>
-                    Explorar catálogo
+                    {t('hero.exploreCatalog')}
                   </button>
                 </div>
                 <div className="hero-dots">
@@ -1901,120 +1823,6 @@ export function PublicApp() {
                   ))}
                 </div>
               </div>
-            </section>
-          ) : null}
-
-          {landingEventGroups.length > 0 ? (
-            <section
-              className="section-block webinar-list-block category-anchor"
-              ref={(node) => {
-                categorySectionRefs.current.events = node;
-              }}
-            >
-              <div className="section-header-row">
-                <div>
-                  <h2>{landingEventGroups.length > 1 ? 'Próximos eventos' : 'Próximo evento'}</h2>
-                  <p className="row-subtitle">
-                    Reserva tu cupo y vive experiencias en vivo con nuestra comunidad.
-                  </p>
-                </div>
-              </div>
-              <div className="content-row-scroll events-row-scroll">
-                {landingEventGroups.map((group) => {
-                  const startsAtTs = group.startsAt ? Date.parse(group.startsAt) : Number.NaN;
-                  const isPast = Number.isFinite(startsAtTs) && startsAtTs < Date.now();
-                  const startsAtLabel = group.startsAt ? new Date(group.startsAt).toLocaleString() : 'Fecha por confirmar';
-                  const ticketsLabel = group.ticketTypes.length > 0 ? group.ticketTypes.join(' · ').toUpperCase() : 'GENERAL';
-                  return (
-                    <article key={group.groupKey} className="webinar-card webinar-card-modern">
-                      <img src={group.heroImage} alt={group.groupLabel} />
-                      <div className="webinar-card-overlay" />
-                      <div className="webinar-card-body webinar-card-body-overlay">
-                        <div className="webinar-card-top">
-                          <span className={`webinar-state-pill ${isPast ? 'state-ended' : 'state-upcoming'}`}>
-                            {isPast ? 'Ya pasó' : 'Próximo'}
-                          </span>
-                          <span className="webinar-platform-chip">{ticketsLabel}</span>
-                        </div>
-                        <h4>{group.groupLabel}</h4>
-                        <p className="webinar-card-subtitle">
-                          {group.venue || [group.city, group.country].filter(Boolean).join(', ') || 'Ubicación por confirmar'}
-                        </p>
-                        <p className="webinar-card-datetime">{startsAtLabel}</p>
-                        <div className="webinar-channel-list">
-                          <span>{group.events.length} tipo(s) de ticket</span>
-                        </div>
-                        <div className="webinar-card-actions">
-                          {group.siteUrl ? (
-                            <a className="tier-vip" href={group.siteUrl} target="_blank" rel="noreferrer noopener">
-                              Reservar / Comprar
-                            </a>
-                          ) : null}
-                          <span className="ghost">{group.ticketTypes.join(' · ')}</span>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
-
-          {publicSession && ticketGroups.length > 0 ? (
-            <section className="section-block tickets-block">
-              <div className="section-header-row">
-                <div>
-                  <h2>Mis entradas</h2>
-                  <p className="row-subtitle">Estos son los eventos para los que ya tienes tickets.</p>
-                </div>
-              </div>
-              <div className="content-row-scroll events-row-scroll">
-                {ticketGroups.map((group) => (
-                  <article key={group.key} className="webinar-card webinar-card-modern">
-                    <img src={group.hero || 'https://picsum.photos/seed/paeu-ticket/1600/900'} alt={group.title} />
-                    <div className="webinar-card-overlay" />
-                    <div className="webinar-card-body webinar-card-body-overlay">
-                      <div className="webinar-card-top">
-                        <span className="webinar-state-pill state-ended">Ticket activo</span>
-                        <span className="webinar-platform-chip">{group.tickets.length} entrada(s)</span>
-                      </div>
-                      <h4>{group.title}</h4>
-                      <p className="webinar-card-subtitle">
-                        {[group.city, group.country].filter(Boolean).join(', ') || 'Ubicación por confirmar'}
-                      </p>
-                      <p className="webinar-card-datetime">
-                        {group.startDate ? new Date(group.startDate).toLocaleDateString() : 'Fecha por confirmar'}
-                      </p>
-                      <div className="webinar-card-actions">
-                        {group.tickets.slice(0, 2).map((ticket) => (
-                          <button
-                            key={`${group.key}-${ticket.code}`}
-                            className="tier-free"
-                            onClick={() => {
-                              if (ticket.ticket_url) {
-                                setTicketPreview({
-                                  url: String(ticket.ticket_url),
-                                  title: `${group.title} · ${ticket.code}`
-                                });
-                              }
-                            }}
-                            disabled={!ticket.ticket_url}
-                          >
-                            {ticket.ticket_url ? `Ver ${ticket.code}` : ticket.code}
-                          </button>
-                        ))}
-                        {group.tickets.length > 2 ? (
-                          <span className="ghost">+{group.tickets.length - 2} más</span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : publicSession && myTicketsLoading ? (
-            <section className="section-block tickets-block">
-              <p>Cargando tus entradas...</p>
             </section>
           ) : null}
 
@@ -2027,19 +1835,19 @@ export function PublicApp() {
             >
               <div className="section-header-row">
                 <div>
-                  <h2>Mis cursos</h2>
-                  <p className="row-subtitle">Accede rápido a tus cursos asignados y continúa tu progreso.</p>
+                  <h2>{t('home.myCourses')}</h2>
+                  <p className="row-subtitle">{t('home.myCoursesSubtitle')}</p>
                 </div>
                 <button className="ghost-btn" onClick={() => setView({ type: 'my-courses' })}>
-                  Ver todos
+                  {t('home.viewAll')}
                 </button>
               </div>
-              {myCoursesLoading ? <p>Cargando tus cursos...</p> : null}
+              {myCoursesLoading ? <p>{t('home.loadingCourses')}</p> : null}
               {!myCoursesLoading && myCourseItems.length === 0 ? (
                 <div className="my-courses-empty">
-                  <p>Aún no tienes cursos asignados. Explora el catálogo y desbloquea tu próxima ruta de aprendizaje.</p>
+                  <p>{t('home.noCoursesEnrolled')}</p>
                   <button className="go-course-btn" onClick={() => setView({ type: 'catalog' })}>
-                    Explorar y obtener cursos
+                    {t('home.exploreAndGet')}
                   </button>
                 </div>
               ) : null}
@@ -2062,7 +1870,7 @@ export function PublicApp() {
                     return (
                       <article key={`my-${item.id}`} className="my-course-card-wrap">
                         <ContentCard item={item} onOpen={openItem} />
-                        <p className="my-course-progress-text">Avance: {percent}%</p>
+                        <p className="my-course-progress-text">{t('home.progress')}: {percent}%</p>
                         <div className="my-course-progress-track" aria-hidden="true">
                           <div className="my-course-progress-fill" style={{ width: `${percent}%` }} />
                         </div>
@@ -2071,10 +1879,10 @@ export function PublicApp() {
                   })}
                   <button className="content-tile promo-more-courses" onClick={() => setView({ type: 'my-courses' })}>
                     <div className="promo-more-inner">
-                      <span className="public-badge kind-bundle">Sugerido</span>
-                      <h4>Ver todos mis cursos</h4>
-                      <p>Revisa tu progreso completo, retoma módulos y continúa tu ruta.</p>
-                      <span className="promo-link">Ir a mis cursos</span>
+                      <span className="public-badge kind-bundle">{t('home.suggested')}</span>
+                      <h4>{t('home.viewAllMyCourses')}</h4>
+                      <p>{t('home.myCoursesSubtitle')}</p>
+                      <span className="promo-link">{t('course.goMyCourses')}</span>
                     </div>
                   </button>
                 </div>
@@ -2117,8 +1925,8 @@ export function PublicApp() {
             >
               <div className="section-header-row">
                 <div>
-                  <h2>{sortedLandingWebinars.length > 1 ? 'Webinars destacados' : 'Webinar destacado'}</h2>
-                  <p className="row-subtitle">Sesiones prácticas en vivo para acelerar tu aprendizaje.</p>
+                  <h2>{t('home.liveEvents')}</h2>
+                  <p className="row-subtitle">{t('home.liveEventsSubtitle')}</p>
                 </div>
               </div>
               <div className="content-row-scroll">
@@ -2133,12 +1941,12 @@ export function PublicApp() {
                       <div className="webinar-card-body webinar-card-body-overlay">
                         <div className="webinar-card-top">
                           <span className={`webinar-state-pill state-${state}`}>
-                            {state === 'live' ? 'En vivo' : state === 'upcoming' ? 'Próximo' : 'Ya pasó'}
+                            {state === 'live' ? t('home.live') : state === 'upcoming' ? t('home.upcoming') : t('home.ended')}
                           </span>
                           <span className="webinar-platform-chip">{webinar.source_type.toUpperCase()}</span>
                         </div>
                         <h4>{webinar.title}</h4>
-                        <p className="webinar-card-subtitle">{webinar.subtitle ?? 'Webinar exclusivo PAE-U'}</p>
+                        <p className="webinar-card-subtitle">{webinar.subtitle ?? t('home.exclusive')}</p>
                         <p className="webinar-card-datetime">{startsAtLabel}</p>
                         <div className="webinar-channel-list">
                           {links.slice(0, 3).map((link) => (
@@ -2150,16 +1958,16 @@ export function PublicApp() {
                         <div className="webinar-card-actions">
                           {webinar.free_reservation_url ? (
                             <a className="tier-free" href={webinar.free_reservation_url} target="_blank" rel="noreferrer noopener">
-                              Reservar gratis
+                              {t('home.reserveFree')}
                             </a>
                           ) : null}
                           {webinar.vip_reservation_url ? (
                             <a className="tier-vip" href={webinar.vip_reservation_url} target="_blank" rel="noreferrer noopener">
-                              Reservar VIP
+                              {t('home.reserveVip')}
                             </a>
                           ) : (
                             <a href={webinar.source_url} target="_blank" rel="noreferrer noopener">
-                              {webinar.cta_label || 'Abrir webinar'}
+                              {webinar.cta_label || t('home.openWebinar')}
                             </a>
                           )}
                         </div>
@@ -2205,8 +2013,8 @@ export function PublicApp() {
             >
               <div className="section-header-row">
                 <div>
-                  <h2>Podcasts destacados</h2>
-                  <p className="row-subtitle">Conversaciones y enseñanzas para impulsar tu crecimiento.</p>
+                  <h2>{t('home.podcasts')}</h2>
+                  <p className="row-subtitle">{t('home.podcastsSubtitle')}</p>
                 </div>
               </div>
               <div className="content-row-scroll">
@@ -2228,7 +2036,7 @@ export function PublicApp() {
                     >
                       <img src={youtubeThumbUrl(podcast.video_url || podcast.video_code)} alt={podcast.title} />
                       <div className="tile-overlay">
-                        <span className="public-badge kind-vod">Podcast</span>
+                        <span className="public-badge kind-vod">{t('nav.podcasts')}</span>
                         <h4>{podcast.title}</h4>
                       </div>
                     </button>
@@ -2267,25 +2075,25 @@ export function PublicApp() {
       {view.type === 'catalog' ? (
         <section className="section-block">
           <div className="section-header-row">
-            <h2>Catálogo completo</h2>
+            <h2>{t('catalog.title')}</h2>
             <span className="catalog-results-count">
-              Mostrando {catalogShownItems.length} de {catalogViewItems.length}
+              {t('catalog.showing', { shown: catalogShownItems.length, total: catalogViewItems.length })}
             </span>
           </div>
           <div className="catalog-toolbar">
             <div className="catalog-search-wrap">
               <input
                 className="search-input catalog-search-input"
-                placeholder="Buscar cursos, live, VoD..."
+                placeholder={t('catalog.search')}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
             <div className="catalog-filters">
               <label>
-                Grupo
+                {t('catalog.group')}
                 <select value={catalogGroupFilter} onChange={(event) => setCatalogGroupFilter(event.target.value)}>
-                  <option value="all">Todos</option>
+                  <option value="all">{t('catalog.all')}</option>
                   {catalogGroups.map((group) => (
                     <option key={group} value={group}>
                       {group}
@@ -2294,21 +2102,21 @@ export function PublicApp() {
                 </select>
               </label>
               <label>
-                Estado
+                {t('nav.myCourses')}
                 <select
                   value={catalogEnrollmentFilter}
                   onChange={(event) => setCatalogEnrollmentFilter(event.target.value as 'all' | 'enrolled' | 'not-enrolled')}
                 >
-                  <option value="all">Todos</option>
-                  <option value="enrolled">Mis cursos</option>
-                  <option value="not-enrolled">No inscritos</option>
+                  <option value="all">{t('catalog.all')}</option>
+                  <option value="enrolled">{t('catalog.myCoursesFilter')}</option>
+                  <option value="not-enrolled">{t('catalog.notEnrolledFilter')}</option>
                 </select>
               </label>
               <label>
-                Orden
+                {t('catalog.order')}
                 <select value={catalogSort} onChange={(event) => setCatalogSort(event.target.value as 'default' | 'newest' | 'az')}>
-                  <option value="default">Relevancia</option>
-                  <option value="newest">Más nuevos</option>
+                  <option value="default">{t('catalog.relevance')}</option>
+                  <option value="newest">{t('catalog.newest')}</option>
                   <option value="az">A-Z</option>
                 </select>
               </label>
@@ -2322,7 +2130,7 @@ export function PublicApp() {
                   setCatalogSort('default');
                 }}
               >
-                Limpiar
+                {t('catalog.clear')}
               </button>
             </div>
           </div>
@@ -2350,7 +2158,7 @@ export function PublicApp() {
                       <span className={`public-badge kind-${item.kind}`}>{getCourseCategoryLabel(item)}</span>
                       {item.kind === 'course' ? (
                         <span className={`catalog-status-pill ${isEnrolled ? 'enrolled' : 'locked'}`}>
-                          {isEnrolled ? 'Inscrito' : 'No inscrito'}
+                          {isEnrolled ? t('catalog.enrolled') : t('catalog.notEnrolled')}
                         </span>
                       ) : null}
                     </div>
@@ -2360,7 +2168,7 @@ export function PublicApp() {
                         <div className="catalog-progress-track" aria-hidden="true">
                           <div className="catalog-progress-fill" style={{ width: `${isEnrolled ? percent : 0}%` }} />
                         </div>
-                        <span>{isEnrolled ? `Avance ${percent}%` : 'Preview disponible'}</span>
+                        <span>{isEnrolled ? t('catalog.advancePercent', { percent }) : t('catalog.previewAvailable')}</span>
                       </div>
                     ) : null}
                   </div>
@@ -2375,7 +2183,7 @@ export function PublicApp() {
                 className="ghost-btn"
                 onClick={() => setCatalogVisibleCount((current) => current + 24)}
               >
-                Ver más
+                {t('catalog.loadMore')}
               </button>
             </div>
           ) : null}
@@ -2385,11 +2193,11 @@ export function PublicApp() {
       {view.type === 'detail' ? (
         <section className="section-block detail-block">
           <button className="back-link" onClick={() => setView({ type: 'home' })}>
-            Volver a inicio
+            {t('catalog.backHome')}
           </button>
 
           {loadingDetail || !selectedDetail ? (
-            <p>Cargando detalle...</p>
+            <p>{t('course.contentLoading')}</p>
           ) : (
             <article className="detail-cinematic">
               <img src={selectedDetail.content.heroImage} alt={selectedDetail.content.title} />
@@ -2408,7 +2216,7 @@ export function PublicApp() {
                       setView({ type: 'course', slug: selectedDetail.content.slug });
                     }}
                   >
-                    {isCurrentCourseAssigned ? 'Entrar al curso completo' : 'Ver curso (preview + compra)'}
+                    {isCurrentCourseAssigned ? t('catalog.enterFullCourse') : t('catalog.viewPreview')}
                   </button>
                 ) : null}
               </div>
@@ -2432,30 +2240,30 @@ export function PublicApp() {
               <div className="course-header-content">
                 <div className="course-header-top">
                   <span className="course-stage-pill">
-                    {activeModuleIndex >= 0 ? `Módulo ${activeModuleIndex + 1} de ${flatModules.length}` : 'Ruta de aprendizaje'}
+                    {activeModuleIndex >= 0 ? t('course.module', { current: activeModuleIndex + 1, total: flatModules.length }) : t('course.learningPath')}
                   </span>
                   <button className="back-link" onClick={() => setView({ type: 'my-courses' })}>
-                    Ir a mis cursos
+                    {t('course.goMyCourses')}
                   </button>
                 </div>
-                <h1>{selectedDetail?.content?.title ?? 'Curso'}</h1>
+                <h1>{selectedDetail?.content?.title ?? t('course.enterCourse')}</h1>
                 <p>{snippet(selectedDetail?.content?.summary, selectedDetail?.content?.title, 260)}</p>
               </div>
             </div>
             {!isCurrentCourseAssigned ? (
               <div className="course-preview-banner">
-                <strong>Modo preview activo</strong>
-                <span>Solo puedes navegar el primer módulo. Desbloquea el curso para continuar tu ruta completa.</span>
-                <button onClick={() => setView({ type: 'catalog' })}>Desbloquear curso</button>
+                <strong>{t('course.previewMode')}</strong>
+                <span>{t('course.previewDesc')}</span>
+                <button onClick={() => setView({ type: 'catalog' })}>{t('course.unlockCourse')}</button>
               </div>
             ) : null}
             <div className="progress-row progress-row-modern">
               <div className="progress-pill">
-                <span>Progreso</span>
+                <span>{t('course.progressLabel')}</span>
                 <strong>{progressPercent}%</strong>
               </div>
               <div className="progress-pill">
-                <span>Completados</span>
+                <span>{t('course.completedLabel')}</span>
                 <strong>{completedCount}/{flatModules.length}</strong>
               </div>
               <div className="progress-pill">
@@ -2463,7 +2271,7 @@ export function PublicApp() {
                 <strong>{progress.xp}</strong>
               </div>
               <div className="progress-pill">
-                <span>Nivel</span>
+                <span>{t('course.level')}</span>
                 <strong>{level}</strong>
               </div>
             </div>
@@ -2475,10 +2283,10 @@ export function PublicApp() {
           <div className="course-grid course-grid-modern">
             <aside className="course-sidebar course-sidebar-modern">
               <div className="learning-map-head">
-                <h3>Plan del curso</h3>
-                <span>{flatModules.length} actividades</span>
+                <h3>{t('course.plan')}</h3>
+                <span>{t('course.activities', { count: flatModules.length })}</span>
               </div>
-              {loadingCourseContent ? <p>Cargando estructura...</p> : null}
+              {loadingCourseContent ? <p>{t('course.loadingStructure')}</p> : null}
               {courseContentError ? <p className="public-error">{courseContentError}</p> : null}
               {sectionGroups.map(([sectionName, modules], sectionIndex) => (
                 <div className="learning-section" key={`${sectionName}-${sectionIndex}`}>
@@ -2494,7 +2302,7 @@ export function PublicApp() {
                           className={`module-nav-btn module-nav-modern ${isActive ? 'active' : ''} ${locked ? 'locked' : ''}`}
                           onClick={() => {
                             if (locked) {
-                              setInteractionMessage('Este módulo está bloqueado. Compra el curso para desbloquearlo.');
+                              setInteractionMessage(t('course.locked'));
                               return;
                             }
                             setActiveModuleId(row.module.id);
@@ -2505,7 +2313,7 @@ export function PublicApp() {
                             <strong>{row.module.name}</strong>
                             <span>{row.module.modname}</span>
                           </div>
-                          <em>{locked ? 'Bloqueado' : isDone ? 'Completado' : 'Pendiente'}</em>
+                          <em>{locked ? t('course.moduleLocked') : isDone ? t('course.moduleDone') : t('course.modulePending')}</em>
                         </button>
                       );
                     })}
@@ -2516,14 +2324,14 @@ export function PublicApp() {
 
             <article className="course-main course-main-modern">
               {!activeModule ? (
-                <p>Selecciona un módulo para iniciar.</p>
+                <p>{t('course.selectModule')}</p>
               ) : isModuleLocked(activeModule.module.id) ? (
                 <section className="course-paywall-card">
-                  <h3>Continúa con la ruta completa</h3>
-                  <p>Ya viste el primer módulo. Desbloquea el curso para abrir el resto del contenido y guardar avance.</p>
+                  <h3>{t('course.continueFullPath')}</h3>
+                  <p>{t('course.sawFirstModule')}</p>
                   <div className="interaction-actions">
-                    <button onClick={() => setView({ type: 'catalog' })}>Ver catálogo</button>
-                    <button className="ghost-btn" onClick={() => setView({ type: 'my-courses' })}>Ir a mis cursos</button>
+                    <button onClick={() => setView({ type: 'catalog' })}>{t('course.seeCatalog')}</button>
+                    <button className="ghost-btn" onClick={() => setView({ type: 'my-courses' })}>{t('course.goMyCourses')}</button>
                   </div>
                 </section>
               ) : (
@@ -2532,16 +2340,16 @@ export function PublicApp() {
                     <div>
                       <p className="module-kicker">{activeModule.sectionName}</p>
                       <h2>{activeModule.module.name}</h2>
-                      <p>Tipo de actividad: {activeModule.module.modname}</p>
+                      <p>{t('course.activityType')} {activeModule.module.modname}</p>
                     </div>
                     <div className="module-actions-top">
-                      <button onClick={() => goToNeighborModule(-1)} disabled={activeModuleIndex <= 0}>Anterior</button>
-                      <button onClick={() => goToNeighborModule(1)} disabled={activeModuleIndex < 0 || activeModuleIndex >= flatModules.length - 1}>Siguiente</button>
+                      <button onClick={() => goToNeighborModule(-1)} disabled={activeModuleIndex <= 0}>{t('course.prev')}</button>
+                      <button onClick={() => goToNeighborModule(1)} disabled={activeModuleIndex < 0 || activeModuleIndex >= flatModules.length - 1}>{t('course.next')}</button>
                     </div>
                   </header>
 
                   <section className="module-content-card module-content-modern">
-                    <h3>Clase y material</h3>
+                    <h3>{t('course.classAndMaterial')}</h3>
                     <div className="moodle-html" dangerouslySetInnerHTML={{ __html: activeModuleDescriptionHtml }} />
                     {activeModuleVideoUrl || activeModuleFileVideoUrl ? (
                       <div className="inline-video-player">
@@ -2571,7 +2379,7 @@ export function PublicApp() {
                     ) : null}
 
                     {!activeModuleVideoUrl && !activeModuleFileVideoUrl && (activeModule.module.contents ?? []).length === 0 ? (
-                      <p className="module-empty-note">No hay archivos adjuntos en esta actividad.</p>
+                      <p className="module-empty-note">{t('course.noAttachments')}</p>
                     ) : null}
 
                     {!activeModuleVideoUrl && !activeModuleFileVideoUrl && activeFileUrl ? (
@@ -2583,14 +2391,14 @@ export function PublicApp() {
 
                   <section className="interaction-box interaction-box-modern">
                     <div className="interaction-heading">
-                      <h3>{isPreviewOnly ? 'Vista de demostración' : 'Desarrollo de actividad'}</h3>
-                      {!isPreviewOnly ? <span>Guarda tu respuesta y marca tu avance</span> : null}
+                      <h3>{isPreviewOnly ? t('course.demoView') : t('course.activityDev')}</h3>
+                      {!isPreviewOnly ? <span>{t('course.saveGuide')}</span> : null}
                     </div>
                     {isPreviewOnly ? (
                       <div className="preview-readonly-box">
-                        <p>Este curso está en preview. Puedes explorar pero no guardar progreso ni respuestas.</p>
+                        <p>{t('course.previewReadonly')}</p>
                         <button className="go-course-btn" onClick={() => setView({ type: 'catalog' })}>
-                          Comprar / desbloquear curso completo
+                          {t('course.purchaseUnlock')}
                         </button>
                       </div>
                     ) : (
@@ -2598,33 +2406,33 @@ export function PublicApp() {
                         <textarea
                           value={interactionText}
                           onChange={(event) => setInteractionText(event.target.value)}
-                          placeholder="Escribe aquí tu desarrollo, conclusiones o respuestas..."
+                          placeholder={t('course.writeHere')}
                         />
                         <div className="interaction-actions">
                           <button onClick={() => void onSubmitInteraction()} disabled={interactionSaving || !interactionText.trim()}>
-                            {interactionSaving ? 'Guardando...' : 'Guardar avance'}
+                            {interactionSaving ? t('course.saving') : t('course.saveProgress')}
                           </button>
                           <button
                             className={`completion-inline-btn ${activeModuleCompleted ? 'done' : ''}`}
                             onClick={markModuleComplete}
                             disabled={activeModuleCompleted}
                           >
-                            {activeModuleCompleted ? 'Completado ✓' : 'Completar módulo +50 XP'}
+                            {activeModuleCompleted ? `${t('course.completed')} ✓` : t('course.markComplete')}
                           </button>
                         </div>
                         <p className={`completion-inline-hint ${activeModuleCompleted ? 'done' : ''}`}>
                           {activeModuleCompleted
-                            ? 'Este módulo ya está completado.'
-                            : 'Completa el módulo cuando termines esta actividad.'}
+                            ? t('course.alreadyCompleted')
+                            : t('course.completeWhenDone')}
                         </p>
                       </>
                     )}
                     {interactionMessage ? <p className="interaction-feedback">{interactionMessage}</p> : null}
                     {!isPreviewOnly ? (
                       <div className="interaction-history interaction-history-modern">
-                        <h4>Histórico de actividad</h4>
+                        <h4>{t('course.activityHistory')}</h4>
                         {interactionHistory.length === 0 ? (
-                          <p>Aún no hay registros guardados.</p>
+                          <p>{t('course.noHistory')}</p>
                         ) : (
                           <ul>
                             {interactionHistory.slice(0, 10).map((entry) => {
@@ -2652,14 +2460,14 @@ export function PublicApp() {
             </article>
 
             <aside className="gamification-panel gamification-panel-modern">
-              <h3>Tu avance</h3>
+              <h3>{t('course.yourProgress')}</h3>
               <div className="stat-grid">
-                <div><span>Módulos</span><strong>{completedCount}/{flatModules.length}</strong></div>
-                <div><span>Interacciones</span><strong>{progress.interactionsCount}</strong></div>
+                <div><span>{t('course.modules')}</span><strong>{completedCount}/{flatModules.length}</strong></div>
+                <div><span>{t('course.interactions')}</span><strong>{progress.interactionsCount}</strong></div>
                 <div><span>XP</span><strong>{progress.xp}</strong></div>
-                <div><span>Nivel</span><strong>{level}</strong></div>
+                <div><span>{t('course.level')}</span><strong>{level}</strong></div>
               </div>
-              <h4>Logros</h4>
+              <h4>{t('course.achievements')}</h4>
               <ul className="achievement-list">
                 {achievements.map((achievement) => (
                   <li key={achievement.id} className={achievement.unlocked ? 'unlocked' : ''}>
@@ -2672,7 +2480,7 @@ export function PublicApp() {
           </div>
           <div className={`victory-toast ${victoryState ? 'show' : ''}`} role="status" aria-live="polite">
             <div className="victory-toast-body">
-              <strong>Modulo completado</strong>
+              <strong>{t('course.moduleCompleted')}</strong>
               <p>{victoryState?.moduleName ?? ''}</p>
               <span>+{victoryState?.xp ?? 0} XP</span>
             </div>
@@ -2692,23 +2500,23 @@ export function PublicApp() {
         <section className="section-block profile-block profile-modern">
           <div className="section-header-row">
             <div>
-              <h2>Mis cursos</h2>
+              <h2>{t('myCourses.title')}</h2>
               <p className="row-subtitle">
-                {publicSession ? `${publicSession.user.fullName} · ${publicSession.user.email}` : 'Inicia sesión para ver tus cursos'}
+                {publicSession ? `${publicSession.user.fullName} · ${publicSession.user.email}` : t('myCourses.loginRequired')}
               </p>
             </div>
             <button className="ghost-btn" onClick={() => setView({ type: 'profile' })}>
-              Editar mi perfil
+              {t('myCourses.editProfile')}
             </button>
           </div>
           {publicSession ? (
             <div className="profile-summary-grid">
               <article className="profile-summary-card">
-                <span>Cursos activos</span>
+                <span>{t('myCourses.activeCourses')}</span>
                 <strong>{(myCourses?.localCourses ?? []).filter((course) => course.status === 'active').length}</strong>
               </article>
               <article className="profile-summary-card">
-                <span>Promedio de avance</span>
+                <span>{t('myCourses.avgProgress')}</span>
                 <strong>
                   {(() => {
                     const active = (myCourses?.localCourses ?? []).filter((course) => course.status === 'active');
@@ -2730,18 +2538,18 @@ export function PublicApp() {
                 </strong>
               </article>
               <article className="profile-summary-card">
-                <span>Cuenta</span>
+                <span>{t('myCourses.account')}</span>
                 <strong>{publicSession.user.locale.toUpperCase()}</strong>
               </article>
             </div>
           ) : null}
-          {myCoursesLoading ? <p>Cargando tus cursos...</p> : null}
+          {myCoursesLoading ? <p>{t('home.loadingCourses')}</p> : null}
           {!myCoursesLoading && (myCourses?.localCourses ?? []).filter((course) => course.status === 'active').length === 0 ? (
-            <p>No tienes cursos asignados aún.</p>
+            <p>{t('myCourses.empty')}</p>
           ) : null}
           <div className="profile-courses-grid">
             {(myCourses?.localCourses ?? []).filter((course) => course.status === 'active').map((course) => {
-              const match = catalog.find(
+              const match = localizedCatalog.find(
                 (item) =>
                   item.kind === 'course' &&
                   String((item as unknown as { moodleCourseId?: string }).moodleCourseId) === String(course.moodle_course_id)
@@ -2770,7 +2578,7 @@ export function PublicApp() {
                   <div className="tile-overlay profile-tile-overlay">
                     <div className="profile-tile-top">
                       <span className={`public-badge ${match ? 'kind-course' : 'kind-bundle'}`}>
-                        {match ? getCourseCategoryLabel(match) : 'Sincronizando'}
+                        {match ? getCourseCategoryLabel(match) : t('myCourses.syncing')}
                       </span>
                       <span className="profile-progress-pill">{percent}%</span>
                     </div>
@@ -2778,7 +2586,7 @@ export function PublicApp() {
                     <div className="profile-tile-progress" aria-hidden="true">
                       <div style={{ width: `${percent}%` }} />
                     </div>
-                    <span className="profile-tile-cta">{match ? 'Continuar curso' : 'No disponible'}</span>
+                    <span className="profile-tile-cta">{match ? t('myCourses.continueCourse') : t('myCourses.notAvailable')}</span>
                   </div>
                 </button>
               );
@@ -2787,83 +2595,23 @@ export function PublicApp() {
         </section>
       ) : null}
 
-      {view.type === 'my-tickets' ? (
-        <section className="section-block profile-block profile-modern">
-          <div className="section-header-row">
-            <div>
-              <h2>Mis entradas</h2>
-              <p className="row-subtitle">
-                {publicSession ? `${publicSession.user.fullName} · ${publicSession.user.email}` : 'Inicia sesión para ver tus entradas'}
-              </p>
-            </div>
-            <button className="ghost-btn" onClick={() => setView({ type: 'my-courses' })}>
-              Ir a mis cursos
-            </button>
-          </div>
-          {myTicketsLoading ? <p>Cargando tus entradas...</p> : null}
-          {!myTicketsLoading && ticketGroups.length === 0 ? (
-            <p>No encontramos entradas asociadas a tu cuenta.</p>
-          ) : null}
-          <div className="content-row-scroll events-row-scroll">
-            {ticketGroups.map((group) => (
-              <article key={group.key} className="webinar-card webinar-card-modern">
-                <img src={group.hero || 'https://picsum.photos/seed/paeu-ticket/1600/900'} alt={group.title} />
-                <div className="webinar-card-overlay" />
-                <div className="webinar-card-body webinar-card-body-overlay">
-                  <div className="webinar-card-top">
-                    <span className="webinar-state-pill state-ended">Entrada activa</span>
-                    <span className="webinar-platform-chip">{group.tickets.length} entrada(s)</span>
-                  </div>
-                  <h4>{group.title}</h4>
-                  <p className="webinar-card-subtitle">
-                    {[group.city, group.country].filter(Boolean).join(', ') || 'Ubicación por confirmar'}
-                  </p>
-                  <p className="webinar-card-datetime">
-                    {group.startDate ? new Date(group.startDate).toLocaleDateString() : 'Fecha por confirmar'}
-                  </p>
-                  <div className="webinar-card-actions">
-                    {group.tickets.slice(0, 3).map((ticket) => (
-                      <button
-                        key={`${group.key}-${ticket.code}`}
-                        className="tier-free"
-                        onClick={() => {
-                          if (ticket.ticket_url) {
-                            setTicketPreview({
-                              url: String(ticket.ticket_url),
-                              title: `${group.title} · ${ticket.code}`
-                            });
-                          }
-                        }}
-                        disabled={!ticket.ticket_url}
-                      >
-                        {ticket.ticket_url ? `Ver ${ticket.code}` : ticket.code}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       {view.type === 'profile' ? (
         <section className="section-block profile-editor-block">
           <div className="section-header-row">
             <div>
-              <h2>Mi perfil</h2>
-              <p className="row-subtitle">Actualiza tus datos. Los cambios se sincronizan en PAE-U y Moodle.</p>
+              <h2>{t('profile.title')}</h2>
+              <p className="row-subtitle">{t('profile.subtitle')}</p>
             </div>
             <button className="ghost-btn" onClick={() => setView({ type: 'my-courses' })}>
-              Ir a mis cursos
+              {t('profile.goMyCourses')}
             </button>
           </div>
           {!publicSession ? (
-            <p>Inicia sesión para editar tu perfil.</p>
+            <p>{t('profile.loginRequired')}</p>
           ) : (
             <form className="profile-editor-form" onSubmit={onSaveProfile}>
               <label>
-                Nombre completo
+                {t('profile.fullName')}
                 <input
                   value={profileForm.fullName}
                   onChange={(event) => setProfileForm((current) => ({ ...current, fullName: event.target.value }))}
@@ -2872,7 +2620,7 @@ export function PublicApp() {
                 />
               </label>
               <label>
-                Correo electrónico
+                {t('profile.email')}
                 <input
                   type="email"
                   value={profileForm.email}
@@ -2883,18 +2631,18 @@ export function PublicApp() {
                 />
               </label>
               <label>
-                Idioma
+                {t('profile.language')}
                 <select
                   value={profileForm.locale}
                   onChange={(event) => setProfileForm((current) => ({ ...current, locale: event.target.value }))}
                 >
-                  <option value="es">Español</option>
-                  <option value="en">English</option>
+                  <option value="es">{t('language.es')}</option>
+                  <option value="en">{t('language.en')}</option>
                 </select>
               </label>
               <div className="profile-editor-actions">
                 <button type="submit" className="go-course-btn" disabled={profileSaving}>
-                  {profileSaving ? 'Guardando...' : 'Guardar cambios'}
+                  {profileSaving ? t('profile.saving') : t('profile.save')}
                 </button>
                 <button
                   type="button"
@@ -2908,7 +2656,7 @@ export function PublicApp() {
                   }
                   disabled={profileSaving}
                 >
-                  Restablecer
+                  {t('profile.reset')}
                 </button>
               </div>
               {profileMessage ? <p className="profile-editor-feedback success">{profileMessage}</p> : null}
@@ -2923,12 +2671,9 @@ export function PublicApp() {
           <article className="enterprise-hero">
             <div className="enterprise-hero-backdrop" />
             <div className="enterprise-hero-content">
-              <p className="enterprise-eyebrow">PAE-U Business</p>
-              <h2>Capacita equipos que venden, ejecutan y crecen</h2>
-              <p>
-                Una experiencia empresarial premium para formar colaboradores, asignar rutas y acelerar resultados
-                medibles desde una sola plataforma.
-              </p>
+              <p className="enterprise-eyebrow">{t('enterprise.eyebrow')}</p>
+              <h2>{t('enterprise.title')}</h2>
+              <p>{t('enterprise.subtitle')}</p>
               <div className="enterprise-hero-actions">
                 {!publicSession ? (
                   <button
@@ -2938,22 +2683,22 @@ export function PublicApp() {
                       setShowAuthModal(true);
                     }}
                   >
-                    Hablar con un asesor
+                    {t('enterprise.talkToAdvisor')}
                   </button>
                 ) : (
                   <button className="go-course-btn" onClick={() => setView({ type: 'my-courses' })}>
-                    Ir a mis cursos
+                    {t('enterprise.goToCourses')}
                   </button>
                 )}
                 <button className="ghost-btn" onClick={() => setView({ type: 'catalog' })}>
-                  Explorar catálogo
+                  {t('enterprise.exploreCatalog')}
                 </button>
               </div>
             </div>
           </article>
 
           <section className="enterprise-trust-strip">
-            <p>Empresas que impulsan su talento con PAE-U</p>
+            <p>{t('enterprise.trustStrip')}</p>
             <div className="enterprise-logo-cloud">
               <span>Retail Corp</span>
               <span>Realty Group</span>
@@ -2968,98 +2713,95 @@ export function PublicApp() {
 
           <div className="enterprise-value-grid">
             <article className="enterprise-value-card">
-              <span>Rutas y contenidos</span>
-              <strong>Asignación por equipos y roles</strong>
+              <span>{t('enterprise.valueGrid.programs')}</span>
+              <strong>{t('enterprise.valueGrid.programsDesc')}</strong>
             </article>
             <article className="enterprise-value-card">
-              <span>Seguimiento</span>
-              <strong>Visibilidad clara del avance</strong>
+              <span>{t('enterprise.valueGrid.tracking')}</span>
+              <strong>{t('enterprise.valueGrid.trackingDesc')}</strong>
             </article>
             <article className="enterprise-value-card">
-              <span>Escalabilidad</span>
-              <strong>Control central para toda la empresa</strong>
+              <span>{t('enterprise.valueGrid.governance')}</span>
+              <strong>{t('enterprise.valueGrid.governanceDesc')}</strong>
             </article>
           </div>
 
           {!publicSession ? (
             <section className="enterprise-split">
               <article className="enterprise-explainer">
-                <h3>Cómo funciona PAE-U para empresas</h3>
-                <p>
-                  Activa un representante, integra a tu equipo y define rutas de aprendizaje por rol. La implementación
-                  es simple y el impacto se puede medir desde la primera semana.
-                </p>
+                <h3>{t('enterprise.howItWorks')}</h3>
+                <p>{t('enterprise.howItWorksDesc')}</p>
                 <ol className="enterprise-steps-list">
                   <li>
-                    <strong>Activa tu cuenta corporativa</strong>
-                    <span>Un representante administra el entorno empresarial.</span>
+                    <strong>{t('enterprise.steps.activate')}</strong>
+                    <span>{t('enterprise.steps.activateDesc')}</span>
                   </li>
                   <li>
-                    <strong>Incorpora colaboradores</strong>
-                    <span>Crea o invita usuarios y ordénalos por necesidades del negocio.</span>
+                    <strong>{t('enterprise.steps.enroll')}</strong>
+                    <span>{t('enterprise.steps.enrollDesc')}</span>
                   </li>
                   <li>
-                    <strong>Asigna y mide rutas</strong>
-                    <span>Define programas por equipo y visualiza avance de forma continua.</span>
+                    <strong>{t('enterprise.steps.assign')}</strong>
+                    <span>{t('enterprise.steps.assignDesc')}</span>
                   </li>
                 </ol>
                 <div className="enterprise-example-grid">
                   <article>
-                    <p className="kicker">Ejemplo 1</p>
-                    <h4>Onboarding comercial</h4>
-                    <p>30 ejecutivos nuevos completan una ruta de arranque en 4 semanas.</p>
+                    <p className="kicker">{t('enterprise.case1')}</p>
+                    <h4>{t('enterprise.case1Title')}</h4>
+                    <p>{t('enterprise.case1Desc')}</p>
                   </article>
                   <article>
-                    <p className="kicker">Ejemplo 2</p>
-                    <h4>Liderazgo regional</h4>
-                    <p>Gerentes por ciudad siguen el mismo plan con control de cumplimiento.</p>
+                    <p className="kicker">{t('enterprise.case2')}</p>
+                    <h4>{t('enterprise.case2Title')}</h4>
+                    <p>{t('enterprise.case2Desc')}</p>
                   </article>
                 </div>
                 <div className="enterprise-simple-cta">
-                  <span>¿Listo para implementarlo en tu empresa?</span>
+                  <span>{t('enterprise.ctaText')}</span>
                   <button className="go-course-btn" onClick={() => setAuthMode('register')}>
-                    Empezar registro empresarial
+                    {t('enterprise.ctaButton')}
                   </button>
                 </div>
               </article>
 
               <article className="enterprise-auth-panel">
-                <h3>{authMode === 'register' ? 'Activa tu cuenta empresarial' : 'Acceso empresarial'}</h3>
+                <h3>{authMode === 'register' ? t('enterprise.authTitle.register') : t('enterprise.authTitle.login')}</h3>
                 <p>
                   {authMode === 'register'
-                    ? 'Crea tu cuenta para administrar colaboradores y rutas.'
-                    : 'Ingresa para continuar con la gestión de tu empresa.'}
+                    ? t('enterprise.authSubtitle.register')
+                    : t('enterprise.authSubtitle.login')}
                 </p>
                 <div className="enterprise-auth-trust">
-                  <span>Implementación guiada</span>
-                  <span>Soporte dedicado</span>
-                  <span>Escalable por equipos</span>
+                  <span>{t('enterprise.authTrust.guided')}</span>
+                  <span>{t('enterprise.authTrust.support')}</span>
+                  <span>{t('enterprise.authTrust.scalable')}</span>
                 </div>
                 <div className="auth-switch">
                   <button className={authMode === 'register' ? 'active' : ''} onClick={() => setAuthMode('register')}>
-                    Registro
+                    {t('enterprise.register')}
                   </button>
                   <button className={authMode === 'login' ? 'active' : ''} onClick={() => setAuthMode('login')}>
-                    Login
+                    {t('enterprise.loginTab')}
                   </button>
                 </div>
 
                 {authMode === 'register' ? (
                   <form className="auth-form enterprise-auth-form" onSubmit={onRegister}>
                     <label className="enterprise-input-label">
-                      Nombre completo
+                      {t('enterprise.fullName')}
                       <input
-                        placeholder="Ej: Andrea Ramírez"
+                        placeholder={t('auth.fullNamePlaceholder')}
                         value={registerForm.fullName}
                         onChange={(event) => setRegisterForm((current) => ({ ...current, fullName: event.target.value }))}
                         required
                       />
                     </label>
                     <label className="enterprise-input-label">
-                      Correo corporativo
+                      {t('enterprise.institutionalEmail')}
                       <input
                         type="email"
-                        placeholder="nombre@empresa.com"
+                        placeholder={t('enterprise.emailPlaceholder')}
                         value={registerForm.email}
                         onChange={(event) => setRegisterForm((current) => ({ ...current, email: event.target.value }))}
                         autoComplete="email"
@@ -3070,7 +2812,7 @@ export function PublicApp() {
                     <div className="password-field">
                       <input
                         type={showRegisterPassword ? 'text' : 'password'}
-                        placeholder="Contraseña"
+                        placeholder={t('auth.password')}
                         value={registerForm.password}
                         onChange={(event) => setRegisterForm((current) => ({ ...current, password: event.target.value }))}
                         autoComplete="new-password"
@@ -3080,20 +2822,20 @@ export function PublicApp() {
                         type="button"
                         className="password-toggle"
                         onClick={() => setShowRegisterPassword((current) => !current)}
-                        aria-label={showRegisterPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                        title={showRegisterPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                        aria-label={showRegisterPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                        title={showRegisterPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                       >
                         <PasswordToggleIcon visible={showRegisterPassword} />
                       </button>
                     </div>
                     <label className="enterprise-input-label">
-                      Idioma
+                      {t('enterprise.language')}
                       <select
                         value={registerForm.locale}
                         onChange={(event) => setRegisterForm((current) => ({ ...current, locale: event.target.value }))}
                       >
-                        <option value="es">Español</option>
-                        <option value="en">English</option>
+                        <option value="es">{t('language.es')}</option>
+                        <option value="en">{t('language.en')}</option>
                       </select>
                     </label>
                     <div className="auth-inline-actions">
@@ -3109,13 +2851,13 @@ export function PublicApp() {
                           }));
                         }}
                       >
-                        Generar contraseña segura
+                        {t('auth.generatePassword')}
                       </button>
                     </div>
                     <div className="password-field">
                       <input
                         type={showRegisterConfirmPassword ? 'text' : 'password'}
-                        placeholder="Confirmar contraseña"
+                        placeholder={t('auth.confirmPassword')}
                         value={registerForm.confirmPassword}
                         onChange={(event) =>
                           setRegisterForm((current) => ({ ...current, confirmPassword: event.target.value }))
@@ -3127,17 +2869,17 @@ export function PublicApp() {
                         type="button"
                         className="password-toggle"
                         onClick={() => setShowRegisterConfirmPassword((current) => !current)}
-                        aria-label={showRegisterConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                        title={showRegisterConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                        aria-label={showRegisterConfirmPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                        title={showRegisterConfirmPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                       >
                         <PasswordToggleIcon visible={showRegisterConfirmPassword} />
                       </button>
                     </div>
                     <div className="enterprise-password-hints">
-                      <span className={registerForm.password.length >= 10 ? 'ok' : ''}>Mínimo 10 caracteres</span>
-                      <span className={/[A-Z]/.test(registerForm.password) ? 'ok' : ''}>Una mayúscula</span>
-                      <span className={/[0-9]/.test(registerForm.password) ? 'ok' : ''}>Un número</span>
-                      <span className={/[!@#$%^&*]/.test(registerForm.password) ? 'ok' : ''}>Un símbolo</span>
+                      <span className={registerForm.password.length >= 10 ? 'ok' : ''}>{t('auth.minChars')}</span>
+                      <span className={/[A-Z]/.test(registerForm.password) ? 'ok' : ''}>{t('auth.oneUppercase')}</span>
+                      <span className={/[0-9]/.test(registerForm.password) ? 'ok' : ''}>{t('auth.oneNumber')}</span>
+                      <span className={/[!@#$%^&*]/.test(registerForm.password) ? 'ok' : ''}>{t('auth.oneSymbol')}</span>
                     </div>
                     <label className="auth-terms">
                       <input
@@ -3149,24 +2891,20 @@ export function PublicApp() {
                         required
                       />
                       <span>
-                        Acepto <a href="/terminos" target="_blank" rel="noreferrer">términos y condiciones</a> y{' '}
-                        <a href="/privacidad" target="_blank" rel="noreferrer">política de privacidad</a>.
+                        {t('auth.acceptTerms')}
                       </span>
                     </label>
                     <button className="auth-submit" type="submit" disabled={authLoading}>
-                      {authLoading ? 'Procesando...' : 'Crear cuenta'}
+                      {authLoading ? t('auth.processing') : t('auth.registerButton')}
                     </button>
-                    <p className="enterprise-auth-footnote">
-                      Al crear tu cuenta podrás gestionar colaboradores, asignar cursos y visualizar progreso por equipo.
-                    </p>
                   </form>
                 ) : (
                   <form className="auth-form enterprise-auth-form" onSubmit={onLogin}>
                     <label className="enterprise-input-label">
-                      Correo corporativo
+                      {t('enterprise.institutionalEmail')}
                       <input
                         type="email"
-                        placeholder="nombre@empresa.com"
+                        placeholder={t('enterprise.emailPlaceholder')}
                         value={loginForm.email}
                         onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
                         autoComplete="email"
@@ -3177,7 +2915,7 @@ export function PublicApp() {
                     <div className="password-field">
                       <input
                         type={showLoginPassword ? 'text' : 'password'}
-                        placeholder="Contraseña"
+                        placeholder={t('auth.password')}
                         value={loginForm.password}
                         onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
                         autoComplete="current-password"
@@ -3187,15 +2925,15 @@ export function PublicApp() {
                         type="button"
                         className="password-toggle"
                         onClick={() => setShowLoginPassword((current) => !current)}
-                        aria-label={showLoginPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                        title={showLoginPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                        aria-label={showLoginPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                        title={showLoginPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                       >
                         <PasswordToggleIcon visible={showLoginPassword} />
                       </button>
                     </div>
                     <div className="enterprise-login-row">
-                      <span>Acceso seguro empresarial</span>
-                      <a href="mailto:servicio@pasosalexito.com">¿Necesitas ayuda?</a>
+                      <span>{t('enterprise.secureAccess')}</span>
+                      <a href="mailto:soporte@university.edu">{t('enterprise.needHelp')}</a>
                     </div>
                     <label className="auth-terms">
                       <input
@@ -3207,11 +2945,11 @@ export function PublicApp() {
                         required
                       />
                       <span>
-                        Confirmo que acepto <a href="/terminos" target="_blank" rel="noreferrer">términos y condiciones</a>.
+                        {t('auth.acceptTerms')}
                       </span>
                     </label>
                     <button className="auth-submit" type="submit" disabled={authLoading}>
-                      {authLoading ? 'Ingresando...' : 'Ingresar'}
+                      {authLoading ? t('auth.loggingIn') : t('auth.loginButton')}
                     </button>
                   </form>
                 )}
@@ -3219,44 +2957,41 @@ export function PublicApp() {
               </article>
             </section>
           ) : enterpriseLoading ? (
-            <p>Cargando datos empresariales...</p>
+            <p>{t('enterprise.loadingData')}</p>
           ) : !enterpriseAvailable ? (
             <div className="my-courses-empty">
-              <p>
-                Tu cuenta aún no está vinculada como representante o colaborador empresarial. Crea la empresa desde el
-                admin para activar este módulo.
-              </p>
+              <p>{t('enterprise.notLinked')}</p>
             </div>
           ) : (
             <>
               <article className="card-like enterprise-company-card">
-                <h3>{enterpriseOverview?.company?.name ?? 'Empresa'}</h3>
-                <p>{enterpriseOverview?.company?.description ?? 'Programa empresarial activo en PAE-U.'}</p>
+                <h3>{enterpriseOverview?.company?.name ?? t('enterprise.department')}</h3>
+                <p>{enterpriseOverview?.company?.description ?? t('enterprise.activeProgram')}</p>
                 <p>
-                  Rol actual: <strong>{enterpriseOverview?.role === 'representative' ? 'Representante' : 'Colaborador'}</strong>
+                  {t('enterprise.role.label')} <strong>{enterpriseOverview?.role === 'representative' ? t('enterprise.role.representative') : t('enterprise.role.collaborator')}</strong>
                 </p>
               </article>
 
               {enterpriseIsRepresentative && enterpriseOverview?.stats ? (
                 <div className="enterprise-stats-grid">
                   <div className="enterprise-stat-box">
-                    <span className="stat-label">Total Integrantes</span>
+                    <span className="stat-label">{t('enterprise.stats.totalMembers')}</span>
                     <span className="stat-value">{enterpriseOverview.stats.totalMembers}</span>
                   </div>
                   <div className="enterprise-stat-box">
-                    <span className="stat-label">Integrantes Activos</span>
+                    <span className="stat-label">{t('enterprise.stats.activeMembers')}</span>
                     <span className="stat-value">{enterpriseOverview.stats.activeMembers}</span>
                   </div>
                   <div className="enterprise-stat-box">
-                    <span className="stat-label">Matrículas de Curso</span>
+                    <span className="stat-label">{t('enterprise.stats.enrollments')}</span>
                     <span className="stat-value">{enterpriseOverview.stats.totalEnrollments}</span>
                   </div>
                   <div className="enterprise-stat-box">
-                    <span className="stat-label">Progreso Promedio</span>
+                    <span className="stat-label">{t('enterprise.stats.avgProgress')}</span>
                     <span className="stat-value">{enterpriseOverview.stats.averageProgress}%</span>
                   </div>
                   <div className="enterprise-stat-box">
-                    <span className="stat-label">Interacciones</span>
+                    <span className="stat-label">{t('enterprise.stats.interactions')}</span>
                     <span className="stat-value">{enterpriseOverview.stats.totalInteractions}</span>
                   </div>
                 </div>
@@ -3265,10 +3000,10 @@ export function PublicApp() {
               {enterpriseIsRepresentative ? (
                 <div className="grid-like-two">
                   <article className="card-like enterprise-panel-card">
-                    <h3>Agregar colaborador</h3>
+                    <h3>{t('enterprise.addStudent')}</h3>
                     <form className="profile-editor-form" onSubmit={onEnterpriseAddMember}>
                       <label>
-                        Nombre completo
+                        {t('enterprise.fullName')}
                         <input
                           value={enterpriseMemberForm.fullName}
                           onChange={(event) =>
@@ -3278,7 +3013,7 @@ export function PublicApp() {
                         />
                       </label>
                       <label>
-                        Email corporativo
+                        {t('enterprise.email')}
                         <input
                           type="email"
                           value={enterpriseMemberForm.email}
@@ -3289,7 +3024,7 @@ export function PublicApp() {
                         />
                       </label>
                       <label>
-                        Idioma
+                        {t('enterprise.language')}
                         <input
                           value={enterpriseMemberForm.locale}
                           onChange={(event) =>
@@ -3298,23 +3033,23 @@ export function PublicApp() {
                         />
                       </label>
                       <button type="submit" className="go-course-btn" disabled={enterpriseSaving}>
-                        {enterpriseSaving ? 'Guardando...' : 'Agregar colaborador'}
+                        {enterpriseSaving ? t('enterprise.addingStudent') : t('enterprise.addStudent')}
                       </button>
                     </form>
                   </article>
 
                   <article className="card-like enterprise-panel-card">
-                    <h3>Asignar cursos empresariales</h3>
+                    <h3>{t('enterprise.assignCourses')}</h3>
                     <form className="profile-editor-form" onSubmit={onEnterpriseAssignCourse}>
                       <label>
-                        Curso
+                        {t('enterprise.course')}
                         <select
                           value={enterpriseCourseId}
                           onChange={(event) => setEnterpriseCourseId(event.target.value)}
                           required
                         >
-                          <option value="">Selecciona curso</option>
-                          {catalog
+                          <option value="">{t('enterprise.selectCourse')}</option>
+                          {localizedCatalog
                             .filter((item) => item.kind === 'course')
                             .map((item) => {
                               const courseId = Number((item as { moodleCourseId?: string | number }).moodleCourseId);
@@ -3327,7 +3062,7 @@ export function PublicApp() {
                         </select>
                       </label>
                       <button type="submit" className="go-course-btn" disabled={enterpriseSaving}>
-                        {enterpriseSaving ? 'Asignando...' : 'Asignar curso'}
+                        {enterpriseSaving ? t('enterprise.assigning') : t('enterprise.assignCourse')}
                       </button>
                     </form>
                   </article>
@@ -3343,22 +3078,22 @@ export function PublicApp() {
               )}
 
               <article className="card-like enterprise-panel-card">
-                <h3>Colaboradores</h3>
+                <h3>{t('enterprise.students')}</h3>
                 <div className="simple-table-wrap">
                   <table>
                     <thead>
                       <tr>
-                        <th>Nombre</th>
-                        <th>Email</th>
-                        <th>Rol</th>
-                        <th>Estado</th>
-                        {enterpriseIsRepresentative ? <th>Acción</th> : null}
+                        <th>{t('enterprise.name')}</th>
+                        <th>{t('enterprise.email')}</th>
+                        <th>{t('enterprise.role')}</th>
+                        <th>{t('enterprise.status')}</th>
+                        {enterpriseIsRepresentative ? <th>{t('enterprise.action')}</th> : null}
                       </tr>
                     </thead>
                     <tbody>
                       {(enterpriseOverview?.members ?? []).length === 0 ? (
                         <tr>
-                          <td colSpan={enterpriseIsRepresentative ? 5 : 4}>Sin miembros registrados.</td>
+                          <td colSpan={enterpriseIsRepresentative ? 5 : 4}>{t('enterprise.noStudents')}</td>
                         </tr>
                       ) : (
                         (enterpriseOverview?.members ?? []).map((member) => (
@@ -3381,7 +3116,7 @@ export function PublicApp() {
                                       )
                                     }
                                   >
-                                    {member.status === 'active' ? 'Desactivar' : 'Activar'}
+                                    {member.status === 'active' ? t('enterprise.deactivate') : t('enterprise.activate')}
                                   </button>
                                 )}
                               </td>
@@ -3395,35 +3130,35 @@ export function PublicApp() {
               </article>
 
               <article className="card-like enterprise-panel-card">
-                <h3>Cursos empresariales activos</h3>
+                <h3>{t('enterprise.departmentCourses')}</h3>
                 <div className="simple-table-wrap">
                   <table>
                     <thead>
                       <tr>
-                        <th>ID curso</th>
-                        <th>Nombre</th>
-                        <th>Estado</th>
-                        {enterpriseIsRepresentative ? <th>Acción</th> : null}
+                        <th>{t('enterprise.courseId')}</th>
+                        <th>{t('enterprise.courseName')}</th>
+                        <th>{t('enterprise.status')}</th>
+                        {enterpriseIsRepresentative ? <th>{t('enterprise.action')}</th> : null}
                       </tr>
                     </thead>
                     <tbody>
                       {(enterpriseOverview?.courseAccess ?? []).length === 0 ? (
                         <tr>
-                          <td colSpan={enterpriseIsRepresentative ? 4 : 3}>No hay cursos asignados.</td>
+                          <td colSpan={enterpriseIsRepresentative ? 4 : 3}>{t('enterprise.noCourses')}</td>
                         </tr>
                       ) : (
                         (enterpriseOverview?.courseAccess ?? []).map((course) => (
                           <tr key={`enterprise-course-${course.moodle_course_id}`}>
                             <td>{course.moodle_course_id}</td>
                             <td>{course.full_name ?? course.short_name ?? '-'}</td>
-                            <td>{course.is_active ? 'activo' : 'inactivo'}</td>
+                            <td>{course.is_active ? t('enterprise.active') : t('enterprise.inactive')}</td>
                             {enterpriseIsRepresentative ? (
                               <td>
                                 <button
                                   className={course.is_active ? 'ghost danger' : 'ghost'}
                                   onClick={() => void onEnterpriseToggleCourse(Number(course.moodle_course_id), course.is_active)}
                                 >
-                                  {course.is_active ? 'Desactivar' : 'Activar'}
+                                  {course.is_active ? t('enterprise.deactivate') : t('enterprise.activate')}
                                 </button>
                               </td>
                             ) : null}
@@ -3437,22 +3172,22 @@ export function PublicApp() {
 
               {enterpriseIsRepresentative ? (
                 <article className="card-like enterprise-panel-card">
-                  <h3>Progreso de Colaboradores</h3>
+                  <h3>{t('enterprise.studentProgress')}</h3>
                   <div className="simple-table-wrap">
                     <table>
                       <thead>
                         <tr>
-                          <th>Colaborador</th>
-                          <th>Curso</th>
-                          <th>Progreso</th>
-                          <th>Interacciones</th>
-                          <th>Última Actividad</th>
+                          <th>{t('enterprise.student')}</th>
+                          <th>{t('enterprise.course')}</th>
+                          <th>{t('enterprise.progress')}</th>
+                          <th>{t('enterprise.interactions')}</th>
+                          <th>{t('enterprise.lastActivity')}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {(enterpriseOverview?.memberProgress ?? []).length === 0 ? (
                           <tr>
-                            <td colSpan={5}>Aún no hay progreso registrado.</td>
+                            <td colSpan={5}>{t('enterprise.noProgress')}</td>
                           </tr>
                         ) : (
                           (enterpriseOverview?.memberProgress ?? []).map((progress, idx) => (
@@ -3488,24 +3223,6 @@ export function PublicApp() {
         </section>
       ) : null}
 
-      {ticketPreview ? (
-        <div className="auth-modal-backdrop">
-          <div className="auth-modal ticket-modal" onClick={(event) => event.stopPropagation()}>
-            <button
-              type="button"
-              className="auth-close-btn"
-              aria-label="Cerrar ticket"
-              title="Cerrar ticket"
-              onClick={() => setTicketPreview(null)}
-            >
-              ×
-            </button>
-            <h3>{ticketPreview.title}</h3>
-            <img className="ticket-modal-image" src={ticketPreview.url} alt={ticketPreview.title} />
-          </div>
-        </div>
-      ) : null}
-
       {podcastPreview ? (
         <div className="auth-modal-backdrop">
           <div className="auth-modal ticket-modal podcast-modal" onClick={(event) => event.stopPropagation()}>
@@ -3538,29 +3255,29 @@ export function PublicApp() {
             <button
               type="button"
               className="auth-close-btn"
-              aria-label="Cerrar"
-              title="Cerrar"
+              aria-label={t('auth.closeModal')}
+              title={t('auth.closeModal')}
               onClick={() => setShowAuthModal(false)}
             >
               ×
             </button>
-            <h3>{authMode === 'register' ? 'Crear cuenta para entrar al curso' : 'Iniciar sesión'}</h3>
+            <h3>{authMode === 'register' ? t('auth.createAccountForCourse') : t('auth.login')}</h3>
             <div className="auth-switch">
-              <button className={authMode === 'register' ? 'active' : ''} onClick={() => setAuthMode('register')}>Registro</button>
-              <button className={authMode === 'login' ? 'active' : ''} onClick={() => setAuthMode('login')}>Login</button>
+              <button className={authMode === 'register' ? 'active' : ''} onClick={() => setAuthMode('register')}>{t('auth.registerTab')}</button>
+              <button className={authMode === 'login' ? 'active' : ''} onClick={() => setAuthMode('login')}>{t('auth.loginTab')}</button>
             </div>
 
             {authMode === 'register' ? (
               <form className="auth-form" onSubmit={onRegister}>
                 <input
-                  placeholder="Nombre completo"
+                  placeholder={t('auth.fullName')}
                   value={registerForm.fullName}
                   onChange={(event) => setRegisterForm((current) => ({ ...current, fullName: event.target.value }))}
                   required
                 />
                 <input
                   type="email"
-                  placeholder="Correo"
+                  placeholder={t('auth.email')}
                   value={registerForm.email}
                   onChange={(event) => setRegisterForm((current) => ({ ...current, email: event.target.value }))}
                   autoComplete="email"
@@ -3570,7 +3287,7 @@ export function PublicApp() {
                 <div className="password-field">
                   <input
                     type={showRegisterPassword ? 'text' : 'password'}
-                    placeholder="Contraseña"
+                    placeholder={t('auth.password')}
                     value={registerForm.password}
                     onChange={(event) => setRegisterForm((current) => ({ ...current, password: event.target.value }))}
                     autoComplete="new-password"
@@ -3580,8 +3297,8 @@ export function PublicApp() {
                     type="button"
                     className="password-toggle"
                     onClick={() => setShowRegisterPassword((current) => !current)}
-                    aria-label={showRegisterPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                    title={showRegisterPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    aria-label={showRegisterPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                    title={showRegisterPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                   >
                     <PasswordToggleIcon visible={showRegisterPassword} />
                   </button>
@@ -3599,13 +3316,13 @@ export function PublicApp() {
                       }));
                     }}
                   >
-                    Generar contraseña segura
+                    {t('auth.generatePassword')}
                   </button>
                 </div>
                 <div className="password-field">
                   <input
                     type={showRegisterConfirmPassword ? 'text' : 'password'}
-                    placeholder="Confirmar contraseña"
+                    placeholder={t('auth.confirmPassword')}
                     value={registerForm.confirmPassword}
                     onChange={(event) => setRegisterForm((current) => ({ ...current, confirmPassword: event.target.value }))}
                     autoComplete="new-password"
@@ -3615,8 +3332,8 @@ export function PublicApp() {
                     type="button"
                     className="password-toggle"
                     onClick={() => setShowRegisterConfirmPassword((current) => !current)}
-                    aria-label={showRegisterConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                    title={showRegisterConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    aria-label={showRegisterConfirmPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                    title={showRegisterConfirmPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                   >
                     <PasswordToggleIcon visible={showRegisterConfirmPassword} />
                   </button>
@@ -3630,21 +3347,18 @@ export function PublicApp() {
                     }
                     required
                   />
-                  <span>
-                    Acepto <a href="/terminos" target="_blank" rel="noreferrer">términos y condiciones</a> y{' '}
-                    <a href="/privacidad" target="_blank" rel="noreferrer">política de privacidad</a>.
-                  </span>
+                  <span>{t('auth.acceptTerms')}</span>
                 </label>
-                <p className="auth-help">La contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo.</p>
+                <p className="auth-help">{t('auth.passwordHint')}</p>
                 <button className="auth-submit" type="submit" disabled={authLoading}>
-                  {authLoading ? 'Procesando...' : 'Registrarme'}
+                  {authLoading ? t('auth.processing') : t('auth.registerButton')}
                 </button>
               </form>
             ) : (
               <form className="auth-form" onSubmit={onLogin}>
                 <input
                   type="email"
-                  placeholder="Correo"
+                  placeholder={t('auth.email')}
                   value={loginForm.email}
                   onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
                   autoComplete="email"
@@ -3654,7 +3368,7 @@ export function PublicApp() {
                 <div className="password-field">
                   <input
                     type={showLoginPassword ? 'text' : 'password'}
-                    placeholder="Contraseña"
+                    placeholder={t('auth.password')}
                     value={loginForm.password}
                     onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
                     autoComplete="current-password"
@@ -3664,8 +3378,8 @@ export function PublicApp() {
                     type="button"
                     className="password-toggle"
                     onClick={() => setShowLoginPassword((current) => !current)}
-                    aria-label={showLoginPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                    title={showLoginPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    aria-label={showLoginPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                    title={showLoginPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                   >
                     <PasswordToggleIcon visible={showLoginPassword} />
                   </button>
@@ -3677,12 +3391,10 @@ export function PublicApp() {
                     onChange={(event) => setLoginForm((current) => ({ ...current, acceptedTerms: event.target.checked }))}
                     required
                   />
-                  <span>
-                    Confirmo que acepto <a href="/terminos" target="_blank" rel="noreferrer">términos y condiciones</a>.
-                  </span>
+                  <span>{t('auth.acceptTerms')}</span>
                 </label>
                 <button className="auth-submit" type="submit" disabled={authLoading}>
-                  {authLoading ? 'Ingresando...' : 'Entrar'}
+                  {authLoading ? t('auth.loggingIn') : t('auth.enter')}
                 </button>
               </form>
             )}
@@ -3696,29 +3408,28 @@ export function PublicApp() {
         <section className="section-block legal-block">
           <div className="legal-hero">
             <button className="back-link legal-back-btn" onClick={() => setView({ type: 'home' })}>
-              Volver a inicio
+              {t('legal.back')}
             </button>
-            <h1>Centro legal PAE-U</h1>
-            <p>Consulta términos, privacidad y uso de la plataforma educativa conectada al intermediador y Moodle.</p>
+            <h1>{t('legal.title')}</h1>
             <div className="legal-switch">
               <button
                 className={view.type === 'terms' ? 'active' : ''}
                 onClick={() => setView({ type: 'terms' })}
               >
-                Términos y condiciones
+                {t('legal.terms')}
               </button>
               <button
                 className={view.type === 'privacy' ? 'active' : ''}
                 onClick={() => setView({ type: 'privacy' })}
               >
-                Política de privacidad
+                {t('legal.privacy')}
               </button>
             </div>
           </div>
 
           <div className="legal-layout">
             <article className="legal-content-card">
-              {loadingLegal ? <p>Cargando contenido legal...</p> : null}
+              {loadingLegal ? <p>{t('legal.loadingContent')}</p> : null}
               {!loadingLegal && activeLegalDocument ? (
                 <>
                   <h2 dangerouslySetInnerHTML={{ __html: activeLegalDocument.title }} />
@@ -3727,18 +3438,31 @@ export function PublicApp() {
               ) : null}
             </article>
             <aside className="legal-side-card">
-              <h3>Información</h3>
-              <p>Este contenido se publica desde la API del intermediador y aplica al uso de PAE-U.</p>
-              <p>Para dudas legales o solicitudes de datos personales:</p>
-              <a href="mailto:servicio@pasosalexito.com">servicio@pasosalexito.com</a>
+              <h3>{t('legal.infoTitle')}</h3>
+              <p>{t('legal.infoDesc')}</p>
+              <p>{t('legal.contactDesc')}</p>
+              <a href="mailto:soporte@university.edu">soporte@university.edu</a>
             </aside>
           </div>
         </section>
       ) : null}
 
       <footer className="public-footer">
+        <div className="footer-compliance">
+          <div className="footer-compliance-links">
+            <button className="footer-link-btn" onClick={() => setView({ type: 'terms' })}>{t('footer.terms')}</button>
+            <button className="footer-link-btn" onClick={() => setView({ type: 'privacy' })}>{t('footer.privacy')}</button>
+            <a className="footer-link-btn" href="mailto:ferpa@university.edu">{t('footer.ferpa')}</a>
+            <a className="footer-link-btn" href="mailto:titleix@university.edu">{t('footer.titleIx')}</a>
+            <a className="footer-link-btn" href="mailto:ada@university.edu">{t('footer.ada')}</a>
+          </div>
+          <p className="footer-compliance-notice">
+            {t('footer.complianceNotice')}{' '}
+            <a href="mailto:ferpa@university.edu">ferpa@university.edu</a>.
+          </p>
+        </div>
         <div className="footer-bottom">
-          <span>© {new Date().getFullYear()} PAE-U | Pasos al Éxito 360. Todos los derechos reservados.</span>
+          <span>{t('footer.copyright', { year: new Date().getFullYear() })}</span>
         </div>
       </footer>
     </main>

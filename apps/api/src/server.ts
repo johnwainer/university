@@ -8,6 +8,17 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { demoBlueprint } from '@pae-u/shared';
 import { config, getMoodleConfig, hasMoodleConfig, setMoodleConfig } from './config.js';
+// University OS modules (Fases 1-5) — wired below after initDb() and before app.listen()
+import { migrateSis } from './modules/sis/schema.js';
+import { registerSisRoutes } from './modules/sis/routes.js';
+import { migrateCrm } from './modules/crm/schema.js';
+import { registerCrmRoutes } from './modules/crm/routes.js';
+import { migrateSyllabus } from './modules/syllabus/schema.js';
+import { registerSyllabusRoutes } from './modules/syllabus/routes.js';
+import { migrateBackoffice } from './modules/backoffice/schema.js';
+import { registerBackofficeRoutes } from './modules/backoffice/routes.js';
+import { migrateCredentials } from './modules/credentials/schema.js';
+import { registerCredentialsRoutes } from './modules/credentials/routes.js';
 import {
   createCompany,
   createPodcast,
@@ -65,8 +76,6 @@ import {
   listPlatformUsersPage,
   listPodcasts,
   listWebinars,
-  listExternalIntegrationEvents,
-  listGroupedExternalIntegrationEvents,
   listPublicCourseInteractions,
   listPublicCourseProgressByUser,
   getPlatformUsersByIds,
@@ -84,11 +93,8 @@ import {
   syncMoodleCoursesWithCategories,
   upsertCompanyCourseAccess,
   upsertCompanyMember,
-  upsertExternalIntegrationEvents,
   updateCompany,
   updatePlatformUserProfile,
-  updateExternalIntegrationGroup,
-  updateExternalIntegrationEvent,
   updatePodcast,
   updateWebinar,
   upsertPublicUserAuth,
@@ -186,6 +192,13 @@ await app.register(cors, {
 await app.register(sensible);
 
 await initDb();
+
+// University OS module migrations (idempotent CREATE TABLE IF NOT EXISTS)
+await migrateSis(pool);
+await migrateCrm(pool);
+await migrateSyllabus(pool);
+await migrateBackoffice(pool);
+await migrateCredentials(pool);
 
 async function loadPersistedMoodleConnection(): Promise<void> {
   const stored = await getIntegrationSetting<{ baseUrl?: string; token?: string }>('moodle.connection');
@@ -758,262 +771,6 @@ async function runFullMoodleSync(trigger: string): Promise<void> {
   }
 }
 
-type ExternalIntegrationEvent = Record<string, unknown>;
-
-function normalizeGroupKey(value: string): string {
-  const normalized = value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\b(vip|virtual|diamante|general|ticket|entrada|acceso)\b/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  return normalized || 'evento';
-}
-
-function inferTier(value: string): 'general' | 'vip' | 'virtual' | 'diamante' | 'other' {
-  const normalized = value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-  if (normalized.includes('diamante')) {
-    return 'diamante';
-  }
-  if (normalized.includes('vip')) {
-    return 'vip';
-  }
-  if (normalized.includes('virtual')) {
-    return 'virtual';
-  }
-  if (normalized.includes('general')) {
-    return 'general';
-  }
-  return 'other';
-}
-
-function toIsoOrNull(value: unknown): string | null {
-  if (typeof value !== 'string' || !value.trim()) {
-    return null;
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-  return date.toISOString();
-}
-
-async function fetchExternalIntegrationEventsActive(): Promise<ExternalIntegrationEvent[]> {
-  const url = `${config.externalIntegration.baseUrl.replace(/\/+$/, '')}/api/integration/events/active`;
-  const response = await fetch(url, {
-    headers: {
-      'x-api-key': config.externalIntegration.apiKey
-    }
-  });
-  if (!response.ok) {
-    throw new Error(`External events request failed: ${response.status}`);
-  }
-  const payload = (await response.json()) as unknown;
-  return Array.isArray(payload) ? (payload as ExternalIntegrationEvent[]) : [];
-}
-
-async function fetchExternalIntegrationTicketsByEmail(email: string): Promise<Record<string, unknown>[]> {
-  const url = `${config.externalIntegration.baseUrl.replace(/\/+$/, '')}/api/integration/tickets?email=${encodeURIComponent(email)}`;
-  const response = await fetch(url, {
-    headers: {
-      'x-api-key': config.externalIntegration.apiKey
-    }
-  });
-  if (!response.ok) {
-    throw new Error(`External tickets request failed: ${response.status}`);
-  }
-  const payload = (await response.json()) as unknown;
-  return Array.isArray(payload) ? (payload as Record<string, unknown>[]) : [];
-}
-
-async function runExternalEventsSync(): Promise<{
-  synced: boolean;
-  totalFetched: number;
-  upserted: number;
-  syncedAt: string;
-}> {
-  const externalEvents = await fetchExternalIntegrationEventsActive();
-  const normalized = externalEvents.map((item, index) => {
-    const idValue =
-      item.id ??
-      item._id ??
-      item.eventId ??
-      item.event_id ??
-      item.slug ??
-      item.code ??
-      `event-${index + 1}`;
-    const titleValue = String(item.title ?? item.name ?? item.eventName ?? item.label ?? `Evento ${index + 1}`);
-    const descriptionValue = typeof item.description === 'string' ? item.description : null;
-    const startsAt = toIsoOrNull(item.startsAt ?? item.startAt ?? item.start_date ?? item.date ?? item.datetime);
-    const endsAt = toIsoOrNull(item.endsAt ?? item.endAt ?? item.end_date);
-    const eventUrl =
-      (typeof item.url === 'string' && item.url) ||
-      (typeof item.link === 'string' && item.link) ||
-      (typeof item.checkout_url === 'string' && item.checkout_url) ||
-      null;
-    const venue = typeof item.venue === 'string' ? item.venue : typeof item.location === 'string' ? item.location : null;
-    const modality = typeof item.modality === 'string' ? item.modality : typeof item.mode === 'string' ? item.mode : null;
-    const bannerUrl =
-      (typeof item.banner_frame_url === 'string' && item.banner_frame_url) ||
-      (typeof item.banner_url === 'string' && item.banner_url) ||
-      (typeof item.banner === 'string' && /^https?:\/\//i.test(item.banner) ? item.banner : '') ||
-      null;
-    const bannerFrameUrl =
-      (typeof item.banner_frame_url === 'string' && item.banner_frame_url) ||
-      (typeof item.banner_frame === 'string' && /^https?:\/\//i.test(item.banner_frame) ? item.banner_frame : '') ||
-      null;
-    const emailBannerUrl =
-      (typeof item.email_banner_url === 'string' && item.email_banner_url) ||
-      (typeof item.email_banner === 'string' && /^https?:\/\//i.test(item.email_banner) ? item.email_banner : '') ||
-      null;
-    const ticketFrameUrl =
-      (typeof item.ticket_frame_url === 'string' && item.ticket_frame_url) ||
-      (typeof item.ticket_frame === 'string' && /^https?:\/\//i.test(item.ticket_frame) ? item.ticket_frame : '') ||
-      null;
-    const disclaimerUrl =
-      (typeof item.disclaimer_url === 'string' && item.disclaimer_url) ||
-      (typeof item.disclaimer === 'string' && /^https?:\/\//i.test(item.disclaimer) ? item.disclaimer : '') ||
-      null;
-    const tier = inferTier(titleValue);
-    const groupKey = normalizeGroupKey(titleValue);
-    const groupLabel = groupKey
-      .split('-')
-      .filter(Boolean)
-      .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
-      .join(' ');
-
-    return {
-      externalEventId: String(idValue),
-      title: titleValue,
-      description: descriptionValue,
-      startsAt,
-      endsAt,
-      isActive: item.isActive === false ? false : true,
-      eventUrl,
-      venue,
-      modality,
-      bannerUrl,
-      bannerFrameUrl,
-      emailBannerUrl,
-      ticketFrameUrl,
-      disclaimerUrl,
-      groupKey,
-      groupLabel: groupLabel || 'Evento',
-      tier,
-      visibleOnLanding: true,
-      displayOrder: tier === 'general' ? 1 : tier === 'vip' ? 2 : tier === 'virtual' ? 3 : tier === 'diamante' ? 4 : 5,
-      raw: item
-    };
-  });
-
-  const upserted = await upsertExternalIntegrationEvents(normalized);
-  const syncedAt = new Date().toISOString();
-  await saveIntegrationSetting('external_integration.last_events_sync', {
-    syncedAt,
-    totalFetched: externalEvents.length,
-    upserted
-  });
-
-  return {
-    synced: true,
-    totalFetched: externalEvents.length,
-    upserted,
-    syncedAt
-  };
-}
-
-async function ensureFreshExternalEvents(maxAgeSec = 180): Promise<void> {
-  const lastSync = await getIntegrationSetting<{ syncedAt: string }>('external_integration.last_events_sync');
-  if (!lastSync?.syncedAt) {
-    await runExternalEventsSync();
-    return;
-  }
-  const ageMs = Date.now() - Date.parse(lastSync.syncedAt);
-  if (Number.isNaN(ageMs) || ageMs > Math.max(30, maxAgeSec) * 1000) {
-    await runExternalEventsSync();
-  }
-}
-
-function resolveExternalBannerUrl(raw: Record<string, unknown>): string {
-  const direct =
-    (typeof raw.banner_frame_url === 'string' && raw.banner_frame_url) ||
-    (typeof raw.banner_url === 'string' && raw.banner_url) ||
-    (typeof raw.banner === 'string' && raw.banner) ||
-    (typeof raw.image === 'string' && raw.image) ||
-    (typeof raw.image_url === 'string' && raw.image_url) ||
-    (typeof raw.poster === 'string' && raw.poster) ||
-    (typeof raw.poster_url === 'string' && raw.poster_url) ||
-    (typeof raw.banner_frame === 'string' && /^https?:\/\//i.test(raw.banner_frame) ? raw.banner_frame : '');
-  if (direct) {
-    return direct;
-  }
-  const seed =
-    (typeof raw.banner_frame === 'string' && raw.banner_frame) ||
-    (typeof raw.email_banner === 'string' && raw.email_banner) ||
-    (typeof raw.ticket_frame === 'string' && raw.ticket_frame) ||
-    (typeof raw.name === 'string' && raw.name) ||
-    'paeu-external-event';
-  return `https://picsum.photos/seed/${encodeURIComponent(`paeu-event-${seed}`)}/1600/900`;
-}
-
-function toPublicExternalGroupShape(input: {
-  groupKey: string;
-  groupLabel: string;
-  displayOrder?: number;
-  startsAt: string | null;
-  visibleOnLanding?: boolean;
-  isActive?: boolean;
-  events: Array<Record<string, unknown>>;
-}) {
-  const sortedEvents = [...input.events].sort((a, b) => {
-    const aTs = a.starts_at ? Date.parse(String(a.starts_at)) : Number.MAX_SAFE_INTEGER;
-    const bTs = b.starts_at ? Date.parse(String(b.starts_at)) : Number.MAX_SAFE_INTEGER;
-    return aTs - bTs;
-  });
-  const first = sortedEvents[0] ?? null;
-  const raw = (first?.raw as Record<string, unknown> | undefined) ?? {};
-  const directBanner =
-    (typeof first?.banner_frame_url === 'string' && first.banner_frame_url) ||
-    (typeof first?.banner_url === 'string' && first.banner_url) ||
-    (typeof first?.email_banner_url === 'string' && first.email_banner_url) ||
-    (typeof first?.ticket_frame_url === 'string' && first.ticket_frame_url) ||
-    '';
-  const siteUrl =
-    (typeof first?.event_url === 'string' && first.event_url) ||
-    (typeof raw.checkout_url === 'string' ? raw.checkout_url : '') ||
-    '';
-  const venue =
-    (typeof first?.venue === 'string' && first.venue) ||
-    (typeof raw.hotel_name === 'string' ? raw.hotel_name : '') ||
-    (typeof raw.city === 'string' ? raw.city : '') ||
-    '';
-  const city = typeof raw.city === 'string' ? raw.city : '';
-  const country = typeof raw.country === 'string' ? raw.country : '';
-  const modalities = [...new Set(sortedEvents.map((event) => String(event.modality ?? '').trim()).filter(Boolean))];
-  const ticketTypes = [...new Set(sortedEvents.map((event) => String(event.tier ?? '').trim()).filter(Boolean))];
-
-  return {
-    groupKey: input.groupKey,
-    groupLabel: input.groupLabel,
-    displayOrder: Number(input.displayOrder ?? 0),
-    startsAt: input.startsAt,
-    visibleOnLanding: Boolean(input.visibleOnLanding),
-    isActive: Boolean(input.isActive),
-    heroImage: directBanner || resolveExternalBannerUrl(raw),
-    venue: venue || null,
-    city: city || null,
-    country: country || null,
-    siteUrl: siteUrl || null,
-    modalities,
-    ticketTypes,
-    events: sortedEvents
-  };
-}
 
 async function ensureFreshPublicData(): Promise<void> {
   if (!hasMoodleConfig()) {
@@ -1110,46 +867,10 @@ app.get('/v1/catalog', async () => {
 });
 app.get('/v1/webinars', async () => listWebinars({ activeOnly: true }));
 app.get('/v1/podcasts', async () => listPodcasts({ activeOnly: true, landingOnly: true }));
-app.get('/v1/integration/events/grouped', async () => {
-  await ensureFreshExternalEvents();
-  const groups = await listGroupedExternalIntegrationEvents({ activeOnly: true, landingOnly: true });
-  return groups.map((group) => toPublicExternalGroupShape(group));
-});
 app.get('/v1/offers', async () => getOffers());
 app.get('/v1/entitlements', async () => getEntitlements());
 app.get('/v1/blueprint', async () => demoBlueprint);
 
-async function fetchLegalPage(slug: 'terminos-y-condiciones' | 'politica-de-privacidad') {
-  const endpoint = `https://www.pasosalexito.com/wp-json/wp/v2/pages?slug=${encodeURIComponent(
-    slug
-  )}&_fields=id,slug,title,content,modified,link`;
-  const response = await fetch(endpoint);
-  if (!response.ok) {
-    throw app.httpErrors.badGateway(`Legal content fetch failed (${response.status})`);
-  }
-  const rows = (await response.json()) as Array<{
-    id: number;
-    slug: string;
-    title?: { rendered?: string };
-    content?: { rendered?: string };
-    modified?: string;
-    link?: string;
-  }>;
-  if (!rows[0]) {
-    throw app.httpErrors.notFound(`Legal page not found for slug ${slug}`);
-  }
-  return {
-    id: rows[0].id,
-    slug: rows[0].slug,
-    title: rows[0].title?.rendered ?? slug,
-    html: rows[0].content?.rendered ?? '',
-    modifiedAt: rows[0].modified ?? null,
-    sourceUrl: rows[0].link ?? null
-  };
-}
-
-app.get('/v1/legal/terms', async () => fetchLegalPage('terminos-y-condiciones'));
-app.get('/v1/legal/privacy', async () => fetchLegalPage('politica-de-privacidad'));
 
 app.get('/v1/media/demo.mp4', async (request, reply) => {
   if (!demoVideoPath || !existsSync(demoVideoPath)) {
@@ -1473,25 +1194,6 @@ app.get('/v1/me/courses', async (request) => {
   };
 });
 
-app.get('/v1/me/tickets', async (request, reply) => {
-  const session = getPublicSessionFromRequest(request);
-  try {
-    const ticketsRaw = await fetchExternalIntegrationTicketsByEmail(session.email.toLowerCase());
-    const tickets = ticketsRaw.filter((ticket) => {
-      const status = String(ticket.status ?? '')
-        .trim()
-        .toLowerCase();
-      return status === 'active';
-    });
-    return {
-      email: session.email,
-      total: tickets.length,
-      tickets
-    };
-  } catch (error) {
-    return reply.badRequest(`Tickets fetch failed: ${error instanceof Error ? error.message : 'unknown error'}`);
-  }
-});
 
 app.get('/v1/enterprise/overview', async (request) => {
   const session = getPublicSessionFromRequest(request);
@@ -2266,7 +1968,7 @@ app.get('/admin', async (request, reply) => {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PAE-U Admin</title>
+    <title>University Admin</title>
     <style>
       body { font-family: Arial, sans-serif; background: #0b1220; color: #e2e8f0; margin: 0; padding: 24px; }
       .card { background: #111827; border: 1px solid #334155; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
@@ -2277,7 +1979,7 @@ app.get('/admin', async (request, reply) => {
     </style>
   </head>
   <body>
-    <h1>PAE-U Admin Gateway</h1>
+    <h1>University Admin Gateway</h1>
     <div class="card">
       <h2>Status</h2>
       <p>Admin API key is required in header <code>x-admin-key</code>.</p>
@@ -2375,7 +2077,7 @@ app.get('/admin/status', async (request) => {
   ensureAdmin(request);
   const moodle = getMoodleConfig();
 
-  const [snapshot, moodleSiteInfo, lastCoursesSync, lastUsersSync, lastCategoriesSync, lastExternalEventsSync] = await Promise.all([
+  const [snapshot, moodleSiteInfo, lastCoursesSync, lastUsersSync, lastCategoriesSync] = await Promise.all([
     getAdminSnapshot(),
     getMoodleSiteInfo(),
     getIntegrationSetting<{ syncedAt: string; total: number; upsertedCatalogAssets?: number }>(
@@ -2388,17 +2090,14 @@ app.get('/admin/status', async (request) => {
       enrollmentLinks: number;
       warningsCount: number;
     }>('moodle.last_users_sync'),
-    getIntegrationSetting<{ syncedAt: string; total: number; source?: string }>('moodle.last_categories_sync'),
-    getIntegrationSetting<{ syncedAt: string; totalFetched: number; upserted: number }>(
-      'external_integration.last_events_sync'
-    )
+    getIntegrationSetting<{ syncedAt: string; total: number; source?: string }>('moodle.last_categories_sync')
   ]);
 
   const publicRoutes = routeRegistry.filter((route) => route.url.startsWith('/v1/')).length;
   const adminRoutes = routeRegistry.filter((route) => route.url.startsWith('/admin')).length;
 
   return {
-    platform: 'PAE-U',
+    platform: 'University',
     timestamp: new Date().toISOString(),
     uptimeSec: process.uptime(),
     routes: {
@@ -2428,7 +2127,6 @@ app.get('/admin/status', async (request) => {
         companyMembers: snapshot.companyMembers,
         webinars: snapshot.webinars,
         podcasts: snapshot.podcasts,
-        externalEvents: snapshot.externalEvents
       }
     },
     moodle: {
@@ -2441,11 +2139,6 @@ app.get('/admin/status', async (request) => {
       lastCoursesSync,
       lastUsersSync,
       lastCategoriesSync
-    },
-    externalIntegration: {
-      configured: Boolean(config.externalIntegration.baseUrl && config.externalIntegration.apiKey),
-      baseUrl: config.externalIntegration.baseUrl,
-      lastEventsSync: lastExternalEventsSync
     }
   };
 });
@@ -2583,85 +2276,9 @@ app.delete('/admin/podcasts/:podcastId', async (request, reply) => {
   return { deleted: true };
 });
 
-const externalTicketsQuerySchema = z.object({
-  email: z.string().email()
-});
-
-const updateExternalEventSchema = z.object({
-  groupKey: z.string().min(2).max(80).optional(),
-  groupLabel: z.string().min(2).max(120).optional(),
-  tier: z.enum(['general', 'vip', 'virtual', 'diamante', 'other']).optional(),
-  isActive: z.boolean().optional(),
-  visibleOnLanding: z.boolean().optional(),
-  displayOrder: z.number().int().min(0).max(999).optional()
-});
-
-const updateExternalGroupSchema = z.object({
-  groupLabel: z.string().min(2).max(120).optional(),
-  displayOrder: z.number().int().min(0).max(999).optional(),
-  visibleOnLanding: z.boolean().optional(),
-  isActive: z.boolean().optional()
-});
-
 const updateMoodleConnectionSchema = z.object({
   baseUrl: z.string().url(),
   token: z.string().min(8).optional()
-});
-
-app.get('/admin/integration/external/events', async (request) => {
-  ensureAdmin(request);
-  return listExternalIntegrationEvents();
-});
-
-app.get('/admin/integration/external/events/grouped', async (request) => {
-  ensureAdmin(request);
-  const groups = await listGroupedExternalIntegrationEvents();
-  return groups.map((group) => toPublicExternalGroupShape(group));
-});
-
-app.post('/admin/integration/external/sync/events', async (request, reply) => {
-  ensureAdmin(request);
-  try {
-    const result = await runExternalEventsSync();
-    return result;
-  } catch (error) {
-    return reply.badRequest(`External events sync failed: ${error instanceof Error ? error.message : 'unknown error'}`);
-  }
-});
-
-app.patch('/admin/integration/external/events/:eventId', async (request, reply) => {
-  ensureAdmin(request);
-  const { eventId } = request.params as { eventId: string };
-  const payload = updateExternalEventSchema.parse(request.body);
-  const updated = await updateExternalIntegrationEvent(eventId, payload);
-  if (!updated) {
-    return reply.notFound('External event not found');
-  }
-  return { updated: true, event: updated };
-});
-
-app.patch('/admin/integration/external/groups/:groupKey', async (request, reply) => {
-  ensureAdmin(request);
-  const { groupKey } = request.params as { groupKey: string };
-  const payload = updateExternalGroupSchema.parse(request.body);
-  const affected = await updateExternalIntegrationGroup(groupKey, payload);
-  if (affected === 0) {
-    return reply.notFound('External group not found');
-  }
-  return { updated: true, groupKey, affectedEvents: affected };
-});
-
-app.get('/admin/integration/external/tickets', async (request, reply) => {
-  ensureAdmin(request);
-  const query = externalTicketsQuerySchema.parse(request.query);
-  try {
-    const tickets = await fetchExternalIntegrationTicketsByEmail(query.email);
-    return { email: query.email, total: tickets.length, tickets };
-  } catch (error) {
-    return reply.badRequest(
-      `External tickets fetch failed: ${error instanceof Error ? error.message : 'unknown error'}`
-    );
-  }
 });
 
 const createTenantSchema = z.object({
@@ -3863,6 +3480,142 @@ app.post('/admin/moodle/sync/all', async (request, reply) => {
   };
 });
 
+// --- Academic endpoints ---
+
+app.get('/v1/terms', async () => {
+  const result = await pool.query(
+    `SELECT id, name, code, start_date, end_date, is_active, created_at FROM academic_terms ORDER BY start_date DESC`
+  );
+  return result.rows;
+});
+
+app.get('/v1/degrees', async () => {
+  const result = await pool.query(
+    `SELECT d.id, d.name, d.code, d.degree_level, d.credit_hours_required, d.description, d.is_active,
+            dep.name AS department_name
+     FROM degree_programs d
+     LEFT JOIN departments dep ON d.department_id = dep.id
+     WHERE d.is_active = true
+     ORDER BY d.name`
+  );
+  return result.rows;
+});
+
+app.get('/v1/me/transcript', async (request, reply) => {
+  const session = getPublicSessionFromRequest(request);
+  if (!session) return reply.unauthorized('Not authenticated');
+  const result = await pool.query(
+    `SELECT se.id, se.moodle_course_id, se.status, se.grade, se.grade_points, se.credit_hours,
+            se.enrolled_at, se.completed_at,
+            t.name AS term_name, t.code AS term_code,
+            mc.fullname AS course_name
+     FROM student_enrollments se
+     JOIN academic_terms t ON se.term_id = t.id
+     LEFT JOIN moodle_courses mc ON se.moodle_course_id = mc.moodle_course_id
+     WHERE se.user_id = $1
+     ORDER BY t.start_date DESC, se.enrolled_at DESC`,
+    [session.userId]
+  );
+  return result.rows;
+});
+
+app.get('/v1/me/gpa', async (request, reply) => {
+  const session = getPublicSessionFromRequest(request);
+  if (!session) return reply.unauthorized('Not authenticated');
+  const result = await pool.query(
+    `SELECT
+       ROUND(
+         SUM(se.grade_points * se.credit_hours) / NULLIF(SUM(CASE WHEN se.grade_points IS NOT NULL THEN se.credit_hours ELSE 0 END), 0),
+         2
+       ) AS cumulative_gpa,
+       SUM(CASE WHEN se.status = 'completed' THEN se.credit_hours ELSE 0 END) AS completed_credits,
+       COUNT(*) AS total_enrollments
+     FROM student_enrollments se
+     WHERE se.user_id = $1`,
+    [session.userId]
+  );
+  return result.rows[0] ?? { cumulative_gpa: null, completed_credits: 0, total_enrollments: 0 };
+});
+
+app.get('/admin/terms', async (request) => {
+  ensureAdmin(request);
+  const result = await pool.query(
+    `SELECT id, name, code, start_date, end_date, is_active, created_at FROM academic_terms ORDER BY start_date DESC`
+  );
+  return result.rows;
+});
+
+app.post('/admin/terms', async (request, reply) => {
+  ensureAdmin(request);
+  const body = z.object({
+    name: z.string().min(1),
+    code: z.string().min(1),
+    startDate: z.string(),
+    endDate: z.string(),
+    isActive: z.boolean().optional()
+  }).parse(request.body);
+  const result = await pool.query(
+    `INSERT INTO academic_terms (name, code, start_date, end_date, is_active)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [body.name, body.code, body.startDate, body.endDate, body.isActive ?? false]
+  );
+  return reply.status(201).send(result.rows[0]);
+});
+
+app.get('/admin/departments', async (request) => {
+  ensureAdmin(request);
+  const result = await pool.query(
+    `SELECT id, name, code, description, dean_name, created_at FROM departments ORDER BY name`
+  );
+  return result.rows;
+});
+
+app.post('/admin/departments', async (request, reply) => {
+  ensureAdmin(request);
+  const body = z.object({
+    name: z.string().min(1),
+    code: z.string().min(1),
+    description: z.string().optional(),
+    deanName: z.string().optional()
+  }).parse(request.body);
+  const result = await pool.query(
+    `INSERT INTO departments (name, code, description, dean_name)
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    [body.name, body.code, body.description ?? null, body.deanName ?? null]
+  );
+  return reply.status(201).send(result.rows[0]);
+});
+
+app.get('/admin/degree-programs', async (request) => {
+  ensureAdmin(request);
+  const result = await pool.query(
+    `SELECT d.id, d.name, d.code, d.degree_level, d.credit_hours_required, d.description, d.is_active,
+            dep.name AS department_name
+     FROM degree_programs d
+     LEFT JOIN departments dep ON d.department_id = dep.id
+     ORDER BY d.name`
+  );
+  return result.rows;
+});
+
+app.post('/admin/degree-programs', async (request, reply) => {
+  ensureAdmin(request);
+  const body = z.object({
+    name: z.string().min(1),
+    code: z.string().min(1),
+    degreeLevel: z.enum(['certificate','associate','bachelor','master','doctoral','professional']),
+    departmentId: z.string().optional(),
+    creditHoursRequired: z.number().int().optional(),
+    description: z.string().optional()
+  }).parse(request.body);
+  const result = await pool.query(
+    `INSERT INTO degree_programs (name, code, degree_level, department_id, credit_hours_required, description)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [body.name, body.code, body.degreeLevel, body.departmentId ?? null, body.creditHoursRequired ?? 120, body.description ?? null]
+  );
+  return reply.status(201).send(result.rows[0]);
+});
+
 setInterval(() => {
   if (!hasMoodleConfig()) {
     return;
@@ -3877,6 +3630,24 @@ if (hasMoodleConfig()) {
     app.log.warn({ error }, 'Startup Moodle sync failed');
   });
 }
+
+// University OS module routes (Fases 1-5)
+registerSisRoutes(app, {
+  pool,
+  ensureAdmin,
+  resolvePublicUser: (req) => {
+    const s = getPublicSessionFromRequest(req);
+    return { userId: s.userId, email: s.email };
+  }
+});
+registerCrmRoutes(app, { pool, ensureAdmin });
+registerSyllabusRoutes(app, { pool, ensureAdmin });
+registerBackofficeRoutes(app, { pool, ensureAdmin });
+registerCredentialsRoutes(app, {
+  pool,
+  ensureAdmin,
+  getPublicSession: (req) => getPublicSessionFromRequest(req)
+});
 
 const port = config.server.port;
 const host = config.server.host;

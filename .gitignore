@@ -7,3 +7,5 @@ apps/*/dist
 apps/*/.vite
 
 .data
+
+.abacusai

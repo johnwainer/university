@@ -12,8 +12,8 @@ export const config = {
   },
   admin: {
     apiKey: process.env.ADMIN_API_KEY ?? 'dev-admin-key',
-    email: process.env.ADMIN_EMAIL ?? 'admin@pae-u.local',
-    password: process.env.ADMIN_PASSWORD ?? 'PaeuAdmin!2026',
+    email: process.env.ADMIN_EMAIL ?? 'admin@university.local',
+    password: process.env.ADMIN_PASSWORD ?? 'UnivAdmin!2026',
     sessionTtlMinutes: Number(process.env.ADMIN_SESSION_TTL_MINUTES ?? 720)
   },
   db: {
@@ -23,9 +23,15 @@ export const config = {
     baseUrl: process.env.MOODLE_BASE_URL ?? '',
     token: process.env.MOODLE_TOKEN ?? ''
   },
-  externalIntegration: {
-    baseUrl: process.env.EXTERNAL_INTEGRATION_BASE_URL ?? 'https://api.pasosalexito.com',
-    apiKey: process.env.EXTERNAL_INTEGRATION_API_KEY ?? 'pae-integration-2026-fixed-key'
+  institution: {
+    name: process.env.INSTITUTION_NAME ?? 'University',
+    ncesId: process.env.NCES_ID ?? '',
+    ipedsCode: process.env.IPEDS_CODE ?? '',
+    stateAuthorizationId: process.env.STATE_AUTHORIZATION_ID ?? '',
+    regionalAccreditor: process.env.REGIONAL_ACCREDITOR ?? '',
+    titleIxCoordinatorEmail: process.env.TITLE_IX_COORDINATOR_EMAIL ?? '',
+    adaCoordinatorEmail: process.env.ADA_COORDINATOR_EMAIL ?? '',
+    ferpaOfficerEmail: process.env.FERPA_OFFICER_EMAIL ?? ''
   }
 };
 
