@@ -16,6 +16,7 @@ import {
 } from '../lib/api';
 import type { ContentAsset, HomeResponse } from '@atlas/shared';
 import { EnterpriseGroupManager } from './EnterpriseGroupManager';
+import { StudentAcademics } from './StudentAcademics';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import './public.css';
 
@@ -25,6 +26,7 @@ type ViewState =
   | { type: 'detail'; slug: string }
   | { type: 'course'; slug: string }
   | { type: 'my-courses' }
+  | { type: 'academics' }
   | { type: 'profile' }
   | { type: 'enterprise' }
   | { type: 'terms' }
@@ -1771,6 +1773,14 @@ export function PublicApp() {
                 </button>
                 <button
                   onClick={() => {
+                    setView({ type: 'academics' });
+                    setAccountMenuOpen(false);
+                  }}
+                >
+                  {t('nav.academics')}
+                </button>
+                <button
+                  onClick={() => {
                     setView({ type: 'enterprise' });
                     setAccountMenuOpen(false);
                   }}
@@ -2593,6 +2603,16 @@ export function PublicApp() {
             })}
           </div>
         </section>
+      ) : null}
+
+      {view.type === 'academics' ? (
+        publicSession?.token ? (
+          <StudentAcademics token={publicSession.token} onGoMyCourses={() => setView({ type: 'my-courses' })} />
+        ) : (
+          <section className="section-block">
+            <p>{t('profile.loginRequired')}</p>
+          </section>
+        )
       ) : null}
 
       {view.type === 'profile' ? (

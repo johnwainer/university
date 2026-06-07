@@ -17,7 +17,8 @@
     "closeMenu": "Cerrar menú",
     "account": "Cuenta",
     "refresh": "Actualizar",
-    "sections": "Secciones"
+    "sections": "Secciones",
+    "academics": "Mi Universidad"
   },
   "hero": {
     "enterCourse": "Entrar al curso",
@@ -271,11 +272,7 @@
     "needHelp": "¿Necesitas ayuda?",
     "loadingData": "Cargando datos institucionales...",
     "notLinked": "Tu cuenta aún no está vinculada como coordinador o miembro de un departamento. Crea el departamento desde el panel de administración para activar este módulo.",
-    "role": {
-      "label": "Rol actual:",
-      "representative": "Coordinador",
-      "collaborator": "Estudiante"
-    },
+    "role": "Rol",
     "stats": {
       "totalMembers": "Total Integrantes",
       "activeMembers": "Integrantes Activos",
@@ -296,7 +293,6 @@
     "students": "Estudiantes",
     "name": "Nombre",
     "email": "Email",
-    "role": "Rol",
     "status": "Estado",
     "action": "Acción",
     "noStudents": "Sin miembros registrados.",
@@ -367,5 +363,62 @@
     "es": "Español",
     "en": "English",
     "toggle": "Cambiar idioma"
+  },
+  "academics": {
+    "title": "Mi Universidad",
+    "subtitle": "Tu expediente, estado de cuenta, certificados y competencias.",
+    "loading": "Cargando…",
+    "tabs": {
+      "record": "Expediente",
+      "billing": "Estado de cuenta",
+      "certificates": "Certificados",
+      "competencies": "Competencias"
+    },
+    "record": {
+      "gpa": "Promedio (GPA)",
+      "completedCredits": "Créditos completados",
+      "enrollments": "Matrículas",
+      "course": "Curso",
+      "term": "Periodo",
+      "credits": "Créditos",
+      "grade": "Calificación",
+      "status": "Estado",
+      "empty": "Aún no tienes cursos en tu expediente."
+    },
+    "status": {
+      "enrolled": "En curso",
+      "completed": "Completado",
+      "withdrawn": "Retirado",
+      "auditing": "Oyente"
+    },
+    "billing": {
+      "balance": "Saldo pendiente",
+      "pay": "Pagar",
+      "payStarted": "Pago iniciado. Continúa en la pasarela.",
+      "payUnavailable": "El pago en línea no está disponible en esta demo.",
+      "movements": "Movimientos",
+      "date": "Fecha",
+      "concept": "Concepto",
+      "amount": "Monto",
+      "empty": "Sin movimientos.",
+      "hold": {
+        "financial": "Bloqueo financiero",
+        "academic": "Bloqueo académico",
+        "documents": "Documentos pendientes"
+      }
+    },
+    "certificates": {
+      "empty": "Aún no tienes certificados.",
+      "issued": "Emitido",
+      "verify": "Verificar"
+    },
+    "competencies": {
+      "empty": "Aún no tienes competencias registradas.",
+      "status": {
+        "not_started": "No iniciada",
+        "in_progress": "En progreso",
+        "mastered": "Dominada"
+      }
+    }
   }
 }

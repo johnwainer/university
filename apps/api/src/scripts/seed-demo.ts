@@ -16,15 +16,20 @@
  *
  * Run from repo root:  npx tsx apps/api/src/scripts/seed-demo.ts
  */
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes, scryptSync } from 'node:crypto';
 import { pool } from '../db.js';
 
 const TENANT_ID = 'tenant-atlas';
 const STUDENT_DOMAIN = '@demo.atlas.edu';
 const OWNER_EMAIL = 'admissions@atlas.edu';
+// Showcase student login handed to demos (has enrollments, ledger, certificates, competencies).
+const SHOWCASE_STUDENT_EMAIL = 'estudiante@atlas.edu';
+const STUDENT_DEMO_PASSWORD = 'Estudiante2026';
 
-// Moodle demo course ids that exist in the local DB (ATLAS-DEMO-*).
-const DEMO_COURSE_IDS = [3, 4, 5, 6, 7];
+// Moodle course ids actually present in the local DB. Loaded dynamically in
+// main() so transcript/certificates/competencies link to real course names
+// (the synced Atlas catalog), with a fallback if the catalog is empty.
+let DEMO_COURSE_IDS = [3, 4, 5, 6, 7];
 
 type Row = Record<string, unknown>;
 
@@ -187,21 +192,26 @@ const students: SeedStudent[] = studentNames.map((name, i) => {
   return {
     id: randomUUID(),
     fullName: name,
-    email: `${slug}${STUDENT_DOMAIN}`,
+    // First student is the showcase login handed to demos (clean @atlas.edu email).
+    email: i === 0 ? SHOWCASE_STUDENT_EMAIL : `${slug}${STUDENT_DOMAIN}`,
     locale: i % 3 === 0 ? 'en' : 'es',
     programCode: pick(programs, i).code
   };
 });
 
-// A simple deterministic bcrypt-like placeholder hash is not validated by these
-// admin routes; public_user_auth is only required for the public portal login.
-// We store a clearly-demo hash so the rows exist and joins resolve.
-const DEMO_PASSWORD_HASH = '$2b$10$DEMOseedHashDEMOseedHashDEMOseedHashDEMOseedHashDEMOse';
+// Real scrypt hash matching the API's verifyPassword (`salt:hash`), so demo
+// students can actually log in to the public student portal.
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
 
 async function seedStudents(): Promise<void> {
-  // public_user_auth + downstream rows cascade on users delete, but we scope by
-  // domain and delete explicitly to be safe and self-documenting.
-  await q(`DELETE FROM users WHERE email LIKE $1`, [`%${STUDENT_DOMAIN}`]);
+  // public_user_auth + downstream rows cascade on users delete. Scope by demo
+  // domain plus the explicit showcase email so re-seeds stay idempotent without
+  // touching pre-existing real @atlas.edu users.
+  await q(`DELETE FROM users WHERE email LIKE $1 OR email = $2`, [`%${STUDENT_DOMAIN}`, SHOWCASE_STUDENT_EMAIL]);
 
   for (const s of students) {
     await q(
@@ -211,7 +221,7 @@ async function seedStudents(): Promise<void> {
     );
     await q(
       `INSERT INTO public_user_auth (user_id, password_hash) VALUES ($1,$2)`,
-      [s.id, DEMO_PASSWORD_HASH]
+      [s.id, hashPassword(STUDENT_DEMO_PASSWORD)]
     );
   }
 }
@@ -833,6 +843,14 @@ async function seedMedia(): Promise<void> {
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
   console.log('Seeding Atlas Online University demo data...');
+  // Use the real synced Moodle course ids so transcript/certs show course names.
+  const courseRows = await pool.query<{ moodle_course_id: number }>(
+    `SELECT moodle_course_id FROM moodle_courses ORDER BY moodle_course_id`
+  );
+  if (courseRows.rows.length > 0) {
+    DEMO_COURSE_IDS = courseRows.rows.map((r) => Number(r.moodle_course_id));
+    console.log(`  using ${DEMO_COURSE_IDS.length} real Moodle course ids`);
+  }
   await seedAcademicStructure();
   console.log('  [1/8] academic structure ✓');
   await seedStudents();

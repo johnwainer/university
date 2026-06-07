@@ -3801,3 +3801,28 @@
 .enterprise-panel-card {
   margin-bottom: 24px;
 }
+/* ===== Student academics view (Mi Universidad) ===== */
+.academics-panel { display: flex; flex-direction: column; gap: 1.25rem; margin-top: 1rem; }
+.academics-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+.academics-metric { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.academics-metric span { font-size: 0.8rem; opacity: 0.7; }
+.academics-metric strong { font-size: 1.6rem; color: #c9a84c; }
+.academics-table { width: 100%; border-collapse: collapse; }
+.academics-table th, .academics-table td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.92rem; }
+.academics-table th { opacity: 0.7; font-weight: 600; }
+.academics-balance { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1.1rem 1.4rem; }
+.academics-balance span { font-size: 0.85rem; opacity: 0.7; display: block; }
+.academics-balance strong { font-size: 1.7rem; }
+.academics-holds { display: flex; flex-direction: column; gap: 0.5rem; }
+.hold-pill { background: rgba(220, 80, 80, 0.12); border: 1px solid rgba(220, 80, 80, 0.35); color: #ffb4b4; border-radius: 8px; padding: 0.5rem 0.8rem; margin: 0; font-size: 0.9rem; }
+.academics-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+.academics-cert, .academics-competency { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1.1rem 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.academics-cert h3, .academics-competency h3 { margin: 0; font-size: 1.05rem; }
+.cert-meta { margin: 0; font-size: 0.85rem; opacity: 0.75; }
+.cert-serial { font-family: monospace; font-size: 0.8rem; opacity: 0.6; margin: 0; }
+.amount-credit { color: #6ee7a8; }
+.amount-charge { color: #ffd27a; }
+.status-pill { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.78rem; background: rgba(255,255,255,0.1); }
+.status-pill.status-completed, .status-pill.status-mastered { background: rgba(110, 231, 168, 0.18); color: #6ee7a8; }
+.status-pill.status-in_progress, .status-pill.status-enrolled { background: rgba(201, 168, 76, 0.2); color: #e8c977; }
+.public-info { background: rgba(110, 231, 168, 0.12); border: 1px solid rgba(110,231,168,0.3); color: #aef0c8; padding: 0.6rem 0.9rem; border-radius: 8px; }

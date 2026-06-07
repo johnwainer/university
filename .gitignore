@@ -9,3 +9,5 @@ apps/*/.vite
 .data
 
 .abacusai
+
+.playwright-mcp

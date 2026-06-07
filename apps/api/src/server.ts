@@ -3508,7 +3508,7 @@ app.get('/v1/me/transcript', async (request, reply) => {
     `SELECT se.id, se.moodle_course_id, se.status, se.grade, se.grade_points, se.credit_hours,
             se.enrolled_at, se.completed_at,
             t.name AS term_name, t.code AS term_code,
-            mc.fullname AS course_name
+            mc.full_name AS course_name
      FROM student_enrollments se
      JOIN academic_terms t ON se.term_id = t.id
      LEFT JOIN moodle_courses mc ON se.moodle_course_id = mc.moodle_course_id

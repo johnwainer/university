@@ -17,7 +17,8 @@
     "closeMenu": "Close menu",
     "account": "Account",
     "refresh": "Refresh",
-    "sections": "Sections"
+    "sections": "Sections",
+    "academics": "My University"
   },
   "hero": {
     "enterCourse": "Enter Course",
@@ -271,11 +272,7 @@
     "needHelp": "Need help?",
     "loadingData": "Loading institutional data...",
     "notLinked": "Your account is not yet linked as a coordinator or department member. Create the department from the admin panel to activate this module.",
-    "role": {
-      "label": "Current role:",
-      "representative": "Coordinator",
-      "collaborator": "Student"
-    },
+    "role": "Role",
     "stats": {
       "totalMembers": "Total Members",
       "activeMembers": "Active Members",
@@ -296,7 +293,6 @@
     "students": "Students",
     "name": "Name",
     "email": "Email",
-    "role": "Role",
     "status": "Status",
     "action": "Action",
     "noStudents": "No registered members.",
@@ -367,5 +363,62 @@
     "es": "Español",
     "en": "English",
     "toggle": "Switch language"
+  },
+  "academics": {
+    "title": "My University",
+    "subtitle": "Your academic record, account balance, certificates and competencies.",
+    "loading": "Loading…",
+    "tabs": {
+      "record": "Record",
+      "billing": "Billing",
+      "certificates": "Certificates",
+      "competencies": "Competencies"
+    },
+    "record": {
+      "gpa": "GPA",
+      "completedCredits": "Completed credits",
+      "enrollments": "Enrollments",
+      "course": "Course",
+      "term": "Term",
+      "credits": "Credits",
+      "grade": "Grade",
+      "status": "Status",
+      "empty": "You don't have any courses in your record yet."
+    },
+    "status": {
+      "enrolled": "In progress",
+      "completed": "Completed",
+      "withdrawn": "Withdrawn",
+      "auditing": "Auditing"
+    },
+    "billing": {
+      "balance": "Outstanding balance",
+      "pay": "Pay",
+      "payStarted": "Payment started. Continue in the gateway.",
+      "payUnavailable": "Online payment is not available in this demo.",
+      "movements": "Transactions",
+      "date": "Date",
+      "concept": "Concept",
+      "amount": "Amount",
+      "empty": "No transactions.",
+      "hold": {
+        "financial": "Financial hold",
+        "academic": "Academic hold",
+        "documents": "Pending documents"
+      }
+    },
+    "certificates": {
+      "empty": "You don't have any certificates yet.",
+      "issued": "Issued",
+      "verify": "Verify"
+    },
+    "competencies": {
+      "empty": "You don't have any competencies recorded yet.",
+      "status": {
+        "not_started": "Not started",
+        "in_progress": "In progress",
+        "mastered": "Mastered"
+      }
+    }
   }
 }

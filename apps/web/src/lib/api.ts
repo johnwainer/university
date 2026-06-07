@@ -561,6 +561,69 @@ export type GpaRecord = {
   total_enrollments: number;
 };
 
+export type BillingLedgerEntry = {
+  id: string;
+  kind: string;
+  description: string;
+  amount_cents: number | string;
+  currency: string;
+  balance_cents: number | string;
+  term_id: string | null;
+  created_at: string;
+};
+
+export type BillingInvoice = {
+  id: string;
+  term_id: string | null;
+  status: string;
+  total_cents: number | string;
+  currency: string;
+  stripe_invoice_id: string | null;
+  due_date: string | null;
+  created_at: string;
+};
+
+export type BillingHold = {
+  id: string;
+  hold_type: string;
+  reason: string;
+  active: boolean;
+  created_at: string;
+  released_at: string | null;
+};
+
+export type BillingResponse = {
+  balanceCents: number;
+  currency: string;
+  ledger: BillingLedgerEntry[];
+  invoices: BillingInvoice[];
+  holds: BillingHold[];
+};
+
+export type CertificateRecord = {
+  id: string;
+  title: string;
+  kind: string;
+  serial: string;
+  verification_code: string;
+  moodle_course_id: number | null;
+  degree_program_id: string | null;
+  issued_at: string;
+  course_name: string | null;
+  degree_program_name: string | null;
+};
+
+export type CompetencyRecord = {
+  id: string;
+  competency_id: string;
+  status: 'not_started' | 'in_progress' | 'mastered' | string;
+  evidence: string | null;
+  achieved_at: string | null;
+  competency_name: string;
+  competency_code: string;
+  description: string | null;
+};
+
 export const api = {
   home: () => fetchJson<HomeResponse>('/v1/home'),
   catalog: () => fetchJson<ContentAsset[]>('/v1/catalog'),
@@ -768,7 +831,18 @@ export const api = {
     transcript: (token: string) =>
       fetchJson<TranscriptRecord[]>('/v1/me/transcript', { auth: { token } }),
     gpa: (token: string) =>
-      fetchJson<GpaRecord>('/v1/me/gpa', { auth: { token } })
+      fetchJson<GpaRecord>('/v1/me/gpa', { auth: { token } }),
+    billing: (token: string) =>
+      fetchJson<BillingResponse>('/v1/me/billing', { auth: { token } }),
+    pay: (token: string, payload: { amountCents?: number; invoiceId?: string; currency?: string }) =>
+      fetchJson<{ clientSecret?: string; paymentId?: string; configured?: boolean; message?: string }>(
+        '/v1/me/pay',
+        { method: 'POST', body: payload, auth: { token } }
+      ),
+    certificates: (token: string) =>
+      fetchJson<CertificateRecord[]>('/v1/me/certificates', { auth: { token } }),
+    competencies: (token: string) =>
+      fetchJson<CompetencyRecord[]>('/v1/me/competencies', { auth: { token } })
   },
   courseContent: (moodleCourseId: number, token: string) =>
     fetchJson<MoodleCourseContentResponse>(`/v1/courses/${moodleCourseId}/content`, {
