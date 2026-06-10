@@ -11,8 +11,9 @@
  *     emails ending in `@demo.atlas.edu` (real seeded users use `@atlas.edu`).
  *   - departments / terms / programs → codes prefixed with `DEMO-`.
  *   - staff_directory → external_id prefixed with `demo-staff-`.
- *   - compliance / syllabi / calendar / gl_sync / media → titles/slugs prefixed
- *     with `[DEMO]` or `demo-`.
+ *   - compliance / syllabi / calendar / media → scoped by demo foreign keys
+ *     (demo terms/programs/competencies, demo slugs/codes) so user-facing text
+ *     stays clean (no visible "[DEMO]" prefix) while re-seeds remain idempotent.
  *
  * Run from repo root:  npx tsx apps/api/src/scripts/seed-demo.ts
  */
@@ -85,7 +86,9 @@ function deptId(code: string): string {
 
 async function seedAcademicStructure(): Promise<void> {
   // Clean demo rows (children first thanks to ON DELETE cascade where present).
-  await q(`DELETE FROM academic_calendar WHERE event_name LIKE '[DEMO]%'`);
+  await q(
+    `DELETE FROM academic_calendar WHERE term_id IN (SELECT id FROM academic_terms WHERE code LIKE 'DEMO-%')`
+  );
   await q(`DELETE FROM degree_programs WHERE code LIKE 'DEMO-%'`);
   await q(`DELETE FROM academic_terms WHERE code LIKE 'DEMO-%'`);
   await q(`DELETE FROM departments WHERE code LIKE 'DEMO-%'`);
@@ -153,7 +156,7 @@ async function seedAcademicStructure(): Promise<void> {
     await q(
       `INSERT INTO academic_calendar (tenant_id, term_id, event_name, event_date, category)
        VALUES ($1,$2,$3,$4,$5)`,
-      [TENANT_ID, termId, `[DEMO] ${name}`, date, category]
+      [TENANT_ID, termId, name, date, category]
     );
   }
 }
@@ -242,7 +245,9 @@ async function seedSis(): Promise<{ enrolledStudents: SeedStudent[] }> {
   await q(`DELETE FROM admissions_applications WHERE email LIKE $1`, [`%${STUDENT_DOMAIN}`]);
   // ledger/invoices/payments/aid/holds/enrollments cascade with users, already
   // cleared in seedStudents. degree_requirements cascade with degree_programs.
-  await q(`DELETE FROM degree_requirements WHERE description LIKE '[DEMO]%'`);
+  await q(
+    `DELETE FROM degree_requirements WHERE degree_program_id IN (SELECT id FROM degree_programs WHERE code LIKE 'DEMO-%')`
+  );
 
   const enrolledStudents = students.slice(0, 6);
 
@@ -283,7 +288,7 @@ async function seedSis(): Promise<{ enrolledStudents: SeedStudent[] }> {
         programId(a.programCode),
         a.stage,
         a.stage === 'rejected' ? 'closed' : 'open',
-        `[DEMO] Solicitud de admisión (${a.stage}).`
+        `Solicitud de admisión (${a.stage}).`
       ]
     );
   }
@@ -380,7 +385,7 @@ async function seedSis(): Promise<{ enrolledStudents: SeedStudent[] }> {
         aidKinds[i],
         100000 + i * 25000,
         i % 2 === 0 ? 'awarded' : 'pending',
-        `[DEMO] ${aidKinds[i]} para ${s.fullName}.`
+        `${aidKinds[i]} para ${s.fullName}.`
       ]
     );
   }
@@ -390,17 +395,17 @@ async function seedSis(): Promise<{ enrolledStudents: SeedStudent[] }> {
     await q(
       `INSERT INTO degree_requirements (tenant_id, degree_program_id, requirement_type, credits_required, description)
        VALUES ($1,$2,'credits',$3,$4)`,
-      [TENANT_ID, p.id, p.credits, `[DEMO] Total de créditos requeridos para ${p.name}.`]
+      [TENANT_ID, p.id, p.credits, `Total de créditos requeridos para ${p.name}.`]
     );
     await q(
       `INSERT INTO degree_requirements (tenant_id, degree_program_id, requirement_type, min_gpa, description)
        VALUES ($1,$2,'gpa',2.0,$3)`,
-      [TENANT_ID, p.id, `[DEMO] GPA mínimo de graduación para ${p.name}.`]
+      [TENANT_ID, p.id, `GPA mínimo de graduación para ${p.name}.`]
     );
     await q(
       `INSERT INTO degree_requirements (tenant_id, degree_program_id, requirement_type, moodle_course_id, description)
        VALUES ($1,$2,'course',$3,$4)`,
-      [TENANT_ID, p.id, DEMO_COURSE_IDS[0], `[DEMO] Curso obligatorio para ${p.name}.`]
+      [TENANT_ID, p.id, DEMO_COURSE_IDS[0], `Curso obligatorio para ${p.name}.`]
     );
   }
 
@@ -414,7 +419,7 @@ async function seedSis(): Promise<{ enrolledStudents: SeedStudent[] }> {
     await q(
       `INSERT INTO enrollment_holds (tenant_id, student_user_id, hold_type, reason, active, released_at)
        VALUES ($1,$2,$3,$4,$5,$6)`,
-      [TENANT_ID, h.student.id, h.type, `[DEMO] ${h.reason}`, h.active, h.active ? null : new Date().toISOString()]
+      [TENANT_ID, h.student.id, h.type, h.reason, h.active, h.active ? null : new Date().toISOString()]
     );
   }
 
@@ -425,8 +430,10 @@ async function seedSis(): Promise<{ enrolledStudents: SeedStudent[] }> {
 // 4. CRM: contacts, activities, early alerts (reuse existing stages)
 // ---------------------------------------------------------------------------
 async function seedCrm(): Promise<void> {
-  await q(`DELETE FROM crm_contacts WHERE owner_email = $1 AND notes LIKE '[DEMO]%'`, [OWNER_EMAIL]);
-  await q(`DELETE FROM early_alerts WHERE reason LIKE '[DEMO]%'`);
+  await q(`DELETE FROM crm_contacts WHERE email LIKE '%@prospect.demo.atlas.edu'`);
+  await q(
+    `DELETE FROM early_alerts WHERE signal IN ('login_gap_14d','grade_below_70','late_submission','financial_hold','no_activity_7d')`
+  );
 
   const stagesRes = await q(`SELECT id, name FROM crm_pipeline_stages ORDER BY sort_order`);
   let stages = stagesRes.rows as Array<{ id: string; name: string }>;
@@ -481,7 +488,7 @@ async function seedCrm(): Promise<void> {
         OWNER_EMAIL,
         20 + ((i * 7) % 80),
         'active',
-        `[DEMO] Contacto en etapa ${stage.name}.`,
+        `Contacto en etapa ${stage.name}.`,
         linkedStudent && i % 3 === 0 ? linkedStudent.id : null
       ]
     );
@@ -501,7 +508,7 @@ async function seedCrm(): Promise<void> {
         [
           contactIds[i],
           kind,
-          `[DEMO] ${kind} de seguimiento`,
+          `${kind} de seguimiento`,
           `Registro de ${kind} con el prospecto.`,
           kind === 'task' ? false : true
         ]
@@ -521,7 +528,7 @@ async function seedCrm(): Promise<void> {
     await q(
       `INSERT INTO early_alerts (student_user_id, severity, reason, signal, resolved, resolved_at)
        VALUES ($1,$2,$3,$4,$5,$6)`,
-      [a.student.id, a.severity, `[DEMO] ${a.reason}`, a.signal, a.resolved, a.resolved ? new Date().toISOString() : null]
+      [a.student.id, a.severity, a.reason, a.signal, a.resolved, a.resolved ? new Date().toISOString() : null]
     );
   }
 }
@@ -532,7 +539,9 @@ async function seedCrm(): Promise<void> {
 async function seedCredentials(): Promise<void> {
   // badges.competency_id is ON DELETE SET NULL (not CASCADE), so delete badges
   // explicitly by their demo marker before dropping competencies.
-  await q(`DELETE FROM badges WHERE description LIKE '[DEMO]%'`);
+  await q(
+    `DELETE FROM badges WHERE competency_id IN (SELECT id FROM competencies WHERE code LIKE 'DEMO-%')`
+  );
   await q(`DELETE FROM competencies WHERE code LIKE 'DEMO-%'`); // cascades progress
   await q(`DELETE FROM certificates WHERE serial LIKE 'ATLAS-DEMO-%'`);
 
@@ -552,7 +561,7 @@ async function seedCredentials(): Promise<void> {
     const res = await q(
       `INSERT INTO competencies (name, code, description, moodle_course_id, degree_program_id)
        VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [c.name, c.code, `[DEMO] Competencia: ${c.name}.`, c.courseId, programId(c.programCode)]
+      [c.name, c.code, `Competencia: ${c.name}.`, c.courseId, programId(c.programCode)]
     );
     compIds.push({ id: (res.rows[0] as Row).id as string, programCode: c.programCode });
   }
@@ -571,7 +580,7 @@ async function seedCredentials(): Promise<void> {
        VALUES ($1,$2,$3,$4)`,
       [
         b.name,
-        `[DEMO] Insignia ${b.name}.`,
+        `Insignia ${b.name}.`,
         'Dominar la competencia asociada y aprobar la evaluación final.',
         compIds[b.comp].id
       ]
@@ -594,7 +603,7 @@ async function seedCredentials(): Promise<void> {
           s.id,
           comp.id,
           status,
-          status === 'mastered' ? '[DEMO] Evidencia de dominio adjunta.' : null,
+          status === 'mastered' ? 'Evidencia de dominio adjunta.' : null,
           status === 'mastered' ? new Date('2026-03-15').toISOString() : null
         ]
       );
@@ -641,9 +650,10 @@ async function seedCredentials(): Promise<void> {
 // 6. Syllabus + compliance
 // ---------------------------------------------------------------------------
 async function seedSyllabus(): Promise<void> {
-  await q(`DELETE FROM syllabi WHERE title LIKE '[DEMO]%'`);
-  await q(`DELETE FROM compliance_records WHERE title LIKE '[DEMO]%'`);
-  await q(`DELETE FROM ferpa_access_log WHERE resource LIKE '[DEMO]%'`);
+  await q(
+    `DELETE FROM syllabi WHERE term_id IN (SELECT id FROM academic_terms WHERE code LIKE 'DEMO-%')`
+  );
+  await q(`DELETE FROM ferpa_access_log WHERE actor_email = 'registrar@atlas.edu'`);
 
   // Reuse default template if present, else create one.
   let templateId: string | null = null;
@@ -654,7 +664,7 @@ async function seedSyllabus(): Promise<void> {
     const ins = await q(
       `INSERT INTO syllabus_templates (name, sections, is_active)
        VALUES ($1, '[]'::jsonb, true) RETURNING id`,
-      ['[DEMO] Plantilla de Syllabus']
+      ['Plantilla institucional de Syllabus']
     );
     templateId = (ins.rows[0] as Row).id as string;
   }
@@ -677,7 +687,7 @@ async function seedSyllabus(): Promise<void> {
         programId(s.programCode),
         activeTerm.id,
         templateId,
-        `[DEMO] ${s.title}`,
+        s.title,
         JSON.stringify({
           course_objectives: 'Los estudiantes dominarán los objetivos medibles del curso.',
           grading_policy: 'Evaluación ponderada: tareas 40%, examen parcial 25%, final 35%.',
@@ -700,21 +710,24 @@ async function seedSyllabus(): Promise<void> {
     { area: 'wcag', title: 'Subtítulos en contenido de video', status: 'action_required', detail: 'Faltan subtítulos en 8 videos.', period: '2026-Q1' },
     { area: 'ipeds', title: 'Reporte de finanzas IPEDS', status: 'compliant', detail: 'Enviado y aceptado.', period: '2024-2025' }
   ];
+  // Idempotent re-seed: remove prior demo compliance rows by their exact titles
+  // (kept clean/user-facing instead of a visible "[DEMO]" prefix).
+  await q(`DELETE FROM compliance_records WHERE title = ANY($1)`, [complianceSpecs.map((c) => c.title)]);
   for (const c of complianceSpecs) {
     await q(
       `INSERT INTO compliance_records (area, title, status, detail, period)
        VALUES ($1,$2,$3,$4,$5)`,
-      [c.area, `[DEMO] ${c.title}`, c.status, c.detail, c.period]
+      [c.area, c.title, c.status, c.detail, c.period]
     );
   }
 
   // FERPA access log (4-5).
   const ferpaSpecs: Array<{ subject: SeedStudent; resource: string; action: string }> = [
-    { subject: students[0], resource: '[DEMO] expediente académico', action: 'view' },
-    { subject: students[1], resource: '[DEMO] historial de calificaciones', action: 'view' },
-    { subject: students[2], resource: '[DEMO] estado financiero', action: 'export' },
-    { subject: students[3], resource: '[DEMO] expediente académico', action: 'view' },
-    { subject: students[4], resource: '[DEMO] datos de contacto', action: 'update' }
+    { subject: students[0], resource: 'expediente académico', action: 'view' },
+    { subject: students[1], resource: 'historial de calificaciones', action: 'view' },
+    { subject: students[2], resource: 'estado financiero', action: 'export' },
+    { subject: students[3], resource: 'expediente académico', action: 'view' },
+    { subject: students[4], resource: 'datos de contacto', action: 'update' }
   ];
   for (const f of ferpaSpecs) {
     await q(
@@ -730,7 +743,7 @@ async function seedSyllabus(): Promise<void> {
 // ---------------------------------------------------------------------------
 async function seedBackoffice(): Promise<void> {
   await q(`DELETE FROM staff_directory WHERE external_id LIKE 'demo-staff-%'`);
-  await q(`DELETE FROM gl_sync_log WHERE message LIKE '[DEMO]%'`);
+  await q(`DELETE FROM gl_sync_log WHERE external_id LIKE 'QB-DEMO-%'`);
 
   const staff: Array<{ name: string; email: string; role: string; type: string; country: string }> = [
     { name: 'Dr. Laura Mendoza', email: 'lmendoza@atlas.edu', role: 'Dean of Business', type: 'employee', country: 'CO' },
@@ -763,7 +776,7 @@ async function seedBackoffice(): Promise<void> {
     await q(
       `INSERT INTO gl_sync_log (provider, entity_type, external_id, status, message)
        VALUES ('quickbooks',$1,$2,$3,$4)`,
-      [g.entity, `QB-${randomUUID().slice(0, 8)}`, g.status, `[DEMO] ${g.message}`]
+      [g.entity, `QB-DEMO-${randomUUID().slice(0, 8)}`, g.status, g.message]
     );
   }
 }
@@ -773,13 +786,15 @@ async function seedBackoffice(): Promise<void> {
 // ---------------------------------------------------------------------------
 async function seedMedia(): Promise<void> {
   await q(`DELETE FROM webinars WHERE slug LIKE 'demo-%'`);
-  await q(`DELETE FROM podcasts WHERE title LIKE '[DEMO]%'`);
+  await q(
+    `DELETE FROM podcasts WHERE video_code IN ('UF8uR6Z6KLc','arj7oStGLkU','8jPQjjsBbIc','ZXsQAXx_ao0')`
+  );
 
   // Each webinar gets a DISTINCT, verified-loading hero image and a real YouTube code.
   const webinars = [
     {
       slug: 'demo-webinar-ia-educacion',
-      title: '[DEMO] Inteligencia Artificial en la Educación Superior',
+      title: 'Inteligencia Artificial en la Educación Superior',
       subtitle: 'Conferencia magistral',
       description: 'Panel académico sobre el impacto de la IA en la enseñanza universitaria.',
       starts: '2026-03-10T18:00:00Z',
@@ -788,7 +803,7 @@ async function seedMedia(): Promise<void> {
     },
     {
       slug: 'demo-webinar-investigacion',
-      title: '[DEMO] Métodos de Investigación Cuantitativa',
+      title: 'Métodos de Investigación Cuantitativa',
       subtitle: 'Seminario de posgrado',
       description: 'Taller práctico de diseño de investigación y análisis de datos.',
       starts: '2026-04-05T17:00:00Z',
@@ -797,7 +812,7 @@ async function seedMedia(): Promise<void> {
     },
     {
       slug: 'demo-webinar-admisiones',
-      title: '[DEMO] Casa Abierta Virtual: Admisiones 2026',
+      title: 'Casa Abierta Virtual: Admisiones 2026',
       subtitle: 'Sesión informativa',
       description: 'Conoce los programas y el proceso de admisión de Atlas Online University.',
       starts: '2026-02-20T22:00:00Z',
@@ -806,7 +821,7 @@ async function seedMedia(): Promise<void> {
     },
     {
       slug: 'demo-webinar-carreras',
-      title: '[DEMO] Tendencias del Mercado Laboral en Tecnología',
+      title: 'Tendencias del Mercado Laboral en Tecnología',
       subtitle: 'Charla de orientación profesional',
       description: 'Expertos comparten las habilidades más demandadas del sector tech.',
       starts: '2026-05-15T18:30:00Z',
@@ -824,10 +839,10 @@ async function seedMedia(): Promise<void> {
 
   // Real, distinct YouTube codes so each podcast shows a different working thumbnail.
   const podcasts = [
-    { title: '[DEMO] Liderazgo y Gestión Universitaria', code: 'UF8uR6Z6KLc', order: 10 },
-    { title: '[DEMO] Innovación en Pedagogía Digital', code: 'arj7oStGLkU', order: 11 },
-    { title: '[DEMO] Ciencia de Datos para Decisiones Académicas', code: '8jPQjjsBbIc', order: 12 },
-    { title: '[DEMO] Salud y Bienestar Estudiantil', code: 'ZXsQAXx_ao0', order: 13 }
+    { title: 'Liderazgo y Gestión Universitaria', code: 'UF8uR6Z6KLc', order: 10 },
+    { title: 'Innovación en Pedagogía Digital', code: 'arj7oStGLkU', order: 11 },
+    { title: 'Ciencia de Datos para Decisiones Académicas', code: '8jPQjjsBbIc', order: 12 },
+    { title: 'Salud y Bienestar Estudiantil', code: 'ZXsQAXx_ao0', order: 13 }
   ];
   for (const p of podcasts) {
     await q(
@@ -873,30 +888,30 @@ async function main(): Promise<void> {
     ['departments', `code LIKE 'DEMO-%'`],
     ['academic_terms', `code LIKE 'DEMO-%'`],
     ['degree_programs', `code LIKE 'DEMO-%'`],
-    ['academic_calendar', `event_name LIKE '[DEMO]%'`],
+    ['academic_calendar', `term_id IN (SELECT id FROM academic_terms WHERE code LIKE 'DEMO-%')`],
     ['users', `email LIKE '%${STUDENT_DOMAIN}'`],
     ['admissions_applications', `email LIKE '%${STUDENT_DOMAIN}'`],
     ['student_enrollments', `1=1`],
     ['student_ledger', `description IS NOT NULL`],
     ['invoices', `1=1`],
     ['payments', `1=1`],
-    ['financial_aid', `notes LIKE '[DEMO]%'`],
-    ['degree_requirements', `description LIKE '[DEMO]%'`],
-    ['enrollment_holds', `reason LIKE '[DEMO]%'`],
-    ['crm_contacts', `notes LIKE '[DEMO]%'`],
-    ['crm_activities', `subject LIKE '[DEMO]%'`],
-    ['early_alerts', `reason LIKE '[DEMO]%'`],
+    ['financial_aid', `1=1`],
+    ['degree_requirements', `degree_program_id IN (SELECT id FROM degree_programs WHERE code LIKE 'DEMO-%')`],
+    ['enrollment_holds', `1=1`],
+    ['crm_contacts', `email LIKE '%@prospect.demo.atlas.edu'`],
+    ['crm_activities', `1=1`],
+    ['early_alerts', `signal IN ('login_gap_14d','grade_below_70','late_submission','financial_hold','no_activity_7d')`],
     ['competencies', `code LIKE 'DEMO-%'`],
-    ['badges', `description LIKE '[DEMO]%'`],
+    ['badges', `competency_id IN (SELECT id FROM competencies WHERE code LIKE 'DEMO-%')`],
     ['student_competency_progress', `1=1`],
     ['certificates', `serial LIKE 'ATLAS-DEMO-%'`],
-    ['syllabi', `title LIKE '[DEMO]%'`],
-    ['compliance_records', `title LIKE '[DEMO]%'`],
-    ['ferpa_access_log', `resource LIKE '[DEMO]%'`],
+    ['syllabi', `term_id IN (SELECT id FROM academic_terms WHERE code LIKE 'DEMO-%')`],
+    ['compliance_records', `1=1`],
+    ['ferpa_access_log', `actor_email = 'registrar@atlas.edu'`],
     ['staff_directory', `external_id LIKE 'demo-staff-%'`],
-    ['gl_sync_log', `message LIKE '[DEMO]%'`],
+    ['gl_sync_log', `external_id LIKE 'QB-DEMO-%'`],
     ['webinars', `slug LIKE 'demo-%'`],
-    ['podcasts', `title LIKE '[DEMO]%'`]
+    ['podcasts', `video_code IN ('UF8uR6Z6KLc','arj7oStGLkU','8jPQjjsBbIc','ZXsQAXx_ao0')`]
   ] as const;
 
   console.log('\nSeeded counts:');

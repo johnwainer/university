@@ -168,7 +168,7 @@
   },
   "profile": {
     "title": "My Profile",
-    "subtitle": "Update your information. Changes are synced across University and Moodle.",
+    "subtitle": "Update your information. Changes are synced across Atlas and Moodle.",
     "fullName": "Full name",
     "email": "Email address",
     "language": "Language",
@@ -192,7 +192,7 @@
     "fullName": "Full name",
     "fullNamePlaceholder": "e.g.: María González",
     "email": "Email address",
-    "emailPlaceholder": "email@university.edu",
+    "emailPlaceholder": "email@atlas.edu",
     "password": "Password",
     "confirmPassword": "Confirm password",
     "showPassword": "Show password",
@@ -218,13 +218,13 @@
     "oneSymbol": "One symbol"
   },
   "enterprise": {
-    "eyebrow": "University Academic",
+    "eyebrow": "Atlas Academic",
     "title": "Academic excellence for organizations and institutions",
     "subtitle": "An institutional academic experience to enroll students, assign programs and measure learning outcomes from a single platform.",
     "talkToAdvisor": "Talk to an advisor",
     "goToCourses": "Go to my courses",
     "exploreCatalog": "Explore academic catalog",
-    "trustStrip": "Institutions building their teams with University",
+    "trustStrip": "Institutions building their teams with Atlas",
     "valueGrid": {
       "programs": "Academic Programs",
       "programsDesc": "Enrollment by department and area of study",
@@ -233,7 +233,7 @@
       "governance": "Institutional Governance",
       "governanceDesc": "Centralized control for the entire institution"
     },
-    "howItWorks": "How University works for institutions",
+    "howItWorks": "How Atlas works for institutions",
     "howItWorksDesc": "Activate a coordinator, bring in your students and define study programs by department.",
     "steps": {
       "activate": "Activate your institutional account",
@@ -249,7 +249,7 @@
     "case2": "Case 2",
     "case2Title": "Certification Program",
     "case2Desc": "Students from different departments follow the same plan with centralized tracking.",
-    "ctaText": "Ready to activate your institution in University?",
+    "ctaText": "Ready to activate your institution in Atlas?",
     "ctaButton": "Start institutional registration",
     "authTitle": {
       "register": "Activate your institutional account",
@@ -283,7 +283,7 @@
     "fullName": "Full name",
     "language": "Language",
     "department": "Department",
-    "activeProgram": "Active academic program at University.",
+    "activeProgram": "Active academic program at Atlas.",
     "addStudent": "Add student",
     "addingStudent": "Saving...",
     "assignCourses": "Assign department courses",
@@ -313,11 +313,11 @@
     "noProgress": "No progress recorded yet."
   },
   "legal": {
-    "title": "University Legal Center",
+    "title": "Atlas Legal Center",
     "back": "← Back",
     "loadingContent": "Loading legal content...",
     "infoTitle": "Information",
-    "infoDesc": "This content applies to the use of University.",
+    "infoDesc": "This content applies to the use of Atlas.",
     "contactDesc": "For legal questions or personal data requests:",
     "terms": "Terms and Conditions",
     "privacy": "Privacy Policy"
@@ -328,8 +328,8 @@
     "ferpa": "FERPA Notice",
     "titleIx": "Title IX",
     "ada": "Accessibility (ADA)",
-    "complianceNotice": "University is committed to compliance with FERPA, Title IX, ADA/Section 504 (WCAG 2.1 AA) and COPPA. To exercise your rights over academic records, contact our FERPA officer at",
-    "copyright": "© {{year}} University. All rights reserved."
+    "complianceNotice": "Atlas Online University is committed to compliance with FERPA, Title IX, ADA/Section 504 (WCAG 2.1 AA) and COPPA. To exercise your rights over academic records, contact our FERPA officer at",
+    "copyright": "© {{year}} Atlas Online University. All rights reserved."
   },
   "errors": {
     "generic": "An error occurred. Please try again.",

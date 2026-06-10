@@ -594,6 +594,8 @@ async function runCoursesSyncInternal() {
     syncedAt: new Date().toISOString(),
     total: courses.length,
     upsertedCatalogAssets: syncResult.upsertedCatalogAssets,
+    prunedCourses: syncResult.prunedCourses,
+    prunedCatalogAssets: syncResult.prunedCatalogAssets,
     categoriesSource: categoriesBundle.source
   });
 
@@ -601,7 +603,9 @@ async function runCoursesSyncInternal() {
     synced: true as const,
     totalCourses: courses.length,
     upsertedCourses: syncResult.upsertedCourses,
-    upsertedCatalogAssets: syncResult.upsertedCatalogAssets
+    upsertedCatalogAssets: syncResult.upsertedCatalogAssets,
+    prunedCourses: syncResult.prunedCourses,
+    prunedCatalogAssets: syncResult.prunedCatalogAssets
   };
 }
 

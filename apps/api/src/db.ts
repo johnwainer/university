@@ -627,13 +627,13 @@ async function seedBaseData(): Promise<void> {
 
   const hasPodcast = await pool.query(`SELECT id FROM podcasts LIMIT 1`);
   if (!hasPodcast.rows[0]) {
-    const cambridgeVideos = [
-      { id: 'cambridge-1', title: 'Welcome to Cambridge', code: 'LlCwHnp3kL4', order: 0 },
-      { id: 'cambridge-2', title: 'Medieval History of the University of Cambridge', code: 'BUR7swYAYls', order: 1 },
-      { id: 'cambridge-3', title: 'University of Cambridge International Summer Programme', code: 'TgOWtFQKyWw', order: 2 },
-      { id: 'cambridge-4', title: 'Cambridge University', code: 'AxQouD_mnuo', order: 3 }
+    const atlasPodcasts = [
+      { id: 'atlas-podcast-1', title: 'Bienvenida a Atlas Online University', code: 'UF8uR6Z6KLc', order: 0 },
+      { id: 'atlas-podcast-2', title: 'Aprendizaje flexible para profesionales', code: 'arj7oStGLkU', order: 1 },
+      { id: 'atlas-podcast-3', title: 'Educación basada en competencias', code: '8jPQjjsBbIc', order: 2 },
+      { id: 'atlas-podcast-4', title: 'Historias de estudiantes Atlas', code: 'ZXsQAXx_ao0', order: 3 }
     ];
-    for (const v of cambridgeVideos) {
+    for (const v of atlasPodcasts) {
       await createPodcast({
         title: v.title,
         videoCode: v.code,
@@ -791,6 +791,8 @@ export async function syncMoodleCoursesWithCategories(
 ): Promise<{
   upsertedCourses: number;
   upsertedCatalogAssets: number;
+  prunedCourses: number;
+  prunedCatalogAssets: number;
 }> {
   let upsertedCourses = 0;
   let upsertedCatalogAssets = 0;
@@ -904,7 +906,35 @@ export async function syncMoodleCoursesWithCategories(
     upsertedCatalogAssets += 1;
   }
 
-  return { upsertedCourses, upsertedCatalogAssets };
+  // Prune courses/catalog assets that no longer exist in Moodle. This is a full
+  // sync, so anything not present in `courses` was deleted upstream. Guard against
+  // an empty list (e.g. a transient Moodle error) so we never wipe the catalog.
+  let prunedCourses = 0;
+  let prunedCatalogAssets = 0;
+  if (courses.length > 0) {
+    const keepCourseIds = courses.map((c) => Number(c.id));
+    const keepAssetIds = courses.map((c) => `moodle-course-${c.id}`);
+
+    const prunedCoursesResult = await pool.query(
+      `DELETE FROM moodle_courses WHERE moodle_course_id <> ALL($1::bigint[])`,
+      [keepCourseIds]
+    );
+    prunedCourses = prunedCoursesResult.rowCount ?? 0;
+
+    // Remove dependent entitlements first (content_id FK has no ON DELETE), then
+    // the synced catalog assets themselves.
+    await pool.query(
+      `DELETE FROM entitlements WHERE content_id LIKE 'moodle-course-%' AND content_id <> ALL($1::text[])`,
+      [keepAssetIds]
+    );
+    const prunedAssetsResult = await pool.query(
+      `DELETE FROM content_assets WHERE id LIKE 'moodle-course-%' AND id <> ALL($1::text[])`,
+      [keepAssetIds]
+    );
+    prunedCatalogAssets = prunedAssetsResult.rowCount ?? 0;
+  }
+
+  return { upsertedCourses, upsertedCatalogAssets, prunedCourses, prunedCatalogAssets };
 }
 
 export async function syncMoodleCategories(categories: MoodleCategoryRow[]): Promise<{ upsertedCategories: number }> {

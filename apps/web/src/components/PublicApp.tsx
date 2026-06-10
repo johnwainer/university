@@ -919,7 +919,10 @@ export function PublicApp() {
         id: 'continue-learning',
         title: t('home.continueLearning'),
         subtitle: t('home.continueLearningSubtitle'),
-        items: home.continueLearning.length > 0 ? home.continueLearning : courseItems
+        items:
+          home.continueLearning.length > 0
+            ? home.continueLearning.map((item) => localizeAsset(item, currentLang))
+            : courseItems
       },
       {
         id: 'all-courses',
@@ -1640,6 +1643,7 @@ export function PublicApp() {
     <main className="public-shell netflix-ui">
       <header className="public-topbar netflix-topbar">
         <button className="brand-btn" onClick={() => setView({ type: 'home' })}>
+          <span className="brand-name">Atlas</span>
           <span className="brand-suffix">University</span>
         </button>
         <nav className="public-nav">
@@ -2953,7 +2957,7 @@ export function PublicApp() {
                     </div>
                     <div className="enterprise-login-row">
                       <span>{t('enterprise.secureAccess')}</span>
-                      <a href="mailto:soporte@university.edu">{t('enterprise.needHelp')}</a>
+                      <a href="mailto:soporte@atlas.edu">{t('enterprise.needHelp')}</a>
                     </div>
                     <label className="auth-terms">
                       <input
@@ -3461,7 +3465,7 @@ export function PublicApp() {
               <h3>{t('legal.infoTitle')}</h3>
               <p>{t('legal.infoDesc')}</p>
               <p>{t('legal.contactDesc')}</p>
-              <a href="mailto:soporte@university.edu">soporte@university.edu</a>
+              <a href="mailto:soporte@atlas.edu">soporte@atlas.edu</a>
             </aside>
           </div>
         </section>
@@ -3472,13 +3476,13 @@ export function PublicApp() {
           <div className="footer-compliance-links">
             <button className="footer-link-btn" onClick={() => setView({ type: 'terms' })}>{t('footer.terms')}</button>
             <button className="footer-link-btn" onClick={() => setView({ type: 'privacy' })}>{t('footer.privacy')}</button>
-            <a className="footer-link-btn" href="mailto:ferpa@university.edu">{t('footer.ferpa')}</a>
-            <a className="footer-link-btn" href="mailto:titleix@university.edu">{t('footer.titleIx')}</a>
-            <a className="footer-link-btn" href="mailto:ada@university.edu">{t('footer.ada')}</a>
+            <a className="footer-link-btn" href="mailto:ferpa@atlas.edu">{t('footer.ferpa')}</a>
+            <a className="footer-link-btn" href="mailto:titleix@atlas.edu">{t('footer.titleIx')}</a>
+            <a className="footer-link-btn" href="mailto:ada@atlas.edu">{t('footer.ada')}</a>
           </div>
           <p className="footer-compliance-notice">
             {t('footer.complianceNotice')}{' '}
-            <a href="mailto:ferpa@university.edu">ferpa@university.edu</a>.
+            <a href="mailto:ferpa@atlas.edu">ferpa@atlas.edu</a>.
           </p>
         </div>
         <div className="footer-bottom">
