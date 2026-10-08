@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import sensible from '@fastify/sensible';
 import { z, ZodError } from 'zod';
-import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -81,6 +81,7 @@ import {
   listPublicCourseInteractions,
   listPublicCourseProgressByUser,
   getPlatformUsersByIds,
+  getActiveEnrolledCourseIds,
   listUserCourses,
   listMoodleCourses,
   listTenants,
@@ -155,6 +156,16 @@ type PublicAuthSession = {
   locale: string;
   createdAt: string;
   expiresAt: string;
+  /**
+   * Ficheros de Moodle que esta sesión puede pedir por el proxy.
+   *
+   * Se llena cuando el usuario carga legítimamente el contenido de un curso en
+   * el que está matriculado, y el proxy sólo sirve lo que esté aquí. Antes el
+   * proxy aceptaba cualquier ruta pluginfile.php del host de Moodle y le ponía
+   * el token de servicio: con una sesión de alumno se podían descargar las
+   * entregas de tareas de otros alumnos y áreas draftfile.php ajenas.
+   */
+  allowedFileUrls: Set<string>;
 };
 const publicSessions = new Map<string, PublicAuthSession>();
 const publicSessionTtlMinutes = Math.max(60, Number(process.env.PUBLIC_SESSION_TTL_MINUTES ?? 43200));
@@ -330,10 +341,71 @@ function createPublicSession(input: {
     fullName: input.fullName,
     locale: input.locale,
     createdAt: now.toISOString(),
-    expiresAt: expiresAt.toISOString()
+    expiresAt: expiresAt.toISOString(),
+    allowedFileUrls: new Set<string>()
   };
   publicSessions.set(token, session);
   return session;
+}
+
+/**
+ * Normaliza una URL de fichero de Moodle para compararla.
+ *
+ * El front reescribe el HTML del aula y puede añadir o quitar el parámetro
+ * `token`/`forcedownload`, así que la comparación tiene que hacerse sobre
+ * origen + ruta + el resto de la query, no sobre la cadena literal.
+ */
+function fileAccessKey(rawUrl: URL): string {
+  const copy = new URL(rawUrl.toString());
+  copy.searchParams.delete('token');
+  copy.searchParams.delete('forcedownload');
+  copy.hash = '';
+  return copy.toString();
+}
+
+/**
+ * Apunta en la sesión los ficheros que vienen dentro del contenido de un curso
+ * que el usuario sí puede ver, para que el proxy pueda servirlos después.
+ */
+function rememberCourseFiles(session: PublicAuthSession, sections: unknown): void {
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (!node || typeof node !== 'object') {
+      return;
+    }
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if ((key === 'fileurl' || key === 'url') && typeof value === 'string' && value.includes('://')) {
+        try {
+          session.allowedFileUrls.add(fileAccessKey(new URL(value)));
+        } catch {
+          // Una URL malformada en el contenido no debe tumbar la respuesta.
+        }
+        continue;
+      }
+      visit(value);
+    }
+  };
+  visit(sections);
+}
+
+/**
+ * Comparación de secretos en tiempo constante.
+ *
+ * `!==` corta en el primer byte distinto, así que el tiempo de respuesta filtra
+ * cuántos caracteres del principio acertó quien prueba. Con una ruta sin límite
+ * de intentos eso es explotable byte a byte.
+ */
+function secretEquals(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  // timingSafeEqual exige la misma longitud; comparar hashes la iguala sin
+  // revelar por la vía rápida si la longitud coincide.
+  const ha = createHash('sha256').update(a).digest();
+  const hb = createHash('sha256').update(b).digest();
+  return timingSafeEqual(ha, hb);
 }
 
 function getPublicSessionFromRequest(request: { headers: Record<string, unknown> }) {
@@ -535,7 +607,7 @@ async function buildMoodleCourseProgress(input: {
 function ensureAdmin(request: { headers: Record<string, unknown> }) {
   cleanExpiredAdminSessions();
   const apiKey = request.headers['x-admin-key'];
-  if (!apiKey || String(apiKey) !== config.admin.apiKey) {
+  if (!apiKey || !secretEquals(String(apiKey), config.admin.apiKey)) {
     const token = getBearerToken(request.headers);
     if (!token) {
       throw app.httpErrors.unauthorized('Missing admin credentials');
@@ -1657,11 +1729,23 @@ app.get('/v1/catalog/:slug', async (request, reply) => {
 });
 
 app.get('/v1/courses/:moodleCourseId/content', async (request, reply) => {
-  getPublicSessionFromRequest(request);
+  // Antes esta ruta llamaba a getPublicSessionFromRequest() y DESCARTABA el
+  // resultado: bastaba con estar registrado para leer el contenido íntegro de
+  // cualquier curso recorriendo el id. Eso es acceso a material de aula ajeno,
+  // y con FERPA de por medio no es un detalle.
+  const session = getPublicSessionFromRequest(request);
   const { moodleCourseId } = request.params as { moodleCourseId: string };
   const courseId = Number(moodleCourseId);
   if (!Number.isInteger(courseId) || courseId <= 0) {
     return reply.badRequest('Invalid moodleCourseId');
+  }
+
+  const enrolled = await getActiveEnrolledCourseIds(session.userId);
+  if (!enrolled.has(courseId)) {
+    // 403 y no 404: el curso existe y su ficha es pública; lo que falta es la
+    // matrícula. Decirlo con claridad evita que el front lo trate como un
+    // curso inexistente y lo saque del catálogo.
+    return reply.forbidden('No active enrollment for this course');
   }
 
   const result = await getMoodleCourseContents(courseId);
@@ -1674,6 +1758,10 @@ app.get('/v1/courses/:moodleCourseId/content', async (request, reply) => {
     };
   }
 
+  // El usuario tiene matrícula activa, así que los ficheros de este contenido
+  // quedan habilitados para su sesión y el proxy podrá servirlos.
+  rememberCourseFiles(session, result.data ?? []);
+
   return {
     moodleCourseId: courseId,
     available: true,
@@ -1684,7 +1772,7 @@ app.get('/v1/courses/:moodleCourseId/content', async (request, reply) => {
 app.get('/v1/moodle/file', async (request, reply) => {
   const query = request.query as { url?: string; authToken?: string };
   const bearerToken = getBearerToken(request.headers);
-  getPublicSessionByToken(query.authToken ?? bearerToken);
+  const session = getPublicSessionByToken(query.authToken ?? bearerToken);
   if (!query.url) {
     return reply.badRequest('Missing url query param');
   }
@@ -1714,6 +1802,15 @@ app.get('/v1/moodle/file', async (request, reply) => {
 
   if (!validMoodleFilePath) {
     return reply.badRequest('Invalid Moodle file path');
+  }
+
+  // Validar host y ruta no basta: con eso, cualquier sesión podía pedir
+  // cualquier fichero del almacén de Moodle —entregas de otros alumnos
+  // incluidas— porque a continuación se le añade el token de servicio, que es
+  // de administrador. El fichero tiene que venir del contenido de un curso que
+  // esta misma sesión haya cargado con matrícula activa.
+  if (!session.allowedFileUrls.has(fileAccessKey(targetUrl))) {
+    return reply.forbidden('File is not part of a course this session can access');
   }
 
   targetUrl.searchParams.set('token', moodle.token);

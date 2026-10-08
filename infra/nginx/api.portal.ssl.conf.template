@@ -60,7 +60,18 @@ server {
                      text/plain text/css text/xml text/javascript
                      application/vnd.api+json;
 
-    access_log /var/log/nginx/__API_HOST__.access.log;
+    # El formato 'combined' escribe la URI completa, y el proxy de ficheros de
+    # Moodle lleva el token de sesión del alumno en la query string
+    # (/v1/moodle/file?url=...&authToken=...), porque un <img src> no puede
+    # mandar cabeceras. Con 'combined' cada token acababa en texto claro en
+    # /var/log/nginx, legible por cualquiera con acceso al servidor y copiado
+    # a cualquier backup de logs. Este formato registra sólo el método y la
+    # ruta, que es lo que hace falta para diagnosticar.
+    log_format sin_query '$remote_addr - $remote_user [$time_local] '
+                         '"$request_method $uri $server_protocol" '
+                         '$status $body_bytes_sent "$http_referer" "$http_user_agent"';
+
+    access_log /var/log/nginx/__API_HOST__.access.log sin_query;
     error_log  /var/log/nginx/__API_HOST__.error.log warn;
 
     # Keep the renewal path reachable on 443 as well.

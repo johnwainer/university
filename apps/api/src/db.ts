@@ -323,6 +323,13 @@ async function createSchema(): Promise<void> {
     ALTER TABLE webinars ADD COLUMN IF NOT EXISTS webinar_links JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE webinars ADD COLUMN IF NOT EXISTS free_reservation_url TEXT;
     ALTER TABLE webinars ADD COLUMN IF NOT EXISTS vip_reservation_url TEXT;
+    -- Traducción al inglés. Nullable a propósito: el panel admin sigue
+    -- editando un solo idioma, y mientras no se rellene la API devuelve el
+    -- texto en español en vez de dejar la tarjeta en blanco.
+    ALTER TABLE webinars ADD COLUMN IF NOT EXISTS title_en TEXT;
+    ALTER TABLE webinars ADD COLUMN IF NOT EXISTS subtitle_en TEXT;
+    ALTER TABLE webinars ADD COLUMN IF NOT EXISTS description_en TEXT;
+    ALTER TABLE webinars ADD COLUMN IF NOT EXISTS cta_label_en TEXT;
 
     CREATE TABLE IF NOT EXISTS podcasts (
       id TEXT PRIMARY KEY,
@@ -339,6 +346,7 @@ async function createSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS podcasts_published_at_idx ON podcasts(published_at DESC);
     CREATE INDEX IF NOT EXISTS podcasts_active_idx ON podcasts(is_active, show_on_landing);
     ALTER TABLE podcasts ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE podcasts ADD COLUMN IF NOT EXISTS title_en TEXT;
 
     CREATE TABLE IF NOT EXISTS companies (
       id TEXT PRIMARY KEY,
@@ -2219,6 +2227,12 @@ export async function listWebinars(input?: {
         webinar_links,
         free_reservation_url,
         vip_reservation_url,
+        -- COALESCE y no el valor crudo: una traducción a medias no debe dejar
+        -- huecos vacíos en la portada en inglés.
+        COALESCE(title_en, title) AS title_en,
+        COALESCE(subtitle_en, subtitle) AS subtitle_en,
+        COALESCE(description_en, description) AS description_en,
+        COALESCE(cta_label_en, cta_label) AS cta_label_en,
         created_at,
         updated_at
       FROM webinars
@@ -2385,6 +2399,7 @@ export async function listPodcasts(input?: {
       SELECT
         id,
         title,
+        COALESCE(title_en, title) AS title_en,
         video_code,
         video_url,
         published_at,
@@ -2747,4 +2762,23 @@ export async function getCompanyUserProgress(companyId: string) {
     [companyId]
   );
   return result.rows;
+}
+
+/**
+ * Matrículas activas de un usuario, como conjunto de ids de curso de Moodle.
+ *
+ * Es la base de la comprobación de acceso al aula: `/v1/courses/:id/content` y
+ * el proxy de ficheros necesitan saber, antes de devolver nada, si el curso
+ * pertenece al solicitante. Devolver sólo los ids (y no las filas completas de
+ * listUserCourses) deja claro en el punto de uso que esto es una comprobación
+ * de autorización y no una consulta de presentación.
+ */
+export async function getActiveEnrolledCourseIds(userId: string): Promise<Set<number>> {
+  const result = await pool.query<{ moodle_course_id: string }>(
+    `SELECT moodle_course_id
+       FROM user_course_enrollments
+      WHERE user_id = $1 AND status = 'active'`,
+    [userId]
+  );
+  return new Set(result.rows.map((row) => Number(row.moodle_course_id)));
 }

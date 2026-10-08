@@ -11,6 +11,7 @@ import {
   isStripeConfigured,
   verifyAndParseWebhook
 } from '../../integrations/stripe.js';
+import { config } from '../../config.js';
 
 /**
  * Contexto inyectado por el orquestador al cablear las rutas del SIS.
@@ -499,7 +500,16 @@ export function registerSisRoutes(app: FastifyInstance, ctx: SisContext): void {
       if (result.configured) {
         throw app.httpErrors.badRequest(`Webhook signature verification failed: ${result.reason}`);
       }
-      // Sin secreto (dev): aceptamos el body parseado para poder probar.
+      // Sin secreto: en desarrollo se acepta el body parseado para poder
+      // probar la conciliación sin Stripe delante. En producción NO: esta ruta
+      // es pública y reconcileEvent marca facturas como pagadas y libera los
+      // bloqueos financieros del alumno, así que sin firma cualquiera podría
+      // saldar una matrícula con un POST.
+      if (config.isProduction) {
+        return reply
+          .status(503)
+          .send({ received: false, error: 'STRIPE_WEBHOOK_SECRET is not configured' });
+      }
       const devEvent = (request.body ?? {}) as {
         type?: string;
         data?: { object?: Record<string, unknown> };
