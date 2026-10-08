@@ -21,6 +21,8 @@ import { migrateCredentials } from './modules/credentials/schema.js';
 import { registerCredentialsRoutes } from './modules/credentials/routes.js';
 import { migrateCie } from './modules/cie/schema.js';
 import { registerCieRoutes } from './modules/cie/routes.js';
+import { migrateSitePages } from './modules/pages/schema.js';
+import { registerPagesRoutes } from './modules/pages/routes.js';
 import {
   createCompany,
   createPodcast,
@@ -277,6 +279,7 @@ await migrateSyllabus(pool);
 await migrateBackoffice(pool);
 await migrateCredentials(pool);
 await migrateCie(pool);
+await migrateSitePages(pool);
 
 async function loadPersistedMoodleConnection(): Promise<void> {
   const stored = await getIntegrationSetting<{ baseUrl?: string; token?: string }>('moodle.connection');
@@ -3878,6 +3881,7 @@ registerCredentialsRoutes(app, {
 // Etapa I — CIE Readiness: checklist documental, expedientes de faculty y
 // formulario de contacto público.
 registerCieRoutes(app, { pool, ensureAdmin });
+registerPagesRoutes(app, { pool, ensureAdmin });
 
 const port = config.server.port;
 const host = config.server.host;

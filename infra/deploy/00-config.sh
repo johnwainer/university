@@ -232,7 +232,7 @@ CACHE_CONTROL_NO_CACHE="${CACHE_CONTROL_NO_CACHE:-no-cache, no-store, must-reval
 # Publicar alias de rutas que no existen no rompe nada (devuelven el index),
 # pero omitir una real deja un 403 de S3 en el enlace directo y en el F5.
 # 'contact' y 'programas' quedan por compatibilidad con enlaces ya repartidos.
-SPA_FALLBACK_ROUTES="${SPA_FALLBACK_ROUTES:-admin terminos terminos-y-condiciones privacidad politica-de-privacidad contact programas}"
+SPA_FALLBACK_ROUTES="${SPA_FALLBACK_ROUTES:-admin about quienes-somos admissions admisiones terminos terminos-y-condiciones privacidad politica-de-privacidad ferpa title-ix titulo-ix accesibilidad accessibility contact programas}"
 
 # ---------------------------------------------------------------------------
 # SSM Parameter Store

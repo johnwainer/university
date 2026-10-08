@@ -511,3 +511,152 @@
     height: 130px;
   }
 }
+
+/* =========================================================================
+   Accesibilidad — WCAG 2.1 AA
+   =========================================================================
+   El contrato exige AA en la web pública (Cláusula 16). Lo que sigue corrige
+   los dos incumplimientos medibles que quedaban: contraste de texto y
+   visibilidad del foco. Va aquí y no en public.css porque esta hoja se carga
+   después y gana la cascada sin tener que tocar ocho reglas repartidas.
+   ========================================================================= */
+
+/* --- Contraste de los CTA primarios (1.4.3) -------------------------------
+   Todos los botones de acción se pintaban con texto blanco sobre el cian de
+   marca (#00cde8): 1.93:1, muy por debajo del 4.5:1 exigido. El cian es un
+   color claro, así que la tinta correcta es el azul profundo, no el blanco:
+   #081627 sobre #00cde8 da 9.44:1. */
+.public-nav .active,
+.hero-actions button,
+.go-course-btn,
+.webinar-card-actions a,
+.webinar-card-actions button,
+.file-btn.active,
+.interaction-actions button:first-child,
+.legal-switch button.active,
+.auth-switch button.active,
+.auth-submit {
+  color: var(--pcl-navy-900);
+}
+
+/* El ghost mantiene su fondo translúcido, así que su texto sigue siendo
+   blanco; la regla de arriba lo alcanzaba por compartir selector con
+   .hero-actions button. */
+.hero-actions .ghost-btn,
+.ghost-btn {
+  color: var(--pcl-white);
+}
+
+/* --- Foco visible (2.4.7 / 1.4.11) ----------------------------------------
+   Cuatro reglas hacían `outline: none` y lo sustituían por un box-shadow de
+   entre 1.11:1 y 1.35:1 contra su propio fondo: para quien navega con teclado,
+   el foco era invisible. El outline de marca da 8.50:1. */
+.catalog-filters select:focus,
+.catalog-filters input:focus,
+.profile-editor-form input:focus,
+.profile-editor-form select:focus,
+.profile-editor-form textarea:focus,
+.enterprise-input-label input:focus,
+.enterprise-input-label select:focus,
+.contact-field input:focus,
+.contact-field select:focus,
+.contact-field textarea:focus,
+.auth-modal input:focus,
+.webinar-card-actions a:focus-visible,
+.public-nav button:focus-visible,
+.footer-link-btn:focus-visible,
+.hero-actions button:focus-visible,
+.go-course-btn:focus-visible,
+.auth-submit:focus-visible,
+.back-link:focus-visible {
+  outline: 2px solid var(--pcl-cyan);
+  outline-offset: 2px;
+}
+
+/* --- Objetivo táctil de los puntos del carrusel --------------------------
+   11x11 px reales. Se mantiene el punto del mismo tamaño visual y se amplía
+   el área pulsable con padding, que es lo que cuenta para el objetivo. */
+.hero-dots button {
+  padding: 7px;
+  background-clip: content-box;
+  box-sizing: content-box;
+}
+
+/* --- Movimiento reducido --------------------------------------------------
+   El bloque de arriba sólo cubría la tarjeta y el punto de "en directo".
+   Faltaban la animación infinita del aviso de progreso y los desplazamientos
+   de hover del resto de superficies. */
+@media (prefers-reduced-motion: reduce) {
+  .victory-toast,
+  .content-row-scroll,
+  .my-course-card-wrap,
+  .webinar-card,
+  .catalog-tile {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .content-row-scroll:hover,
+  .my-course-card-wrap:hover,
+  .webinar-card:hover,
+  .catalog-tile:hover {
+    transform: none !important;
+  }
+}
+
+/* --- Enlace para saltar al contenido (2.4.1) ------------------------------
+   La barra superior repite una decena de controles en todas las vistas; sin
+   este enlace, quien navega con teclado o lector los recorre enteros en cada
+   página antes de llegar al contenido. */
+.skip-to-content {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 200;
+  padding: 10px 16px;
+  border-radius: 0 0 10px 10px;
+  background: var(--pcl-cyan);
+  color: var(--pcl-navy-900);
+  font-weight: 700;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+
+.skip-to-content:focus {
+  top: 0;
+  outline: 2px solid var(--pcl-white);
+  outline-offset: 2px;
+}
+
+/* Fecha de última actualización al pie de cada página institucional: una
+   política sin fecha no se puede auditar. */
+.legal-updated {
+  margin: 28px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--pcl-steel) 30%, transparent);
+  color: var(--pcl-steel);
+  font-size: 0.82rem;
+}
+
+.legal-content-prose h3 {
+  margin: 26px 0 8px;
+  font-size: 1.05rem;
+  color: var(--pcl-white);
+}
+
+.legal-content-prose p,
+.legal-content-prose li {
+  line-height: 1.65;
+  color: var(--pcl-ice);
+}
+
+.legal-content-prose ol,
+.legal-content-prose ul {
+  display: grid;
+  gap: 8px;
+  padding-left: 20px;
+}
+
+.legal-content-prose a {
+  color: var(--pcl-cyan);
+}

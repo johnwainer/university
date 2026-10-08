@@ -6,6 +6,7 @@ import {
   type CatalogContentDetailResponse,
   type PublicCourseInteractionRecord,
   type LegalPageResponse,
+  type SitePageSummary,
   type MoodleCourseContentResponse,
   type PublicCourseProgressRecord,
   type PublicMyCoursesResponse,
@@ -17,6 +18,7 @@ import {
 import type { ContentAsset, HomeResponse } from '@atlas/shared';
 import { EnterpriseGroupManager } from './EnterpriseGroupManager';
 import { BRAND_SHORT } from '../i18n';
+import { INSTITUTION_CONTACTS } from '../institution';
 import { StudentAcademics } from './StudentAcademics';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ContactSection } from './public/ContactSection';
@@ -34,8 +36,11 @@ type ViewState =
   | { type: 'profile' }
   | { type: 'enterprise' }
   | { type: 'contact' }
-  | { type: 'terms' }
-  | { type: 'privacy' };
+  // Una sola vista para todas las páginas institucionales (Quiénes somos,
+  // Admisiones, Términos, Privacidad, FERPA, Título IX, Accesibilidad). El
+  // contenido vive en la API y lo edita el panel, así que añadir una página
+  // más no toca este tipo.
+  | { type: 'page'; slug: string };
 
 type CourseModule = NonNullable<MoodleCourseContentResponse['sections'][number]['modules']>[number];
 
@@ -178,6 +183,42 @@ function toApiProgress(progress: CourseProgress) {
     lastActivityAt: progress.lastActivityAt ?? undefined
   };
 }
+
+/**
+ * Páginas institucionales que tienen URL propia.
+ *
+ * Son las rutas que el CDN sirve como alias del index (ver SPA_FALLBACK_ROUTES
+ * en infra/deploy/00-config.sh): si se añade una aquí hay que añadirla allí, o
+ * el enlace directo devuelve 403 de S3.
+ */
+const PAGE_PATH_BY_SLUG: Record<string, string> = {
+  about: '/about',
+  admissions: '/admissions',
+  terms: '/terminos',
+  privacy: '/privacidad',
+  ferpa: '/ferpa',
+  'title-ix': '/title-ix',
+  accessibility: '/accesibilidad'
+};
+
+const PAGE_SLUG_BY_PATH: Record<string, string> = {
+  '/about': 'about',
+  '/quienes-somos': 'about',
+  '/admissions': 'admissions',
+  '/admisiones': 'admissions',
+  '/terminos': 'terms',
+  '/terminos-y-condiciones': 'terms',
+  '/privacidad': 'privacy',
+  '/politica-de-privacidad': 'privacy',
+  '/ferpa': 'ferpa',
+  '/title-ix': 'title-ix',
+  '/titulo-ix': 'title-ix',
+  '/accesibilidad': 'accessibility',
+  '/accessibility': 'accessibility'
+};
+
+/** Las que van en el pie, en orden. El resto se enlazan desde el menú. */
+const FOOTER_PAGE_SLUGS = ['terms', 'privacy', 'ferpa', 'title-ix', 'accessibility'];
 
 function localizeAsset(item: ContentAsset, lang: string): ContentAsset {
   if (lang !== 'en' || !item.titleEn) {
@@ -596,8 +637,9 @@ export function PublicApp() {
   const [enterpriseCourseId, setEnterpriseCourseId] = useState('');
   const [podcastPreview, setPodcastPreview] = useState<{ title: string; embedUrl: string } | null>(null);
   const [progressByCourseId, setProgressByCourseId] = useState<Record<number, CourseProgress>>({});
-  const [legalTerms, setLegalTerms] = useState<LegalPageResponse | null>(null);
-  const [legalPrivacy, setLegalPrivacy] = useState<LegalPageResponse | null>(null);
+  // Caché por slug+idioma: la misma página en dos idiomas son dos documentos.
+  const [sitePages, setSitePages] = useState<Record<string, LegalPageResponse>>({});
+  const [pageIndex, setPageIndex] = useState<SitePageSummary[]>([]);
   const [loadingLegal, setLoadingLegal] = useState(false);
   const categorySectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const continueLearningRowRef = useRef<HTMLDivElement | null>(null);
@@ -606,13 +648,9 @@ export function PublicApp() {
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
 
   useEffect(() => {
-    const path = window.location.pathname;
-    if (path === '/terminos' || path === '/terminos-y-condiciones') {
-      setView({ type: 'terms' });
-      return;
-    }
-    if (path === '/privacidad' || path === '/politica-de-privacidad') {
-      setView({ type: 'privacy' });
+    const slug = PAGE_SLUG_BY_PATH[window.location.pathname];
+    if (slug) {
+      setView({ type: 'page', slug });
     }
   }, []);
 
@@ -648,15 +686,11 @@ export function PublicApp() {
 
   useEffect(() => {
     const updatePath = () => {
-      if (view.type === 'terms') {
-        window.history.replaceState(null, '', '/terminos');
+      if (view.type === 'page') {
+        window.history.replaceState(null, '', PAGE_PATH_BY_SLUG[view.slug] ?? `/${view.slug}`);
         return;
       }
-      if (view.type === 'privacy') {
-        window.history.replaceState(null, '', '/privacidad');
-        return;
-      }
-      if (window.location.pathname === '/terminos' || window.location.pathname === '/privacidad') {
+      if (PAGE_SLUG_BY_PATH[window.location.pathname]) {
         window.history.replaceState(null, '', '/');
       }
     };
@@ -830,30 +864,36 @@ export function PublicApp() {
   }, [publicSession?.token]);
 
   useEffect(() => {
-    if (view.type !== 'terms' && view.type !== 'privacy') {
+    // El índice alimenta los títulos del pie y del menú; se recarga al cambiar
+    // de idioma porque los títulos vienen ya traducidos de la API.
+    void api
+      .sitePages(currentLang)
+      .then(setPageIndex)
+      .catch(() => setPageIndex([]));
+  }, [currentLang]);
+
+  useEffect(() => {
+    if (view.type !== 'page') {
       return;
     }
-    const loadLegal = async () => {
+    const cacheKey = `${view.slug}:${currentLang}`;
+    if (sitePages[cacheKey]) {
+      return;
+    }
+    const loadPage = async () => {
       setLoadingLegal(true);
       setError(null);
       try {
-        if (view.type === 'terms') {
-          if (!legalTerms) {
-            const data = await api.legalTerms();
-            setLegalTerms(data);
-          }
-        } else if (!legalPrivacy) {
-          const data = await api.legalPrivacy();
-          setLegalPrivacy(data);
-        }
+        const data = await api.sitePage(view.slug, currentLang);
+        setSitePages((current) => ({ ...current, [cacheKey]: data }));
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'No se pudo cargar el contenido legal');
+        setError(reason instanceof Error ? reason.message : 'No se pudo cargar la página');
       } finally {
         setLoadingLegal(false);
       }
     };
-    void loadLegal();
-  }, [view, legalTerms, legalPrivacy]);
+    void loadPage();
+  }, [view, currentLang, sitePages]);
 
   useEffect(() => {
     const moodleCourseId = Number(selectedDetail?.content?.moodleCourseId);
@@ -1715,7 +1755,18 @@ export function PublicApp() {
     return <main className="public-shell">{t('nav.error')}: {error}</main>;
   }
 
-  const activeLegalDocument = view.type === 'terms' ? legalTerms : view.type === 'privacy' ? legalPrivacy : null;
+  /**
+   * Título de una página institucional para menús y pie.
+   *
+   * Usa el del índice que sirve la API cuando ya llegó (así el nombre lo
+   * controla quien edita la página) y cae a la traducción local mientras
+   * tanto, para que el pie no parpadee en blanco en la primera carga.
+   */
+  const pageTitle = (slug: string): string =>
+    pageIndex.find((page) => page.slug === slug)?.title ?? t(`pages.${slug}`);
+
+  const activeLegalDocument =
+    view.type === 'page' ? (sitePages[`${view.slug}:${currentLang}`] ?? null) : null;
   const nowMs = Date.now();
   const landingWebinars = webinars.filter((webinar) => webinar.is_active && webinar.show_on_landing);
   const landingPodcasts = podcasts.filter((podcast) => podcast.is_active && podcast.show_on_landing);
@@ -1748,6 +1799,11 @@ export function PublicApp() {
 
   return (
     <main className="public-shell netflix-ui">
+      {/* Primer elemento enfocable de la página: deja saltar la barra superior,
+          que repite una decena de controles en todas las vistas. */}
+      <a className="skip-to-content" href="#contenido-principal">
+        {t('nav.skipToContent')}
+      </a>
       <header className="public-topbar netflix-topbar">
         <button className="brand-btn" onClick={() => setView({ type: 'home' })}>
           <span className="brand-name">{BRAND_SHORT}</span>
@@ -1774,6 +1830,26 @@ export function PublicApp() {
               }}
             >
               {t('nav.catalog')}
+            </button>
+            <button
+              className={view.type === 'page' && view.slug === 'about' ? 'active' : ''}
+              onClick={() => {
+                setView({ type: 'page', slug: 'about' });
+                setMobileMenuOpen(false);
+                setSectionsMenuOpen(false);
+              }}
+            >
+              {t('nav.about')}
+            </button>
+            <button
+              className={view.type === 'page' && view.slug === 'admissions' ? 'active' : ''}
+              onClick={() => {
+                setView({ type: 'page', slug: 'admissions' });
+                setMobileMenuOpen(false);
+                setSectionsMenuOpen(false);
+              }}
+            >
+              {t('nav.admissions')}
             </button>
             <button
               className={view.type === 'contact' ? 'active' : ''}
@@ -1840,6 +1916,24 @@ export function PublicApp() {
                 }}
               >
                 {t('nav.catalog')}
+              </button>
+              <button
+                className={view.type === 'page' && view.slug === 'about' ? 'active' : ''}
+                onClick={() => {
+                  setView({ type: 'page', slug: 'about' });
+                  setMobileMenuOpen(false);
+                }}
+              >
+                {t('nav.about')}
+              </button>
+              <button
+                className={view.type === 'page' && view.slug === 'admissions' ? 'active' : ''}
+                onClick={() => {
+                  setView({ type: 'page', slug: 'admissions' });
+                  setMobileMenuOpen(false);
+                }}
+              >
+                {t('nav.admissions')}
               </button>
               <button
                 className={view.type === 'contact' ? 'active' : ''}
@@ -1940,7 +2034,15 @@ export function PublicApp() {
         </nav>
       </header>
 
-      {error ? <p className="public-error">{error}</p> : null}
+      {/* role="alert" para que el lector anuncie el fallo: antes era un párrafo
+          que aparecía en silencio. */}
+      {error ? (
+        <p className="public-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      <div id="contenido-principal" tabIndex={-1} />
 
       {view.type === 'home' ? (
         <>
@@ -1967,9 +2069,19 @@ export function PublicApp() {
                     {t('hero.exploreCatalog')}
                   </button>
                 </div>
-                <div className="hero-dots">
-                  {heroItems.map((_, index) => (
-                    <button key={index} className={heroIndex === index ? 'active' : ''} onClick={() => setHeroIndex(index)} />
+                {/* Eran N botones vacíos: para un lector de pantalla, N
+                    controles sin etiqueta y sin forma de saber cuál está
+                    activo. */}
+                <div className="hero-dots" role="tablist" aria-label={t('hero.slidesLabel')}>
+                  {heroItems.map((item, index) => (
+                    <button
+                      key={item.id}
+                      role="tab"
+                      className={heroIndex === index ? 'active' : ''}
+                      aria-selected={heroIndex === index}
+                      aria-label={t('hero.goToSlide', { n: index + 1, total: heroItems.length })}
+                      onClick={() => setHeroIndex(index)}
+                    />
                   ))}
                 </div>
               </div>
@@ -2250,6 +2362,7 @@ export function PublicApp() {
               <input
                 className="search-input catalog-search-input"
                 placeholder={t('catalog.search')}
+                  aria-label={t('catalog.search')}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -2991,6 +3104,7 @@ export function PublicApp() {
                       {t('enterprise.fullName')}
                       <input
                         placeholder={t('auth.fullNamePlaceholder')}
+                  aria-label={t('auth.fullNamePlaceholder')}
                         value={registerForm.fullName}
                         onChange={(event) => setRegisterForm((current) => ({ ...current, fullName: event.target.value }))}
                         required
@@ -3001,6 +3115,7 @@ export function PublicApp() {
                       <input
                         type="email"
                         placeholder={t('enterprise.emailPlaceholder')}
+                  aria-label={t('enterprise.emailPlaceholder')}
                         value={registerForm.email}
                         onChange={(event) => setRegisterForm((current) => ({ ...current, email: event.target.value }))}
                         autoComplete="email"
@@ -3012,6 +3127,7 @@ export function PublicApp() {
                       <input
                         type={showRegisterPassword ? 'text' : 'password'}
                         placeholder={t('auth.password')}
+                  aria-label={t('auth.password')}
                         value={registerForm.password}
                         onChange={(event) => setRegisterForm((current) => ({ ...current, password: event.target.value }))}
                         autoComplete="new-password"
@@ -3057,6 +3173,7 @@ export function PublicApp() {
                       <input
                         type={showRegisterConfirmPassword ? 'text' : 'password'}
                         placeholder={t('auth.confirmPassword')}
+                  aria-label={t('auth.confirmPassword')}
                         value={registerForm.confirmPassword}
                         onChange={(event) =>
                           setRegisterForm((current) => ({ ...current, confirmPassword: event.target.value }))
@@ -3104,6 +3221,7 @@ export function PublicApp() {
                       <input
                         type="email"
                         placeholder={t('enterprise.emailPlaceholder')}
+                  aria-label={t('enterprise.emailPlaceholder')}
                         value={loginForm.email}
                         onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
                         autoComplete="email"
@@ -3115,6 +3233,7 @@ export function PublicApp() {
                       <input
                         type={showLoginPassword ? 'text' : 'password'}
                         placeholder={t('auth.password')}
+                  aria-label={t('auth.password')}
                         value={loginForm.password}
                         onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
                         autoComplete="current-password"
@@ -3132,7 +3251,7 @@ export function PublicApp() {
                     </div>
                     <div className="enterprise-login-row">
                       <span>{t('enterprise.secureAccess')}</span>
-                      <a href="mailto:soporte@atlas.edu">{t('enterprise.needHelp')}</a>
+                      <a href={`mailto:${INSTITUTION_CONTACTS.general}`}>{t('enterprise.needHelp')}</a>
                     </div>
                     <label className="auth-terms">
                       <input
@@ -3470,6 +3589,7 @@ export function PublicApp() {
               <form className="auth-form" onSubmit={onRegister}>
                 <input
                   placeholder={t('auth.fullName')}
+                  aria-label={t('auth.fullName')}
                   value={registerForm.fullName}
                   onChange={(event) => setRegisterForm((current) => ({ ...current, fullName: event.target.value }))}
                   required
@@ -3477,6 +3597,7 @@ export function PublicApp() {
                 <input
                   type="email"
                   placeholder={t('auth.email')}
+                  aria-label={t('auth.email')}
                   value={registerForm.email}
                   onChange={(event) => setRegisterForm((current) => ({ ...current, email: event.target.value }))}
                   autoComplete="email"
@@ -3487,6 +3608,7 @@ export function PublicApp() {
                   <input
                     type={showRegisterPassword ? 'text' : 'password'}
                     placeholder={t('auth.password')}
+                  aria-label={t('auth.password')}
                     value={registerForm.password}
                     onChange={(event) => setRegisterForm((current) => ({ ...current, password: event.target.value }))}
                     autoComplete="new-password"
@@ -3522,6 +3644,7 @@ export function PublicApp() {
                   <input
                     type={showRegisterConfirmPassword ? 'text' : 'password'}
                     placeholder={t('auth.confirmPassword')}
+                  aria-label={t('auth.confirmPassword')}
                     value={registerForm.confirmPassword}
                     onChange={(event) => setRegisterForm((current) => ({ ...current, confirmPassword: event.target.value }))}
                     autoComplete="new-password"
@@ -3558,6 +3681,7 @@ export function PublicApp() {
                 <input
                   type="email"
                   placeholder={t('auth.email')}
+                  aria-label={t('auth.email')}
                   value={loginForm.email}
                   onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
                   autoComplete="email"
@@ -3568,6 +3692,7 @@ export function PublicApp() {
                   <input
                     type={showLoginPassword ? 'text' : 'password'}
                     placeholder={t('auth.password')}
+                  aria-label={t('auth.password')}
                     value={loginForm.password}
                     onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
                     autoComplete="current-password"
@@ -3612,44 +3737,56 @@ export function PublicApp() {
         </section>
       ) : null}
 
-      {(view.type === 'terms' || view.type === 'privacy') ? (
+      {view.type === 'page' ? (
         <section className="section-block legal-block">
           <div className="legal-hero">
             <button className="back-link legal-back-btn" onClick={() => setView({ type: 'home' })}>
               {t('legal.back')}
             </button>
-            <h1>{t('legal.title')}</h1>
-            <div className="legal-switch">
-              <button
-                className={view.type === 'terms' ? 'active' : ''}
-                onClick={() => setView({ type: 'terms' })}
-              >
-                {t('legal.terms')}
-              </button>
-              <button
-                className={view.type === 'privacy' ? 'active' : ''}
-                onClick={() => setView({ type: 'privacy' })}
-              >
-                {t('legal.privacy')}
-              </button>
-            </div>
+            <h1>{activeLegalDocument?.title ?? t('legal.title')}</h1>
+            {/* El conmutador sólo tiene sentido entre las políticas; en
+                Quiénes somos o Admisiones sería un menú fuera de lugar. */}
+            {FOOTER_PAGE_SLUGS.includes(view.slug) ? (
+              <div className="legal-switch">
+                {FOOTER_PAGE_SLUGS.map((slug) => (
+                  <button
+                    key={slug}
+                    className={view.slug === slug ? 'active' : ''}
+                    aria-current={view.slug === slug ? 'page' : undefined}
+                    onClick={() => setView({ type: 'page', slug })}
+                  >
+                    {pageTitle(slug)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="legal-layout">
             <article className="legal-content-card">
               {loadingLegal ? <p>{t('legal.loadingContent')}</p> : null}
               {!loadingLegal && activeLegalDocument ? (
-                <>
-                  <h2 dangerouslySetInnerHTML={{ __html: activeLegalDocument.title }} />
-                  <div className="legal-content-prose moodle-html" dangerouslySetInnerHTML={{ __html: activeLegalDocument.html }} />
-                </>
+                <div
+                  className="legal-content-prose moodle-html"
+                  dangerouslySetInnerHTML={{ __html: activeLegalDocument.html }}
+                />
+              ) : null}
+              {!loadingLegal && activeLegalDocument ? (
+                <p className="legal-updated">
+                  {t('legal.updatedAt', {
+                    date: new Date(activeLegalDocument.updatedAt).toLocaleDateString(
+                      currentLang === 'en' ? 'en-US' : 'es-ES',
+                      { year: 'numeric', month: 'long', day: 'numeric' }
+                    )
+                  })}
+                </p>
               ) : null}
             </article>
             <aside className="legal-side-card">
-              <h3>{t('legal.infoTitle')}</h3>
+              <h2>{t('legal.infoTitle')}</h2>
               <p>{t('legal.infoDesc')}</p>
               <p>{t('legal.contactDesc')}</p>
-              <a href="mailto:soporte@atlas.edu">soporte@atlas.edu</a>
+              <a href={`mailto:${INSTITUTION_CONTACTS.general}`}>{INSTITUTION_CONTACTS.general}</a>
             </aside>
           </div>
         </section>
@@ -3657,16 +3794,30 @@ export function PublicApp() {
 
       <footer className="public-footer">
         <div className="footer-compliance">
-          <div className="footer-compliance-links">
-            <button className="footer-link-btn" onClick={() => setView({ type: 'terms' })}>{t('footer.terms')}</button>
-            <button className="footer-link-btn" onClick={() => setView({ type: 'privacy' })}>{t('footer.privacy')}</button>
-            <a className="footer-link-btn" href="mailto:ferpa@atlas.edu">{t('footer.ferpa')}</a>
-            <a className="footer-link-btn" href="mailto:titleix@atlas.edu">{t('footer.titleIx')}</a>
-            <a className="footer-link-btn" href="mailto:ada@atlas.edu">{t('footer.ada')}</a>
-          </div>
+          {/* Antes eran tres enlaces mailto a atlas.edu —un dominio heredado
+              de la plantilla— en lugar de las políticas que exige el contrato.
+              Ahora son páginas reales, servidas por la API y editables desde
+              el panel. */}
+          <nav className="footer-compliance-links" aria-label={t('footer.policies')}>
+            <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'about' })}>
+              {t('nav.about')}
+            </button>
+            <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'admissions' })}>
+              {t('nav.admissions')}
+            </button>
+            {FOOTER_PAGE_SLUGS.map((slug) => (
+              <button
+                key={slug}
+                className="footer-link-btn"
+                onClick={() => setView({ type: 'page', slug })}
+              >
+                {pageTitle(slug)}
+              </button>
+            ))}
+          </nav>
           <p className="footer-compliance-notice">
             {t('footer.complianceNotice')}{' '}
-            <a href="mailto:ferpa@atlas.edu">ferpa@atlas.edu</a>.
+            <a href={`mailto:${INSTITUTION_CONTACTS.ferpa}`}>{INSTITUTION_CONTACTS.ferpa}</a>.
           </p>
         </div>
         <div className="footer-bottom">

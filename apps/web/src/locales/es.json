@@ -19,12 +19,17 @@
     "refresh": "Actualizar",
     "sections": "Secciones",
     "academics": "Mi Universidad",
-    "contact": "Contacto"
+    "contact": "Contacto",
+    "skipToContent": "Saltar al contenido",
+    "about": "Quiénes somos",
+    "admissions": "Admisiones"
   },
   "hero": {
     "enterCourse": "Entrar al curso",
     "watchNow": "Ver ahora",
-    "exploreCatalog": "Explorar oferta académica"
+    "exploreCatalog": "Explorar oferta académica",
+    "slidesLabel": "Programas destacados",
+    "goToSlide": "Ver el programa destacado {{n}} de {{total}}"
   },
   "home": {
     "myCourses": "Mis cursos",
@@ -321,7 +326,8 @@
     "infoDesc": "Este contenido aplica al uso de {{brandShort}}.",
     "contactDesc": "Para dudas legales o solicitudes de datos personales:",
     "terms": "Términos y Condiciones",
-    "privacy": "Política de Privacidad"
+    "privacy": "Política de Privacidad",
+    "updatedAt": "Última actualización: {{date}}"
   },
   "footer": {
     "terms": "Términos y Condiciones",
@@ -330,7 +336,8 @@
     "titleIx": "Título IX",
     "ada": "Accesibilidad (ADA)",
     "complianceNotice": "{{brand}} está comprometida con el cumplimiento de la Ley FERPA, el Título IX, la ADA/Section 504 (WCAG 2.1 AA) y la COPPA. Para ejercer sus derechos sobre registros académicos, contacte a nuestro oficial FERPA en",
-    "copyright": "© {{year}} {{brand}}. Todos los derechos reservados."
+    "copyright": "© {{year}} {{brand}}. Todos los derechos reservados.",
+    "policies": "Políticas y avisos"
   },
   "errors": {
     "generic": "Ocurrió un error. Intenta de nuevo.",
@@ -466,5 +473,14 @@
       "body": "Gracias por escribirnos. Un asesor académico te responderá al correo que nos dejaste.",
       "again": "Enviar otro mensaje"
     }
+  },
+  "pages": {
+    "about": "Quiénes somos",
+    "admissions": "Admisiones",
+    "terms": "Términos y condiciones",
+    "privacy": "Política de privacidad",
+    "ferpa": "Aviso FERPA",
+    "title-ix": "Título IX",
+    "accessibility": "Accesibilidad"
   }
 }

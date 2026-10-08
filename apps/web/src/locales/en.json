@@ -19,12 +19,17 @@
     "refresh": "Refresh",
     "sections": "Sections",
     "academics": "My University",
-    "contact": "Contact"
+    "contact": "Contact",
+    "skipToContent": "Skip to content",
+    "about": "About",
+    "admissions": "Admissions"
   },
   "hero": {
     "enterCourse": "Enter Course",
     "watchNow": "Watch Now",
-    "exploreCatalog": "Explore Academic Catalog"
+    "exploreCatalog": "Explore Academic Catalog",
+    "slidesLabel": "Featured programs",
+    "goToSlide": "Show featured program {{n}} of {{total}}"
   },
   "home": {
     "myCourses": "My Courses",
@@ -321,7 +326,8 @@
     "infoDesc": "This content applies to the use of {{brandShort}}.",
     "contactDesc": "For legal questions or personal data requests:",
     "terms": "Terms and Conditions",
-    "privacy": "Privacy Policy"
+    "privacy": "Privacy Policy",
+    "updatedAt": "Last updated: {{date}}"
   },
   "footer": {
     "terms": "Terms & Conditions",
@@ -330,7 +336,8 @@
     "titleIx": "Title IX",
     "ada": "Accessibility (ADA)",
     "complianceNotice": "{{brand}} is committed to compliance with FERPA, Title IX, ADA/Section 504 (WCAG 2.1 AA) and COPPA. To exercise your rights over academic records, contact our FERPA officer at",
-    "copyright": "© {{year}} {{brand}}. All rights reserved."
+    "copyright": "© {{year}} {{brand}}. All rights reserved.",
+    "policies": "Policies and notices"
   },
   "errors": {
     "generic": "An error occurred. Please try again.",
@@ -466,5 +473,14 @@
       "body": "Thanks for writing. An academic advisor will reply to the address you gave us.",
       "again": "Send another message"
     }
+  },
+  "pages": {
+    "about": "About us",
+    "admissions": "Admissions",
+    "terms": "Terms and Conditions",
+    "privacy": "Privacy Policy",
+    "ferpa": "FERPA Notice",
+    "title-ix": "Title IX",
+    "accessibility": "Accessibility"
   }
 }

@@ -368,12 +368,16 @@ export type PublicMyCoursesResponse = {
 
 
 export type LegalPageResponse = {
-  id: number;
   slug: string;
+  locale: 'es' | 'en';
   title: string;
   html: string;
-  modifiedAt: string | null;
-  sourceUrl: string | null;
+  updatedAt: string;
+};
+
+export type SitePageSummary = {
+  slug: string;
+  title: string;
 };
 
 export type WebinarRecord = {
@@ -974,8 +978,12 @@ export const api = {
   offers: () => fetchJson<Offer[]>('/v1/offers'),
   entitlements: () => fetchJson<Entitlement[]>('/v1/entitlements'),
   blueprint: () => fetchJson<PlatformBlueprintResponse>('/v1/blueprint'),
-  legalTerms: () => fetchJson<LegalPageResponse>('/v1/legal/terms'),
-  legalPrivacy: () => fetchJson<LegalPageResponse>('/v1/legal/privacy'),
+  sitePages: (locale: 'es' | 'en') =>
+    fetchJson<SitePageSummary[]>(`/v1/pages?locale=${encodeURIComponent(locale)}`),
+  sitePage: (slug: string, locale: 'es' | 'en') =>
+    fetchJson<LegalPageResponse>(
+      `/v1/pages/${encodeURIComponent(slug)}?locale=${encodeURIComponent(locale)}`
+    ),
   admin: {
     login: (email: string, password: string) =>
       fetchJson<AdminSession>('/admin/auth/login', {
