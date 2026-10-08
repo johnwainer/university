@@ -15,8 +15,18 @@ import en from './locales/en.json';
  * Debe coincidir con INSTITUTION_NAME de la API, que es la fuente de verdad
  * del lado servidor.
  */
-export const BRAND = import.meta.env.VITE_INSTITUTION_NAME ?? 'Atlas Online University';
-export const BRAND_SHORT = import.meta.env.VITE_INSTITUTION_SHORT_NAME ?? BRAND.split(' ')[0];
+export const BRAND = import.meta.env.VITE_INSTITUTION_NAME ?? 'The Floridian University';
+/*
+ * El corto NO se deriva partiendo el nombre por el primer espacio: en "The
+ * Floridian University" eso daba "The". El despliegue vigente es TFU, así que
+ * ese es el valor por defecto, y cualquier otra institución lo fija por
+ * entorno igual que el nombre largo.
+ *
+ * El valor anterior, "Atlas Online University", venía de la plantilla y
+ * llegaba al sitio en producción: el pie decía «© 2026 Atlas Online
+ * University» y el aviso de cumplimiento nombraba a Atlas.
+ */
+export const BRAND_SHORT = import.meta.env.VITE_INSTITUTION_SHORT_NAME ?? 'TFU';
 
 i18n
   .use(LanguageDetector)

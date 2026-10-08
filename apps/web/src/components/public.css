@@ -272,7 +272,7 @@
   padding: 0 8px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(80, 40, 198, 0.25) 0%, rgba(255, 255, 255, 0.06) 100%);
+  background: linear-gradient(135deg, rgba(22, 50, 79, 0.25) 0%, rgba(255, 255, 255, 0.06) 100%);
   color: #fff;
   cursor: pointer;
   display: inline-flex;
@@ -289,7 +289,7 @@
 
 .profile-icon-btn:hover {
   border-color: rgba(255, 255, 255, 0.34);
-  background: linear-gradient(135deg, rgba(80, 40, 198, 0.4) 0%, rgba(255, 255, 255, 0.1) 100%);
+  background: linear-gradient(135deg, rgba(22, 50, 79, 0.4) 0%, rgba(255, 255, 255, 0.1) 100%);
   transform: translateY(-1px);
 }
 
@@ -307,7 +307,7 @@
 }
 
 .profile-avatar.user {
-  background: linear-gradient(145deg, #6b46d9 0%, #5028c6 100%);
+  background: linear-gradient(145deg, var(--pcl-navy-600) 0%, var(--pcl-navy-800) 100%);
   color: #fff;
 }
 
@@ -619,7 +619,7 @@
   text-decoration: none;
   font-weight: 700;
   font-size: 0.82rem;
-  box-shadow: 0 10px 20px rgba(80, 40, 198, 0.28);
+  box-shadow: 0 10px 20px rgba(45, 196, 199, 0.28);
 }
 
 .webinar-card-actions button {
@@ -631,7 +631,7 @@
   text-decoration: none;
   font-weight: 700;
   font-size: 0.82rem;
-  box-shadow: 0 10px 20px rgba(80, 40, 198, 0.28);
+  box-shadow: 0 10px 20px rgba(45, 196, 199, 0.28);
   cursor: pointer;
 }
 
@@ -748,7 +748,7 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   padding: 14px;
-  background: linear-gradient(130deg, rgba(80, 40, 198, 0.14) 0%, rgba(17, 17, 17, 0.95) 45%, rgba(11, 11, 11, 0.95) 100%);
+  background: linear-gradient(130deg, rgba(22, 50, 79, 0.14) 0%, rgba(17, 17, 17, 0.95) 45%, rgba(11, 11, 11, 0.95) 100%);
 }
 
 .my-courses-empty {
@@ -795,7 +795,7 @@
 .promo-more-courses {
   border: 1px solid rgba(255, 255, 255, 0.22);
   background:
-    radial-gradient(circle at 20% 20%, rgba(80, 40, 198, 0.35), transparent 55%),
+    radial-gradient(circle at 20% 20%, rgba(22, 50, 79, 0.35), transparent 55%),
     linear-gradient(135deg, #171717 0%, #0f0f12 100%);
   min-height: 240px;
 }
@@ -943,7 +943,7 @@
   margin-top: 10px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px;
-  background: linear-gradient(140deg, rgba(80, 40, 198, 0.12) 0%, rgba(20, 20, 22, 0.98) 48%, rgba(14, 14, 16, 0.98) 100%);
+  background: linear-gradient(140deg, rgba(22, 50, 79, 0.12) 0%, rgba(20, 20, 22, 0.98) 48%, rgba(14, 14, 16, 0.98) 100%);
   padding: 12px;
   display: flex;
   align-items: end;
@@ -1000,8 +1000,8 @@
 
 .catalog-filters select:focus {
   outline: none;
-  border-color: rgba(80, 40, 198, 0.95);
-  box-shadow: 0 0 0 3px rgba(80, 40, 198, 0.22);
+  border-color: rgba(45, 196, 199, 0.95);
+  box-shadow: 0 0 0 3px rgba(45, 196, 199, 0.22);
 }
 
 .catalog-clear-btn {
@@ -1253,7 +1253,7 @@
 
 .progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #5028c6 0%, #84cc16 100%);
+  background: linear-gradient(90deg, var(--pcl-cyan) 0%, var(--pcl-gold) 100%);
 }
 
 .progress-bar-track-modern {
@@ -1392,7 +1392,7 @@
 }
 
 .module-headline-modern {
-  background: linear-gradient(130deg, rgba(80, 40, 198, 0.16) 0%, rgba(18, 18, 18, 0.96) 72%);
+  background: linear-gradient(130deg, rgba(22, 50, 79, 0.16) 0%, rgba(18, 18, 18, 0.96) 72%);
 }
 
 .module-kicker {
@@ -1544,7 +1544,7 @@
 .completion-inline-btn {
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
-  background: rgba(80, 40, 198, 0.85);
+  background: rgba(22, 50, 79, 0.85);
   color: #fff;
   padding: 7px 11px;
   font-weight: 700;
@@ -1780,7 +1780,7 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 18px;
   padding: 20px;
-  background: linear-gradient(130deg, rgba(80, 40, 198, 0.22) 0%, rgba(17, 17, 17, 0.7) 56%, rgba(9, 9, 9, 0.95) 100%);
+  background: linear-gradient(130deg, rgba(22, 50, 79, 0.22) 0%, rgba(17, 17, 17, 0.7) 56%, rgba(9, 9, 9, 0.95) 100%);
   display: grid;
   gap: 10px;
 }
@@ -1900,9 +1900,9 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 20px;
   background:
-    radial-gradient(circle at 14% 0%, rgba(80, 40, 198, 0.28), transparent 42%),
+    radial-gradient(circle at 14% 0%, rgba(22, 50, 79, 0.28), transparent 42%),
     radial-gradient(circle at 84% 100%, rgba(56, 189, 248, 0.18), transparent 38%),
-    linear-gradient(180deg, #121726 0%, #0a0d17 100%);
+    linear-gradient(180deg, var(--pcl-navy-800) 0%, var(--pcl-navy-900) 100%);
   overflow: hidden;
   box-shadow: 0 24px 50px rgba(0, 0, 0, 0.35);
 }
@@ -1931,7 +1931,7 @@
   padding: 16px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px;
-  background: linear-gradient(135deg, rgba(80, 40, 198, 0.26) 0%, rgba(20, 20, 30, 0.86) 62%);
+  background: linear-gradient(135deg, var(--pcl-navy-700) 0%, var(--pcl-navy-900) 72%);
 }
 
 .footer-kicker {
@@ -1939,7 +1939,7 @@
   font-size: 0.74rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #ddd6fe;
+  color: var(--pcl-cyan-100);
 }
 
 .footer-title {
@@ -1952,7 +1952,7 @@
 
 .footer-description {
   margin: 4px 0 0;
-  color: #d6d8e3;
+  color: var(--pcl-ice);
   line-height: 1.45;
 }
 
@@ -2095,7 +2095,7 @@
 
 .profile-modern {
   background:
-    radial-gradient(circle at 8% 0%, rgba(80, 40, 198, 0.2), transparent 28%),
+    radial-gradient(circle at 8% 0%, rgba(22, 50, 79, 0.2), transparent 28%),
     linear-gradient(180deg, #111 0%, #0d0d0e 100%);
 }
 
@@ -2109,7 +2109,7 @@
 .profile-summary-card {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
-  background: linear-gradient(130deg, rgba(80, 40, 198, 0.18) 0%, rgba(17, 17, 17, 0.95) 72%);
+  background: linear-gradient(130deg, rgba(22, 50, 79, 0.18) 0%, rgba(17, 17, 17, 0.95) 72%);
   padding: 14px;
   display: grid;
   gap: 4px;
@@ -2201,7 +2201,7 @@
 
 .profile-editor-block {
   background:
-    radial-gradient(circle at 92% 0%, rgba(80, 40, 198, 0.2), transparent 30%),
+    radial-gradient(circle at 92% 0%, rgba(22, 50, 79, 0.2), transparent 30%),
     linear-gradient(180deg, #121214 0%, #0d0d0f 100%);
 }
 
@@ -2232,8 +2232,8 @@
 .profile-editor-form input:focus,
 .profile-editor-form select:focus {
   outline: none;
-  border-color: rgba(80, 40, 198, 0.9);
-  box-shadow: 0 0 0 3px rgba(80, 40, 198, 0.2);
+  border-color: rgba(45, 196, 199, 0.9);
+  box-shadow: 0 0 0 3px rgba(45, 196, 199, 0.2);
 }
 
 .profile-editor-actions {
@@ -2599,7 +2599,7 @@
 
   .mobile-menu-sheet button.active {
     border-color: var(--accent);
-    background: rgba(80, 40, 198, 0.3);
+    background: rgba(22, 50, 79, 0.3);
   }
 }
 
@@ -2966,7 +2966,7 @@
 .featured-enterprise-btn {
   border: 1px solid rgba(255, 255, 255, 0.24);
   color: #f5f7ff;
-  background: linear-gradient(120deg, rgba(80, 40, 198, 0.22), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(120deg, rgba(22, 50, 79, 0.22), rgba(255, 255, 255, 0.04));
 }
 
 .featured-enterprise-btn .featured-star {
@@ -3122,7 +3122,7 @@
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background:
-    radial-gradient(300px 120px at 95% -20%, rgba(80, 40, 198, 0.28), transparent 65%),
+    radial-gradient(300px 120px at 95% -20%, rgba(22, 50, 79, 0.28), transparent 65%),
     linear-gradient(170deg, rgba(13, 21, 35, 0.9), rgba(11, 16, 29, 0.74));
   padding: 16px;
   min-height: 148px;
@@ -3296,7 +3296,7 @@
 .enterprise-dashboard-mock .mock-bars i {
   height: 7px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(80, 40, 198, 0.92), rgba(120, 192, 255, 0.96));
+  background: linear-gradient(90deg, rgba(22, 50, 79, 0.92), rgba(120, 192, 255, 0.96));
   display: block;
 }
 
@@ -3979,4 +3979,616 @@
   .contact-section {
     padding: 20px 16px;
   }
+}
+
+/* =========================================================================
+   Cabecera The Floridian University
+   =========================================================================
+   Dos bandas, como el mockup de web del manual de marca (§05) y el sitio
+   corporativo hermano:
+
+     · banda utilitaria  correo, empresas, contacto, idioma y cuenta
+     · banda principal   lockup de marca, navegación académica y «Postular»
+
+   La anterior era una sola fila flotante con esquinas redondeadas y diez
+   controles compitiendo por 56 píxeles: el lockup se montaba sobre el
+   selector de idioma por debajo de 560px. Separar lo utilitario de lo
+   académico es lo que da aire a la navegación.
+
+   La cabecera es pegajosa y de ancho completo. El contenedor interno se
+   limita a 1280px para que en pantallas anchas la navegación no se estire
+   hasta los bordes, que es lo que hace que un sitio parezca una hoja de
+   cálculo.
+   ========================================================================= */
+.tfu-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0 -14px 0;
+  background: var(--pcl-navy-800);
+  border-bottom: 1px solid rgba(45, 196, 199, 0.35);
+}
+
+/* --- banda utilitaria ---------------------------------------------------- */
+.tfu-utility {
+  background: var(--pcl-navy-900);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.tfu-utility-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  min-height: var(--tfu-utility-h);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+}
+
+.tfu-utility-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--pcl-ice);
+  text-decoration: none;
+  letter-spacing: 0.01em;
+}
+
+.tfu-utility-link:hover {
+  color: var(--pcl-cyan);
+}
+
+.tfu-utility-link:focus-visible,
+.tfu-nav-link:focus-visible,
+.tfu-apply:focus-visible,
+.tfu-brand:focus-visible,
+.tfu-burger:focus-visible {
+  outline: 3px solid var(--pcl-cyan);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* --- banda principal ----------------------------------------------------- */
+.tfu-main-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  min-height: var(--tfu-nav-h);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.tfu-brand {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.tfu-lockup {
+  height: 42px;
+  width: auto;
+  display: block;
+}
+
+.tfu-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* Mayúsculas espaciadas, como el mockup. El subrayado activo es cian y vive
+   en un pseudoelemento para que no desplace el texto al aparecer. */
+.tfu-nav-link {
+  position: relative;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--pcl-font-body);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pcl-white);
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.tfu-nav-link::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 2px;
+  height: 2px;
+  background: var(--pcl-cyan);
+  transform: scaleX(0);
+  transition: transform 0.18s ease;
+}
+
+.tfu-nav-link:hover::after,
+.tfu-nav-link.active::after {
+  transform: scaleX(1);
+}
+
+.tfu-nav-link.active {
+  color: var(--pcl-cyan-100);
+}
+
+/* Botón de acción: cian sólido con tinta oscura. La tinta es el azul
+   institucional y no blanco porque sobre #2DC4C7 el blanco da 2.14:1 y no
+   pasa AA; con #0B203A el contraste medido es 7.67:1. */
+.tfu-apply {
+  flex: 0 0 auto;
+  background: var(--pcl-cyan);
+  color: var(--pcl-navy-900);
+  border: 0;
+  border-radius: 4px;
+  padding: 12px 20px;
+  font-family: var(--pcl-font-body);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.18s ease;
+  white-space: nowrap;
+}
+
+.tfu-apply:hover {
+  background: var(--pcl-cyan-100);
+}
+
+/* --- menú de móvil ------------------------------------------------------- */
+.tfu-burger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tfu-burger span {
+  display: block;
+  height: 2px;
+  background: var(--pcl-white);
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.tfu-burger.active span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.tfu-burger.active span:nth-child(2) {
+  opacity: 0;
+}
+
+.tfu-burger.active span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+.tfu-mobile-sheet {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 16px 18px;
+  background: var(--pcl-navy-800);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tfu-mobile-sheet button {
+  background: none;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--pcl-white);
+  text-align: left;
+  padding: 14px 4px;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tfu-mobile-sheet button.active {
+  color: var(--pcl-cyan);
+}
+
+@media (max-width: 1080px) {
+  .tfu-nav-link {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    padding: 10px 8px;
+  }
+}
+
+@media (max-width: 920px) {
+  .tfu-nav {
+    display: none;
+  }
+
+  /* En móvil el orden es marca, acción, menú: el botón de postular tiene que
+     quedar antes que la hamburguesa, que es el control de último recurso. */
+  .tfu-burger {
+    display: flex;
+    order: 3;
+  }
+
+  .tfu-apply {
+    order: 2;
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .tfu-utility-inner {
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 16px;
+  }
+
+  /* El correo institucional es lo primero que sobra en una pantalla de 360px:
+     sigue en el pie y en la página de contacto. */
+  .tfu-utility-inner > a.tfu-utility-link,
+  .tfu-utility-inner > button.tfu-utility-link:nth-of-type(2) {
+    display: none;
+  }
+
+  .tfu-main-inner {
+    padding: 0 16px;
+    gap: 12px;
+  }
+
+  .tfu-lockup {
+    height: 32px;
+  }
+
+  .tfu-apply {
+    padding: 10px 12px;
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tfu-nav-link::after,
+  .tfu-burger span,
+  .tfu-apply {
+    transition: none;
+  }
+}
+
+/* =========================================================================
+   Portada a sangre — cabecera y hero sin marco
+   =========================================================================
+   El contenedor del portal tiene relleno lateral y todo vivía dentro de una
+   tarjeta redondeada: la cabecera flotaba y el hero aparecía con esquinas y
+   borde, separado del borde de la ventana. El mockup del manual y el sitio
+   corporativo hacen lo contrario —cabecera y hero ocupan el ancho completo—,
+   así que ambos se sacan del relleno con un margen negativo.
+
+   Se usa `margin-inline` con el mismo valor que el relleno del contenedor en
+   cada punto de ruptura. Es menos elegante que mover el relleno a los
+   contenedores internos, pero toca tres reglas en vez de las ~120 secciones
+   que ya dependen de él.
+   ========================================================================= */
+.public-shell.netflix-ui {
+  padding-top: 0;
+}
+
+.tfu-header {
+  margin-inline: -20px;
+}
+
+.hero-netflix {
+  margin: 0 -20px 26px;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  box-shadow: none;
+  min-height: 70vh;
+}
+
+.hero-content {
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 72px 44px 56px;
+}
+
+/* Los dos botones del hero, como en el mockup: uno sólido en cian con tinta
+   oscura y otro de contorno. Antes eran dos cápsulas claras casi idénticas y
+   no se distinguía cuál era la acción principal. */
+.hero-actions button {
+  border-radius: 4px;
+  padding: 14px 24px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.hero-actions button:first-child {
+  background: var(--pcl-cyan);
+  color: var(--pcl-navy-900);
+  border: 1px solid var(--pcl-cyan);
+}
+
+.hero-actions button:first-child:hover {
+  background: var(--pcl-cyan-100);
+  border-color: var(--pcl-cyan-100);
+}
+
+.hero-actions button + button {
+  background: transparent;
+  color: var(--pcl-white);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.hero-actions button + button:hover {
+  border-color: var(--pcl-cyan);
+  color: var(--pcl-cyan);
+}
+
+.hero-actions button:focus-visible {
+  outline: 3px solid var(--pcl-cyan);
+  outline-offset: 3px;
+}
+
+/* =========================================================================
+   Banda de promesa de marca
+   =========================================================================
+   Va pegada bajo el hero, como la fila de cuatro columnas del mockup. El
+   texto no está inventado: sale del propio manual —el lema, la promesa de
+   marca y los tres bloques de «Brand Purpose»—.
+   ========================================================================= */
+.tfu-promise {
+  margin: -26px -20px 26px;
+  background: var(--pcl-navy-800);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tfu-promise-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 30px 44px 34px;
+}
+
+.tfu-promise-lead {
+  margin: 0 0 22px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.tfu-promise-slogan {
+  font-family: var(--pcl-font-display);
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+  color: var(--pcl-cyan);
+  text-transform: uppercase;
+}
+
+.tfu-promise-claim {
+  margin: 0;
+  color: var(--pcl-ice);
+  font-size: 0.98rem;
+}
+
+.tfu-promise-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 26px;
+}
+
+.tfu-promise-item h3 {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pcl-white);
+}
+
+.tfu-promise-item p {
+  margin: 0;
+  color: var(--pcl-ice);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.tfu-promise-item {
+  border-top: 2px solid var(--pcl-cyan);
+  padding-top: 12px;
+}
+
+@media (max-width: 900px) {
+  .tfu-promise-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .tfu-promise-inner,
+  .hero-content {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
+/* El relleno del contenedor cambia por punto de ruptura; el margen negativo
+   de la cabecera, el hero y la banda tiene que seguirlo o aparece una franja
+   del fondo a los lados. */
+@media (max-width: 1100px) {
+  .tfu-header,
+  .hero-netflix,
+  .tfu-promise {
+    margin-inline: -14px;
+  }
+}
+
+@media (max-width: 860px) {
+  .tfu-header,
+  .hero-netflix,
+  .tfu-promise {
+    margin-inline: -12px;
+  }
+}
+
+@media (max-width: 560px) {
+  .tfu-header,
+  .hero-netflix,
+  .tfu-promise {
+    margin-inline: -10px;
+  }
+
+  .hero-netflix {
+    min-height: 60vh;
+  }
+}
+
+/* Con la cabecera pegajosa, un ancla llevaba el título justo debajo de ella y
+   quedaba tapado. El desplazamiento usa las dos bandas más un respiro. */
+.category-anchor,
+.tfu-promise,
+[id] {
+  scroll-margin-top: calc(var(--tfu-utility-h) + var(--tfu-nav-h) + 12px);
+}
+
+/* =========================================================================
+   Pie con marca
+   ========================================================================= */
+.public-footer {
+  margin-inline: -20px;
+  margin-top: 36px;
+  border: 0;
+  border-top: 1px solid rgba(45, 196, 199, 0.28);
+  border-radius: 0;
+  background: var(--pcl-navy-900);
+  box-shadow: none;
+}
+
+.footer-top {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 40px 44px 28px;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 2fr;
+  gap: 36px;
+}
+
+.footer-lockup {
+  height: 40px;
+  width: auto;
+  display: block;
+}
+
+.footer-slogan {
+  margin: 14px 0 10px;
+  font-family: var(--pcl-font-display);
+  font-size: 0.86rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pcl-cyan);
+}
+
+.footer-mail {
+  color: var(--pcl-ice);
+  font-size: 0.9rem;
+}
+
+.footer-links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.footer-links-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.footer-links-col h3 {
+  margin: 0 0 4px;
+  font-family: var(--pcl-font-body);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pcl-white);
+}
+
+.footer-links-col .footer-link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: var(--pcl-ice);
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.footer-links-col .footer-link-btn:hover {
+  color: var(--pcl-cyan);
+  text-decoration: underline;
+}
+
+.footer-links-col .footer-link-btn:focus-visible,
+.footer-mail:focus-visible {
+  outline: 3px solid var(--pcl-cyan);
+  outline-offset: 3px;
+}
+
+.public-footer .footer-compliance,
+.public-footer .footer-bottom {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 14px 44px;
+}
+
+.public-footer .footer-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--pcl-steel);
+  font-size: 0.84rem;
+}
+
+@media (max-width: 900px) {
+  .footer-top {
+    grid-template-columns: 1fr;
+    padding: 30px 20px 20px;
+    gap: 26px;
+  }
+
+  .footer-links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .public-footer .footer-compliance,
+  .public-footer .footer-bottom {
+    padding: 14px 20px;
+  }
+}
+
+@media (max-width: 1100px) { .public-footer { margin-inline: -14px; } }
+@media (max-width: 860px)  { .public-footer { margin-inline: -12px; } }
+@media (max-width: 560px)  {
+  .public-footer { margin-inline: -10px; }
+  .footer-links { grid-template-columns: 1fr; }
 }

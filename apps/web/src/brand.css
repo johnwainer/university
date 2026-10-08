@@ -1,8 +1,22 @@
 /* =========================================================================
-   Línea gráfica — Peregrine Corporate Learning
+   Línea gráfica — The Floridian University
    =========================================================================
-   Paleta y tipografía tomadas de peregrineeducationus.com, medidas sobre los
-   estilos computados del sitio en producción, no estimadas a ojo.
+   Paleta y tipografía del Brand Manual 2026 de TFU, con los hexadecimales
+   tal y como los fija el manual (§03 Color Palette), no estimados a ojo:
+
+       #0B203A  Midnight Atlantic Blue   azul institucional
+       #2DC4C7  Aqua Horizon             acento de marca
+       #FF6B6B  Coral Rise               energía y alertas
+       #D4AF36  Gold Velocity            distinciones y certificados
+
+   La estructura de la cabecera y el tratamiento del hero siguen el mockup de
+   web del propio manual (§05 Mockups) y la línea de peregrineeducationus.com,
+   que es el sitio corporativo hermano: cabecera oscura de dos niveles, barra
+   utilitaria arriba y botón de acción en cian.
+
+   Los nombres de token siguen con el prefijo `--pcl-` porque están usados en
+   centenares de reglas del front; renombrarlos no cambiaría un píxel y sí
+   arriesgaría romper algo. Los alias `--tfu-*` son los nombres del manual.
 
    Tipografía
      Titulares : Area Extended ExtraBold (Blaze Type) — la misma del sitio.
@@ -28,9 +42,9 @@
   --pcl-navy-600: #1f4063;  /* bordes y estados hover        */
 
   /* --- Acento de marca -------------------------------------------------- */
-  --pcl-cyan:     #00cde8;  /* color distintivo de Peregrine */
-  --pcl-cyan-700: #00a8bf;
-  --pcl-cyan-100: #b8f2fa;
+  --pcl-cyan:     #2dc4c7;  /* Aqua Horizon, §03 del manual  */
+  --pcl-cyan-700: #1f9b9e;  /* variante para texto sobre claro */
+  --pcl-cyan-100: #a8e9ea;
 
   /* --- Texto ------------------------------------------------------------ */
   --pcl-white:    #ffffff;
@@ -43,6 +57,17 @@
 
   --pcl-font-display: 'Area Extended', 'Archivo Black', 'Roboto', sans-serif;
   --pcl-font-body: 'Roboto', 'Source Sans 3', system-ui, sans-serif;
+
+  /* --- Alias con los nombres del manual --------------------------------- */
+  --tfu-midnight: var(--pcl-navy-800);
+  --tfu-aqua: var(--pcl-cyan);
+  --tfu-coral: var(--pcl-coral);
+  --tfu-gold: var(--pcl-gold);
+
+  /* Altura de las dos bandas de la cabecera; las usa el desplazamiento de los
+     anclas para que un encabezado no quede escondido debajo. */
+  --tfu-utility-h: 38px;
+  --tfu-nav-h: 68px;
 }
 
 /* Los titulares llevan la tipografía extendida: en Area Extended el tracking

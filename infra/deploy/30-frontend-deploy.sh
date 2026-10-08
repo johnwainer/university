@@ -118,6 +118,7 @@ build_spa() {
   [[ -f "${REPO_DIR}/package.json" ]] || fail "'${REPO_DIR}' is not the monorepo root (no package.json)"
 
   log "building the SPA with VITE_API_URL=${VITE_API_URL}"
+  log "  institution: ${VITE_INSTITUTION_NAME} (${VITE_INSTITUTION_SHORT_NAME})"
   if [[ "$VITE_API_URL" != https://* ]]; then
     warn "VITE_API_URL is not https:// - the SPA is served over HTTPS and the browser will block mixed content"
   fi
@@ -134,7 +135,11 @@ will 404 without it." ;;
   fi
   # @atlas/web type-checks against @atlas/shared, so shared builds first.
   run npm --prefix "$REPO_DIR" run build -w @atlas/shared
-  run env VITE_API_URL="$VITE_API_URL" npm --prefix "$REPO_DIR" run build -w @atlas/web
+  run env VITE_API_URL="$VITE_API_URL" \
+      VITE_INSTITUTION_NAME="$VITE_INSTITUTION_NAME" \
+      VITE_INSTITUTION_SHORT_NAME="$VITE_INSTITUTION_SHORT_NAME" \
+      VITE_INSTITUTION_DOMAIN="$VITE_INSTITUTION_DOMAIN" \
+      npm --prefix "$REPO_DIR" run build -w @atlas/web
 
   [[ "$DRY_RUN" == "1" ]] || [[ -f "${DIST_DIR}/index.html" ]] \
     || fail "the build finished but ${DIST_DIR}/index.html is missing"

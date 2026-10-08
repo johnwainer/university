@@ -60,6 +60,13 @@ API_PUBLIC_PREFIX="${API_PUBLIC_PREFIX:-/api}"
 # Baked into the SPA at build time.
 VITE_API_URL="${VITE_API_URL:-${API_URL}${API_PUBLIC_PREFIX}}"
 
+# Identidad que se hornea en el SPA. Sin estas variables el front caía al valor
+# por defecto del código y el pie del sitio en producción decía «Atlas Online
+# University», que es el nombre de la plantilla y no el del cliente.
+VITE_INSTITUTION_NAME="${VITE_INSTITUTION_NAME:-The Floridian University}"
+VITE_INSTITUTION_SHORT_NAME="${VITE_INSTITUTION_SHORT_NAME:-TFU}"
+VITE_INSTITUTION_DOMAIN="${VITE_INSTITUTION_DOMAIN:-${DNS_ZONE}}"
+
 # ACME / certificate contact
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-tech@pasosalexito.com}"
 CERT_MIN_DAYS="${CERT_MIN_DAYS:-14}"
@@ -232,7 +239,7 @@ CACHE_CONTROL_NO_CACHE="${CACHE_CONTROL_NO_CACHE:-no-cache, no-store, must-reval
 # Publicar alias de rutas que no existen no rompe nada (devuelven el index),
 # pero omitir una real deja un 403 de S3 en el enlace directo y en el F5.
 # 'contact' y 'programas' quedan por compatibilidad con enlaces ya repartidos.
-SPA_FALLBACK_ROUTES="${SPA_FALLBACK_ROUTES:-admin about quienes-somos admissions admisiones terminos terminos-y-condiciones privacidad politica-de-privacidad ferpa title-ix titulo-ix accesibilidad accessibility contact programas}"
+SPA_FALLBACK_ROUTES="${SPA_FALLBACK_ROUTES:-admin about quienes-somos admissions admisiones terminos terminos-y-condiciones privacidad politica-de-privacidad ferpa title-ix titulo-ix accesibilidad accessibility contact programas vida-estudiantil campus-life atletismo athletics noticias news-events}"
 
 # ---------------------------------------------------------------------------
 # SSM Parameter Store

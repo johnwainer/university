@@ -22,7 +22,18 @@
     "contact": "Contact",
     "skipToContent": "Skip to content",
     "about": "About",
-    "admissions": "Admissions"
+    "admissions": "Admissions",
+    "navAbout": "About",
+    "navAcademics": "Academics",
+    "navAdmissions": "Admissions",
+    "navCampusLife": "Campus Life",
+    "navAthletics": "Athletics",
+    "navNews": "News & Events",
+    "applyNow": "Apply now",
+    "brandTagline": "Rise Fast. Fly Further.",
+    "utilityEnterprise": "For business",
+    "utilityContact": "Contact",
+    "openMenu": "Open menu"
   },
   "hero": {
     "enterCourse": "Enter Course",
@@ -59,7 +70,14 @@
     "reserveFree": "Reserve free",
     "reserveVip": "Reserve VIP",
     "openWebinar": "Open webinar",
-    "exclusive": "Exclusive session"
+    "exclusive": "Exclusive session",
+    "promiseClaim": "Turn experience into opportunity.",
+    "purposeWhatTitle": "What we do",
+    "purposeWhatBody": "We help professionals reskill, upskill and transition into high-demand careers through flexible, future-focused education.",
+    "purposeHowTitle": "How we do it",
+    "purposeHowBody": "Practical learning, industry-relevant programs, technology-driven education and a supportive multicultural community.",
+    "purposeWhyTitle": "Why we do it",
+    "purposeWhyBody": "Because talent should never be left behind: experience has value and reinvention is possible at any stage."
   },
   "catalog": {
     "title": "Academic Catalog",

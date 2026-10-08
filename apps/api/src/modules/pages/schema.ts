@@ -157,6 +157,70 @@ export const SITE_PAGE_SEED: SeedPage[] = [
 <p>Admissions: <a href="mailto:${contacto.admisiones}">${contacto.admisiones}</a>.</p>`
   },
   {
+    slug: 'campus-life',
+    order: 25,
+    titleEs: 'Vida estudiantil',
+    titleEn: 'Campus Life',
+    bodyEs: `<p>La vida estudiantil de The Floridian University ocurre en línea, que es donde ocurre el programa. Esta página reúne lo que acompaña al aula.</p>
+<h3>La comunidad</h3>
+<p>Cada curso corre con una cohorte que avanza a la vez: la discusión semanal no es un tablón de mensajes sueltos, sino la conversación de un grupo que lee lo mismo esa semana. El vocabulario de la institución viene del halcón peregrino: a los estudiantes se les llama <em>Peregrines</em>, y la red de egresados es la <em>Flight Network</em>.</p>
+<h3>Acompañamiento</h3>
+<p>Cada curso tiene horario de oficina del instructor, publicado en el sílabo con su zona horaria, y un tiempo de respuesta comprometido. La orientación de entrada —<em>First Flight</em>— presenta la plataforma, el calendario de ocho semanas y los plazos semanales.</p>
+<h3>Lo que falta por publicar</h3>
+<p>Los programas de mentoría, los clubes estudiantiles y el calendario de actividades están en definición. Esta página se actualizará desde el panel administrativo en cuanto la institución los fije; no se anuncia aquí nada que todavía no exista.</p>
+<h3>Contacto</h3>
+<p>Para asuntos estudiantiles: <a href="mailto:${contacto.general}">${contacto.general}</a>.</p>`,
+    bodyEn: `<p>Student life at The Floridian University happens online, which is where the program happens. This page gathers what surrounds the classroom.</p>
+<h3>The community</h3>
+<p>Each course runs with a cohort moving together: the weekly discussion is not a loose message board but the conversation of a group reading the same material that week. The institution's vocabulary comes from the peregrine falcon: students are called <em>Peregrines</em>, and the alumni network is the <em>Flight Network</em>.</p>
+<h3>Support</h3>
+<p>Every course has published instructor office hours, with their time zone, and a committed response time. Onboarding — <em>First Flight</em> — introduces the platform, the eight-week calendar and the weekly deadlines.</p>
+<h3>Still to be published</h3>
+<p>Mentorship programs, student clubs and the activity calendar are being defined. This page will be updated from the admin panel once the institution sets them; nothing that does not yet exist is announced here.</p>
+<h3>Contact</h3>
+<p>For student affairs: <a href="mailto:${contacto.general}">${contacto.general}</a>.</p>`
+  },
+  {
+    slug: 'athletics',
+    order: 27,
+    titleEs: 'Atletismo',
+    titleEn: 'Athletics',
+    bodyEs: `<p>The Floridian University no tiene todavía un programa atlético en funcionamiento. Esta página existe para publicarlo cuando lo haya, y no afirma nada que hoy no sea cierto.</p>
+<h3>De dónde viene el símbolo</h3>
+<p>El halcón peregrino es la mascota de la institución y el eje de su identidad: el ave más rápida del planeta, que visita Florida cada año. De ahí vienen el lema <em>Rise Fast. Fly Further.</em> y el nombre con el que se identifica a la comunidad, los <em>Floridian Peregrines</em>.</p>
+<h3>Estado actual</h3>
+<p>No hay equipos, competiciones ni afiliaciones deportivas constituidas. Cualquier información sobre disciplinas, calendarios o convocatorias se publicará aquí desde el panel administrativo cuando la institución la defina.</p>
+<h3>Contacto</h3>
+<p>Para consultas sobre este programa: <a href="mailto:${contacto.general}">${contacto.general}</a>.</p>`,
+    bodyEn: `<p>The Floridian University does not yet have an athletics program in operation. This page exists so it can be published when there is one, and it claims nothing that is not true today.</p>
+<h3>Where the symbol comes from</h3>
+<p>The peregrine falcon is the institution's mascot and the core of its identity: the fastest bird on the planet, which visits Florida every year. The motto <em>Rise Fast. Fly Further.</em> comes from it, as does the name the community goes by, the <em>Floridian Peregrines</em>.</p>
+<h3>Current status</h3>
+<p>There are no teams, competitions or athletic affiliations in place. Any information on disciplines, schedules or tryouts will be published here from the admin panel once the institution defines it.</p>
+<h3>Contact</h3>
+<p>For questions about this program: <a href="mailto:${contacto.general}">${contacto.general}</a>.</p>`
+  },
+  {
+    slug: 'news-events',
+    order: 29,
+    titleEs: 'Noticias y eventos',
+    titleEn: 'News & Events',
+    bodyEs: `<p>Aquí se publican los anuncios institucionales. Las sesiones en vivo abiertas al público tienen su propia sección en la portada, con fecha, hora y registro.</p>
+<h3>Sesiones en vivo</h3>
+<p>El calendario de webinars y sesiones abiertas se mantiene desde el panel administrativo y aparece en la portada en cuanto una sesión queda activa. Cada una indica su fecha, su duración y el idioma en que se imparte.</p>
+<h3>Anuncios</h3>
+<p>Las noticias institucionales —aperturas de convocatoria, nuevos programas, cambios de calendario académico— se publican en esta página. Está vacía de contenido noticioso a propósito: no se inventan anuncios para rellenarla.</p>
+<h3>Prensa</h3>
+<p>Para consultas de prensa: <a href="mailto:${contacto.general}">${contacto.general}</a>.</p>`,
+    bodyEn: `<p>Institutional announcements are published here. Public live sessions have their own section on the home page, with date, time and registration.</p>
+<h3>Live sessions</h3>
+<p>The webinar and open-session calendar is maintained from the admin panel and appears on the home page as soon as a session goes active. Each one states its date, its length and the language it is delivered in.</p>
+<h3>Announcements</h3>
+<p>Institutional news — application windows opening, new programs, academic calendar changes — is published on this page. It is deliberately empty of news content: announcements are not invented to fill it.</p>
+<h3>Press</h3>
+<p>For press enquiries: <a href="mailto:${contacto.general}">${contacto.general}</a>.</p>`
+  },
+  {
     slug: 'terms',
     order: 30,
     titleEs: 'Términos y condiciones',

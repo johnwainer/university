@@ -22,7 +22,18 @@
     "contact": "Contacto",
     "skipToContent": "Saltar al contenido",
     "about": "Quiénes somos",
-    "admissions": "Admisiones"
+    "admissions": "Admisiones",
+    "navAbout": "Acerca de",
+    "navAcademics": "Académico",
+    "navAdmissions": "Admisiones",
+    "navCampusLife": "Vida estudiantil",
+    "navAthletics": "Atletismo",
+    "navNews": "Noticias y eventos",
+    "applyNow": "Postular ahora",
+    "brandTagline": "Rise Fast. Fly Further.",
+    "utilityEnterprise": "Para empresas",
+    "utilityContact": "Contacto",
+    "openMenu": "Abrir menú"
   },
   "hero": {
     "enterCourse": "Entrar al curso",
@@ -59,7 +70,14 @@
     "featured": "Destacados",
     "noLiveEvents": "No hay eventos en vivo próximamente.",
     "noPodcasts": "No hay clases magistrales disponibles.",
-    "progress": "Progreso"
+    "progress": "Progreso",
+    "promiseClaim": "Convierte la experiencia en oportunidad.",
+    "purposeWhatTitle": "Qué hacemos",
+    "purposeWhatBody": "Ayudamos a profesionales a actualizarse, reconvertirse y entrar en carreras de alta demanda con formación flexible y orientada al futuro.",
+    "purposeHowTitle": "Cómo lo hacemos",
+    "purposeHowBody": "Aprendizaje práctico, programas pertinentes para la industria, educación apoyada en tecnología y una comunidad multicultural.",
+    "purposeWhyTitle": "Por qué lo hacemos",
+    "purposeWhyBody": "Porque el talento no debería quedarse atrás: la experiencia tiene valor y reinventarse es posible en cualquier etapa."
   },
   "catalog": {
     "title": "Catálogo académico",

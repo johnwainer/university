@@ -6,7 +6,7 @@ import react from '@vitejs/plugin-react';
  * VITE_INSTITUTION_NAME en el momento del build (lo hace el script de
  * despliegue), sin tocar el repositorio.
  */
-const DEFAULT_INSTITUTION_NAME = 'Atlas Online University';
+const DEFAULT_INSTITUTION_NAME = 'The Floridian University';
 
 /**
  * Sustituye %VITE_INSTITUTION_NAME% en index.html.

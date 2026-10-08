@@ -25,11 +25,16 @@
   --cat-accent: var(--pcl-cyan);
   --cat-accent-ink: var(--pcl-navy-900);
 }
-[data-accent='sales']      { --cat-accent: #00cde8; }
-[data-accent='cx']         { --cat-accent: #4fd1a5; }
-[data-accent='leadership'] { --cat-accent: #7aa7ff; }
-[data-accent='ai']         { --cat-accent: #b388ff; }
-[data-accent='education']  { --cat-accent: #ffc14d; }
+/* Los cinco acentos salen de la paleta del manual de TFU y de su sistema de
+   color (§03): el cian de marca, dos pasos de su columna, el coral y el oro.
+   Antes había un lila y un azul lavanda heredados de la plantilla, que no
+   están en la paleta y se notaban al lado del cian. Todos se usan sobre el
+   azul institucional y todos pasan AA: el más bajo, el coral, da 6.56:1. */
+[data-accent='sales']      { --cat-accent: #2dc4c7; }
+[data-accent='cx']         { --cat-accent: #6fe0e2; }
+[data-accent='leadership'] { --cat-accent: #a8e9ea; }
+[data-accent='ai']         { --cat-accent: #ff6b6b; }
+[data-accent='education']  { --cat-accent: #d4af36; }
 [data-accent='neutral']    { --cat-accent: var(--pcl-steel); }
 
 /* --- Etiqueta de categoría ------------------------------------------------

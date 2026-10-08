@@ -17,7 +17,7 @@ import {
 } from '../lib/api';
 import type { ContentAsset, HomeResponse } from '@atlas/shared';
 import { EnterpriseGroupManager } from './EnterpriseGroupManager';
-import { BRAND_SHORT } from '../i18n';
+import { BRAND, BRAND_SHORT } from '../i18n';
 import { INSTITUTION_CONTACTS } from '../institution';
 import { StudentAcademics } from './StudentAcademics';
 import { LanguageSwitcher } from './LanguageSwitcher';
@@ -195,6 +195,9 @@ function toApiProgress(progress: CourseProgress) {
 const PAGE_PATH_BY_SLUG: Record<string, string> = {
   about: '/about',
   admissions: '/admissions',
+  'campus-life': '/vida-estudiantil',
+  athletics: '/atletismo',
+  'news-events': '/noticias',
   terms: '/terminos',
   privacy: '/privacidad',
   ferpa: '/ferpa',
@@ -207,6 +210,12 @@ const PAGE_SLUG_BY_PATH: Record<string, string> = {
   '/quienes-somos': 'about',
   '/admissions': 'admissions',
   '/admisiones': 'admissions',
+  '/vida-estudiantil': 'campus-life',
+  '/campus-life': 'campus-life',
+  '/atletismo': 'athletics',
+  '/athletics': 'athletics',
+  '/noticias': 'news-events',
+  '/news-events': 'news-events',
   '/terminos': 'terms',
   '/terminos-y-condiciones': 'terms',
   '/privacidad': 'privacy',
@@ -217,6 +226,38 @@ const PAGE_SLUG_BY_PATH: Record<string, string> = {
   '/accesibilidad': 'accessibility',
   '/accessibility': 'accessibility'
 };
+
+/**
+ * Navegación principal.
+ *
+ * Los seis destinos son los del mockup de web del manual de marca. Tres ya
+ * existían como vistas (catálogo, acerca, admisiones) y tres se añadieron como
+ * páginas institucionales editables desde el panel: vida estudiantil,
+ * atletismo y noticias. Están publicadas y vacías de afirmaciones: dicen lo
+ * que hoy es cierto y señalan lo que TFU aún no ha definido, en vez de
+ * anunciar equipos o clubes que no existen.
+ *
+ * Se declara como dato y no como seis bloques de JSX porque la misma lista
+ * alimenta la barra de escritorio y la hoja del móvil; duplicarla garantizaría
+ * que un día dejaran de coincidir.
+ */
+type NavItem = { key: string; view: ViewState };
+
+const TOP_NAV: NavItem[] = [
+  { key: 'nav.navAbout', view: { type: 'page', slug: 'about' } },
+  { key: 'nav.navAcademics', view: { type: 'catalog' } },
+  { key: 'nav.navAdmissions', view: { type: 'page', slug: 'admissions' } },
+  { key: 'nav.navCampusLife', view: { type: 'page', slug: 'campus-life' } },
+  { key: 'nav.navAthletics', view: { type: 'page', slug: 'athletics' } },
+  { key: 'nav.navNews', view: { type: 'page', slug: 'news-events' } }
+];
+
+function isNavActive(view: ViewState, item: NavItem): boolean {
+  if (item.view.type === 'page') {
+    return view.type === 'page' && view.slug === item.view.slug;
+  }
+  return view.type === item.view.type;
+}
 
 /** Las que van en el pie, en orden. El resto se enlazan desde el menú. */
 const FOOTER_PAGE_SLUGS = ['terms', 'privacy', 'ferpa', 'title-ix', 'accessibility'];
@@ -601,7 +642,6 @@ export function PublicApp() {
   const [showRegisterConfirmPassword, setShowRegisterConfirmPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [sectionsMenuOpen, setSectionsMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileForm, setProfileForm] = useState({ fullName: '', email: '', locale: 'es' });
   const [profileSaving, setProfileSaving] = useState(false);
@@ -645,7 +685,6 @@ export function PublicApp() {
   const categorySectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const continueLearningRowRef = useRef<HTMLDivElement | null>(null);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
-  const sectionsMenuRef = useRef<HTMLDivElement | null>(null);
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -657,7 +696,6 @@ export function PublicApp() {
 
   useEffect(() => {
     setMobileMenuOpen(false);
-    setSectionsMenuOpen(false);
   }, [view.type]);
 
   useEffect(() => {
@@ -1709,20 +1747,6 @@ export function PublicApp() {
   }, [accountMenuOpen]);
 
   useEffect(() => {
-    if (!sectionsMenuOpen) {
-      return;
-    }
-    const onClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (sectionsMenuRef.current && target && !sectionsMenuRef.current.contains(target)) {
-        setSectionsMenuOpen(false);
-      }
-    };
-    window.addEventListener('mousedown', onClickOutside);
-    return () => window.removeEventListener('mousedown', onClickOutside);
-  }, [sectionsMenuOpen]);
-
-  useEffect(() => {
     if (view.type !== 'home') {
       return;
     }
@@ -1791,13 +1815,6 @@ export function PublicApp() {
   const rowsFromBestSellers = bestSellersRowIndex >= 0 ? rows.slice(bestSellersRowIndex) : [];
   const enterpriseAvailable = Boolean(enterpriseOverview?.available);
   const enterpriseIsRepresentative = enterpriseOverview?.role === 'representative';
-  const topMenuSectionLinks: Array<{ id: string; title: string }> = [
-    ...(publicSession ? [{ id: 'my-courses-home', title: t('home.myCourses') }] : []),
-    ...(sortedLandingWebinars.length > 0 ? [{ id: 'webinars', title: t('home.liveEvents') }] : []),
-    ...(landingPodcasts.length > 0 ? [{ id: 'podcasts', title: t('home.podcasts') }] : []),
-    ...topMenuCategories
-  ];
-
   return (
     <main className="public-shell netflix-ui">
       {/* Primer elemento enfocable de la página: deja saltar la barra superior,
@@ -1805,234 +1822,188 @@ export function PublicApp() {
       <a className="skip-to-content" href="#contenido-principal">
         {t('nav.skipToContent')}
       </a>
-      <header className="public-topbar netflix-topbar">
-        <button className="brand-btn" onClick={() => setView({ type: 'home' })}>
-          <span className="brand-name">{BRAND_SHORT}</span>
-          <span className="brand-suffix">University</span>
-        </button>
-        <nav className="public-nav">
-          <div className="public-nav-categories">
+      {/* Cabecera de dos bandas, como el mockup del manual de marca (§05) y el
+          sitio corporativo hermano: arriba lo utilitario —idioma, empresas,
+          cuenta—, abajo la navegación académica y la llamada a la acción.
+          Separarlas es lo que permite que la navegación respire: antes los
+          diez controles competían en una sola fila de 56 píxeles. */}
+      <header className="tfu-header">
+        <div className="tfu-utility">
+          <div className="tfu-utility-inner">
+            <a className="tfu-utility-link" href={`mailto:${INSTITUTION_CONTACTS.general}`}>
+              {INSTITUTION_CONTACTS.general}
+            </a>
             <button
-              className={view.type === 'enterprise' ? 'active featured-enterprise-btn' : 'featured-enterprise-btn'}
+              className="tfu-utility-link"
               onClick={() => {
                 setView({ type: 'enterprise' });
                 setMobileMenuOpen(false);
-                setSectionsMenuOpen(false);
               }}
             >
-              <span className="featured-star">★</span> {t('nav.enterprise')}
+              {t('nav.utilityEnterprise')}
             </button>
             <button
-              className={view.type === 'catalog' ? 'active' : ''}
-              onClick={() => {
-                setView({ type: 'catalog' });
-                setMobileMenuOpen(false);
-                setSectionsMenuOpen(false);
-              }}
-            >
-              {t('nav.catalog')}
-            </button>
-            <button
-              className={view.type === 'page' && view.slug === 'about' ? 'active' : ''}
-              onClick={() => {
-                setView({ type: 'page', slug: 'about' });
-                setMobileMenuOpen(false);
-                setSectionsMenuOpen(false);
-              }}
-            >
-              {t('nav.about')}
-            </button>
-            <button
-              className={view.type === 'page' && view.slug === 'admissions' ? 'active' : ''}
-              onClick={() => {
-                setView({ type: 'page', slug: 'admissions' });
-                setMobileMenuOpen(false);
-                setSectionsMenuOpen(false);
-              }}
-            >
-              {t('nav.admissions')}
-            </button>
-            <button
-              className={view.type === 'contact' ? 'active' : ''}
+              className="tfu-utility-link"
               onClick={() => {
                 setView({ type: 'contact' });
                 setMobileMenuOpen(false);
-                setSectionsMenuOpen(false);
               }}
             >
-              {t('nav.contact')}
+              {t('nav.utilityContact')}
             </button>
-            {topMenuSectionLinks.length > 0 ? (
-              <div className="sections-menu-wrap" ref={sectionsMenuRef}>
-                <button
-                  className={`category-nav-btn sections-menu-trigger ${sectionsMenuOpen ? 'active' : ''}`}
-                  onClick={() => setSectionsMenuOpen((current) => !current)}
-                >
-                  {t('nav.sections')} <span className={`profile-caret ${sectionsMenuOpen ? 'open' : ''}`}>▾</span>
-                </button>
-                {sectionsMenuOpen ? (
-                  <div className="sections-dropdown">
-                    {topMenuSectionLinks.map((section) => (
-                      <button
-                        key={section.id}
-                        onClick={() => {
-                          goToHomeSection(section.id);
-                          setSectionsMenuOpen(false);
-                          setMobileMenuOpen(false);
-                        }}
-                      >
-                        {section.title}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-          <LanguageSwitcher compact />
-          <button
-            className={`mobile-menu-toggle ${mobileMenuOpen ? 'active' : ''}`}
-            aria-label={t('nav.menu')}
-            title={t('nav.menu')}
-            onClick={() => setMobileMenuOpen((current) => !current)}
-          >
-            {mobileMenuOpen ? t('nav.closeMenu') : t('nav.menu')}
-          </button>
-          {mobileMenuOpen ? (
-            <div className="mobile-menu-sheet">
+            <LanguageSwitcher compact />
+            <div className="account-menu-wrap" ref={accountMenuRef}>
               <button
-                className={view.type === 'enterprise' ? 'active' : ''}
+                className={`profile-icon-btn ${publicSession?.token ? 'logged' : 'guest'}`}
+                aria-label={publicSession?.token ? t('nav.account') : t('nav.login')}
+                title={publicSession?.token ? t('nav.account') : t('nav.login')}
+                onClick={() => {
+                  if (!publicSession?.token) {
+                    setAuthMode('login');
+                    setShowAuthModal(true);
+                    return;
+                  }
+                  setMobileMenuOpen(false);
+                  setAccountMenuOpen((current) => !current);
+                }}
+              >
+                <span className={`profile-avatar ${publicSession?.token ? 'user' : 'guest'}`}>
+                  {publicSession?.user?.fullName?.trim().charAt(0).toUpperCase() || '\u{1F464}'}
+                </span>
+                {!publicSession?.token ? <span className="profile-label">{t('nav.login')}</span> : null}
+                {publicSession?.token ? <span className={`profile-caret ${accountMenuOpen ? 'open' : ''}`}>▾</span> : null}
+              </button>
+              {publicSession && accountMenuOpen ? (
+                <div className="account-dropdown">
+                  <div className="account-dropdown-head">
+                    <strong>{publicSession.user.fullName}</strong>
+                    <span>{publicSession.user.email}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setView({ type: 'my-courses' });
+                      setAccountMenuOpen(false);
+                    }}
+                  >
+                    {t('nav.myCourses')}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView({ type: 'academics' });
+                      setAccountMenuOpen(false);
+                    }}
+                  >
+                    {t('nav.academics')}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView({ type: 'profile' });
+                      setAccountMenuOpen(false);
+                    }}
+                  >
+                    {t('nav.profile')}
+                  </button>
+                  <button
+                    className="danger"
+                    onClick={() => {
+                      logoutPublic();
+                      setAccountMenuOpen(false);
+                    }}
+                  >
+                    {t('nav.logout')}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="tfu-main-bar">
+          <div className="tfu-main-inner">
+            <button
+              className="tfu-brand"
+              onClick={() => setView({ type: 'home' })}
+              aria-label={`${BRAND} — ${t('nav.home')}`}
+            >
+              {/* El lockup viene del propio manual de marca; el texto queda en
+                  `alt` para que el lector de pantalla y el buscador lo lean. */}
+              <img src="/brand/tfu-lockup.png" alt={BRAND} className="tfu-lockup" width={382} height={66} />
+            </button>
+
+            <nav className="tfu-nav" aria-label={t('nav.menu')}>
+              {TOP_NAV.map((item) => (
+                <button
+                  key={item.key}
+                  className={isNavActive(view, item) ? 'tfu-nav-link active' : 'tfu-nav-link'}
+                  aria-current={isNavActive(view, item) ? 'page' : undefined}
+                  onClick={() => {
+                    setView(item.view);
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  {t(item.key)}
+                </button>
+              ))}
+            </nav>
+
+            <button
+              className="tfu-apply"
+              onClick={() => {
+                setView({ type: 'page', slug: 'admissions' });
+                setMobileMenuOpen(false);
+              }}
+            >
+              {t('nav.applyNow')}
+            </button>
+
+            <button
+              className={`tfu-burger ${mobileMenuOpen ? 'active' : ''}`}
+              aria-label={mobileMenuOpen ? t('nav.closeMenu') : t('nav.openMenu')}
+              aria-expanded={mobileMenuOpen}
+              onClick={() => setMobileMenuOpen((current) => !current)}
+            >
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+            </button>
+          </div>
+
+          {mobileMenuOpen ? (
+            <div className="tfu-mobile-sheet">
+              {TOP_NAV.map((item) => (
+                <button
+                  key={`m-${item.key}`}
+                  className={isNavActive(view, item) ? 'active' : ''}
+                  onClick={() => {
+                    setView(item.view);
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  {t(item.key)}
+                </button>
+              ))}
+              <button
                 onClick={() => {
                   setView({ type: 'enterprise' });
                   setMobileMenuOpen(false);
                 }}
               >
-                <span className="featured-star">★</span> {t('nav.enterprise')}
+                {t('nav.utilityEnterprise')}
               </button>
               <button
-                className={view.type === 'catalog' ? 'active' : ''}
-                onClick={() => {
-                  setView({ type: 'catalog' });
-                  setMobileMenuOpen(false);
-                }}
-              >
-                {t('nav.catalog')}
-              </button>
-              <button
-                className={view.type === 'page' && view.slug === 'about' ? 'active' : ''}
-                onClick={() => {
-                  setView({ type: 'page', slug: 'about' });
-                  setMobileMenuOpen(false);
-                }}
-              >
-                {t('nav.about')}
-              </button>
-              <button
-                className={view.type === 'page' && view.slug === 'admissions' ? 'active' : ''}
-                onClick={() => {
-                  setView({ type: 'page', slug: 'admissions' });
-                  setMobileMenuOpen(false);
-                }}
-              >
-                {t('nav.admissions')}
-              </button>
-              <button
-                className={view.type === 'contact' ? 'active' : ''}
                 onClick={() => {
                   setView({ type: 'contact' });
                   setMobileMenuOpen(false);
                 }}
               >
-                {t('nav.contact')}
+                {t('nav.utilityContact')}
               </button>
-              {topMenuSectionLinks.map((section) => (
-                <button
-                  key={`mobile-${section.id}`}
-                  onClick={() => {
-                    goToHomeSection(section.id);
-                    setMobileMenuOpen(false);
-                  }}
-                >
-                  {section.title}
-                </button>
-              ))}
               <div className="mobile-lang-switcher">
                 <LanguageSwitcher />
               </div>
             </div>
           ) : null}
-          <div className="account-menu-wrap" ref={accountMenuRef}>
-            <button
-              className={`profile-icon-btn ${publicSession?.token ? 'logged' : 'guest'}`}
-              aria-label={publicSession?.token ? t('nav.account') : t('nav.login')}
-              title={publicSession?.token ? t('nav.account') : t('nav.login')}
-              onClick={() => {
-                if (!publicSession?.token) {
-                  setAuthMode('login');
-                  setShowAuthModal(true);
-                  return;
-                }
-                setMobileMenuOpen(false);
-                setAccountMenuOpen((current) => !current);
-              }}
-            >
-              <span className={`profile-avatar ${publicSession?.token ? 'user' : 'guest'}`}>
-                {publicSession?.user?.fullName?.trim().charAt(0).toUpperCase() || '👤'}
-              </span>
-              {!publicSession?.token ? <span className="profile-label">{t('nav.login')}</span> : null}
-              {publicSession?.token ? <span className={`profile-caret ${accountMenuOpen ? 'open' : ''}`}>▾</span> : null}
-            </button>
-            {publicSession && accountMenuOpen ? (
-              <div className="account-dropdown">
-                <div className="account-dropdown-head">
-                  <strong>{publicSession.user.fullName}</strong>
-                  <span>{publicSession.user.email}</span>
-                </div>
-                <button
-                  onClick={() => {
-                    setView({ type: 'my-courses' });
-                    setAccountMenuOpen(false);
-                  }}
-                >
-                  {t('nav.myCourses')}
-                </button>
-                <button
-                  onClick={() => {
-                    setView({ type: 'academics' });
-                    setAccountMenuOpen(false);
-                  }}
-                >
-                  {t('nav.academics')}
-                </button>
-                <button
-                  onClick={() => {
-                    setView({ type: 'enterprise' });
-                    setAccountMenuOpen(false);
-                  }}
-                >
-                  {t('nav.enterprise')}
-                </button>
-                <button
-                  onClick={() => {
-                    setView({ type: 'profile' });
-                    setAccountMenuOpen(false);
-                  }}
-                >
-                  {t('nav.profile')}
-                </button>
-                <button
-                  className="danger"
-                  onClick={() => {
-                    logoutPublic();
-                    setAccountMenuOpen(false);
-                  }}
-                >
-                  {t('nav.logout')}
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </nav>
+        </div>
       </header>
 
       {/* role="alert" para que el lector anuncie el fallo: antes era un párrafo
@@ -2088,6 +2059,34 @@ export function PublicApp() {
               </div>
             </section>
           ) : null}
+
+          {/* Banda de promesa de marca, pegada bajo el hero como la fila de
+              columnas del mockup. El lema y los tres bloques salen del manual
+              de marca de TFU; no es texto de relleno. */}
+          <section className="tfu-promise" aria-labelledby="promesa-marca">
+            <div className="tfu-promise-inner">
+              <p className="tfu-promise-lead">
+                <span className="tfu-promise-slogan" id="promesa-marca">
+                  {t('nav.brandTagline')}
+                </span>
+                <span className="tfu-promise-claim">{t('home.promiseClaim')}</span>
+              </p>
+              <div className="tfu-promise-grid">
+                <div className="tfu-promise-item">
+                  <h3>{t('home.purposeWhatTitle')}</h3>
+                  <p>{t('home.purposeWhatBody')}</p>
+                </div>
+                <div className="tfu-promise-item">
+                  <h3>{t('home.purposeHowTitle')}</h3>
+                  <p>{t('home.purposeHowBody')}</p>
+                </div>
+                <div className="tfu-promise-item">
+                  <h3>{t('home.purposeWhyTitle')}</h3>
+                  <p>{t('home.purposeWhyBody')}</p>
+                </div>
+              </div>
+            </div>
+          </section>
 
           {publicSession ? (
             <section
@@ -3797,29 +3796,75 @@ export function PublicApp() {
         </section>
       ) : null}
 
+      {/* Pie con la marca, como el del sitio corporativo: el lockup y el lema
+          a la izquierda, y tres columnas de enlaces. Antes era una tira de
+          enlaces legales y una línea de copyright, sin identidad ninguna. */}
       <footer className="public-footer">
-        <div className="footer-compliance">
-          {/* Antes eran tres enlaces mailto a atlas.edu —un dominio heredado
-              de la plantilla— en lugar de las políticas que exige el contrato.
-              Ahora son páginas reales, servidas por la API y editables desde
-              el panel. */}
-          <nav className="footer-compliance-links" aria-label={t('footer.policies')}>
-            <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'about' })}>
-              {t('nav.about')}
-            </button>
-            <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'admissions' })}>
-              {t('nav.admissions')}
-            </button>
-            {FOOTER_PAGE_SLUGS.map((slug) => (
-              <button
-                key={slug}
-                className="footer-link-btn"
-                onClick={() => setView({ type: 'page', slug })}
-              >
-                {pageTitle(slug)}
+        <div className="footer-top">
+          <div className="footer-brand">
+            <img
+              src="/brand/tfu-lockup.png"
+              alt={BRAND}
+              className="footer-lockup"
+              width={382}
+              height={66}
+              loading="lazy"
+            />
+            <p className="footer-slogan">{t('nav.brandTagline')}</p>
+            <a className="footer-mail" href={`mailto:${INSTITUTION_CONTACTS.general}`}>
+              {INSTITUTION_CONTACTS.general}
+            </a>
+          </div>
+
+          <nav className="footer-links" aria-label={t('nav.menu')}>
+            <div className="footer-links-col">
+              <h3>{t('nav.navAcademics')}</h3>
+              <button className="footer-link-btn" onClick={() => setView({ type: 'catalog' })}>
+                {t('nav.catalog')}
               </button>
-            ))}
+              <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'admissions' })}>
+                {t('nav.navAdmissions')}
+              </button>
+              <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'campus-life' })}>
+                {t('nav.navCampusLife')}
+              </button>
+            </div>
+
+            <div className="footer-links-col">
+              <h3>{t('nav.navAbout')}</h3>
+              <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'about' })}>
+                {t('nav.navAbout')}
+              </button>
+              <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'news-events' })}>
+                {t('nav.navNews')}
+              </button>
+              <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'athletics' })}>
+                {t('nav.navAthletics')}
+              </button>
+              <button className="footer-link-btn" onClick={() => setView({ type: 'enterprise' })}>
+                {t('nav.utilityEnterprise')}
+              </button>
+              <button className="footer-link-btn" onClick={() => setView({ type: 'contact' })}>
+                {t('nav.utilityContact')}
+              </button>
+            </div>
+
+            <div className="footer-links-col">
+              <h3>{t('footer.policies')}</h3>
+              {FOOTER_PAGE_SLUGS.map((slug) => (
+                <button
+                  key={slug}
+                  className="footer-link-btn"
+                  onClick={() => setView({ type: 'page', slug })}
+                >
+                  {pageTitle(slug)}
+                </button>
+              ))}
+            </div>
           </nav>
+        </div>
+
+        <div className="footer-compliance">
           <p className="footer-compliance-notice">
             {t('footer.complianceNotice')}{' '}
             <a href={`mailto:${INSTITUTION_CONTACTS.ferpa}`}>{INSTITUTION_CONTACTS.ferpa}</a>.
