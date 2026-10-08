@@ -22,6 +22,7 @@ import { INSTITUTION_CONTACTS } from '../institution';
 import { StudentAcademics } from './StudentAcademics';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ContactSection } from './public/ContactSection';
+import { AdmissionsForm } from './public/AdmissionsForm';
 import './public.css';
 // Después de public.css a propósito: añade y afina sobre esas piezas.
 import './catalog-system.css';
@@ -3771,6 +3772,10 @@ export function PublicApp() {
                   dangerouslySetInnerHTML={{ __html: activeLegalDocument.html }}
                 />
               ) : null}
+              {/* La página de Admisiones no es sólo texto: lleva el
+                  formulario debajo, para que el visitante no tenga que
+                  buscarlo en otra parte después de leer el proceso. */}
+              {!loadingLegal && view.slug === 'admissions' ? <AdmissionsForm /> : null}
               {!loadingLegal && activeLegalDocument ? (
                 <p className="legal-updated">
                   {t('legal.updatedAt', {

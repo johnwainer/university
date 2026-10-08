@@ -23,6 +23,8 @@ import { migrateCie } from './modules/cie/schema.js';
 import { registerCieRoutes } from './modules/cie/routes.js';
 import { migrateSitePages } from './modules/pages/schema.js';
 import { registerPagesRoutes } from './modules/pages/routes.js';
+import { migrateCalendar } from './modules/calendar/schema.js';
+import { registerCalendarRoutes } from './modules/calendar/routes.js';
 import {
   createCompany,
   createPodcast,
@@ -116,6 +118,7 @@ import {
   getMoodleEnrolledUsers,
   getMoodleNotes,
   getMoodleCourseContents,
+  pushTermDatesToCourse,
   getMoodleCourses,
   getMoodleSiteInfo,
   getMoodleUserCourses,
@@ -280,6 +283,7 @@ await migrateBackoffice(pool);
 await migrateCredentials(pool);
 await migrateCie(pool);
 await migrateSitePages(pool);
+await migrateCalendar(pool);
 
 async function loadPersistedMoodleConnection(): Promise<void> {
   const stored = await getIntegrationSetting<{ baseUrl?: string; token?: string }>('moodle.connection');
@@ -3882,6 +3886,12 @@ registerCredentialsRoutes(app, {
 // formulario de contacto público.
 registerCieRoutes(app, { pool, ensureAdmin });
 registerPagesRoutes(app, { pool, ensureAdmin });
+registerCalendarRoutes(app, {
+  pool,
+  ensureAdmin,
+  getCourseContents: (courseId) => getMoodleCourseContents(courseId),
+  pushDatesToMoodle: (courseId, grid) => pushTermDatesToCourse(courseId, grid)
+});
 
 const port = config.server.port;
 const host = config.server.host;

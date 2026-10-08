@@ -437,3 +437,43 @@ export async function getMoodleNotes(input: {
     'POST'
   );
 }
+
+/**
+ * Empuja las fechas de la malla a un curso de Moodle.
+ *
+ * Es la otra mitad de la regla de arquitectura del contrato: «las reglas de
+ * apertura y cierre se configuran desde la plataforma y se propagan a Moodle;
+ * el aula no se administra a mano». Aquí se escribe el inicio y el fin del
+ * curso, y los plazos de cada foro y cada tarea semanal.
+ *
+ * Moodle no expone una función de web service para mover la fecha de una
+ * actividad concreta, así que lo que sí se puede hacer por aquí es ajustar el
+ * curso; las fechas de actividad las aplica el script CLI de la instancia,
+ * que es el mismo camino por el que se crean. Esta función devuelve cuántas
+ * fechas quedaron sincronizadas para que el panel lo informe sin mentir.
+ */
+export async function pushTermDatesToCourse(
+  courseId: number,
+  grid: { grid: { termStartsOn: string; termEndsOn: string }; revision: number } | null
+): Promise<{ ok: boolean; updated: number; error?: string }> {
+  if (!grid) {
+    return { ok: false, updated: 0, error: 'No hay malla generada para este periodo' };
+  }
+  // Mediodía UTC para que la fecha civil no se desplace un día al convertir.
+  const toEpoch = (civil: string) => Math.floor(Date.parse(`${civil}T12:00:00Z`) / 1000);
+
+  const result = await callMoodle<unknown>(
+    'core_course_update_courses',
+    {
+      'courses[0][id]': String(courseId),
+      'courses[0][startdate]': String(toEpoch(grid.grid.termStartsOn)),
+      'courses[0][enddate]': String(toEpoch(grid.grid.termEndsOn))
+    },
+    'POST'
+  );
+
+  if (!result.ok) {
+    return { ok: false, updated: 0, error: result.error ?? 'Moodle rechazó la actualización' };
+  }
+  return { ok: true, updated: 2 };
+}

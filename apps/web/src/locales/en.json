@@ -482,5 +482,49 @@
     "ferpa": "FERPA Notice",
     "title-ix": "Title IX",
     "accessibility": "Accessibility"
+  },
+  "admissions": {
+    "formTitle": "Apply to a program",
+    "formLead": "Fill in the form and the admissions team will contact you to review the program and the dates of the current intake.",
+    "fullName": "Full name",
+    "email": "Email",
+    "phone": "Phone (optional)",
+    "program": "Program of interest",
+    "programPlaceholder": "Select a program",
+    "background": "Your background or experience (optional)",
+    "backgroundHint": "It helps us guide you better in the admissions conversation.",
+    "submit": "Submit application",
+    "sending": "Sending…",
+    "privacy": "We use this data only to process your application, in line with the privacy policy.",
+    "errorName": "Please enter your full name.",
+    "errorEmail": "Please check the email address.",
+    "errorProgram": "Choose the program you are interested in.",
+    "errorGeneric": "The application could not be sent. Please try again.",
+    "successTitle": "Application received",
+    "successBody": "We have recorded your interest in {{program}}. The admissions team will write to you shortly.",
+    "yourCode": "Your tracking code",
+    "codeHelp": "Keep it: you can check your application status with it, without creating an account.",
+    "anotherApplication": "Apply to another program",
+    "lookupTitle": "Check your status",
+    "lookupLead": "If you already applied, enter the code you received.",
+    "lookupCode": "Tracking code",
+    "lookupSubmit": "Check",
+    "lookingUp": "Checking…",
+    "lookupNotFound": "We could not find an application with that code.",
+    "lastUpdate": "Last updated: {{date}}",
+    "stage": {
+      "lead": "Interest recorded",
+      "applied": "Application received",
+      "admitted": "Admitted",
+      "enrolled": "Enrolled",
+      "rejected": "Not admitted in this intake"
+    },
+    "level": {
+      "undergraduate": "Undergraduate",
+      "graduate": "Graduate",
+      "doctoral": "Doctoral",
+      "professional": "Professional",
+      "other": "Other"
+    }
   }
 }

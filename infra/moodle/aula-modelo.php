@@ -7,12 +7,20 @@
  * Fase I, ya con la estructura de aula definida en el Master Syllabus". Los
  * cursos sincronizados tenian una sola seccion "General" vacia.
  *
- * La cadencia la define la Clausula 7 del contrato:
+ * La cadencia sale del MASTER SYLLABUS, no del resumen del contrato. La
+ * Clausula 7 nombra las tres fechas limite sin decir en que dia caen; la §10
+ * del Master Syllabus si lo dice, y la Clausula 2 le da precedencia sobre
+ * cualquier descripcion general de la propuesta:
  *   - termino de ocho semanas, recalculado desde la fecha de inicio;
- *   - semana academica de MARTES a LUNES, con cierre a las 11:59 p.m. del Este;
- *   - apertura del silabo y las lecturas de la semana entrante cada VIERNES;
- *   - tres fechas limite semanales: discusion inicial, respuesta a companeros
- *     y entrega semanal.
+ *   - semana academica de MARTES 00:00 a LUNES 23:59, hora del Este;
+ *   - respuesta inicial a la discusion: MARTES 23:59;
+ *   - respuesta a companeros: JUEVES 23:59;
+ *   - entrega semanal: LUNES 23:59;
+ *   - el alumno ve la semana entrante desde el VIERNES anterior;
+ *   - el aula debe estar lista el JUEVES a las 10:00 antes del martes (§8).
+ *
+ * Y las secciones del course shell son las cinco que fija la §8: Discussion
+ * Forum, Submission, Checkup Point & Reflection, Learning Resources y Contact.
  *
  * Esto se hace por CLI y no por web service porque el nucleo de Moodle no
  * expone ninguna funcion para crear modulos de curso; create_module() solo
@@ -96,9 +104,16 @@ foreach ($shortnames as $short) {
     $DB->update_record('course_sections', (object)[
         'id' => $s0->id,
         'name' => 'Punto de partida · Start here',
-        'summary' => '<p><strong>Semana academica: martes a lunes.</strong> Cada semana cierra el lunes a las 11:59 p.m. (hora del Este). El silabo y las lecturas de la semana entrante se abren el viernes anterior.</p>'
-                   . '<p><strong>Academic week: Tuesday to Monday.</strong> Each week closes Monday at 11:59 p.m. Eastern. The syllabus and next week\'s readings open the preceding Friday.</p>',
+        'summary' => '<p><strong>Semana academica: martes a lunes.</strong> Respuesta inicial a la discusion el martes, respuesta a companeros el jueves y entrega el lunes, todas a las 11:59 p.m. hora del Este. La semana entrante se abre el viernes anterior.</p>'
+                   . '<p><strong>Academic week: Tuesday to Monday.</strong> Initial discussion post Tuesday, peer responses Thursday, weekly submission Monday, all at 11:59 p.m. Eastern. The coming week opens the preceding Friday.</p>',
         'summaryformat' => FORMAT_HTML,
+    ]);
+
+    crear_modulo($course, 0, 'page', [
+        'name' => 'Contacto · Contact',
+        'intro' => '<p>A quien escribir y para que.</p>',
+        'page' => ['itemid' => 0, 'text' => '<p>Mensajes privados al instructor, al asesor academico y a soporte tecnico. El instructor revisa el aula y el correo antes de las 12:00 p.m. cada dia.</p><p>Private messages to the instructor, the academic advisor and IT support. The instructor reviews the classroom and email before 12:00 p.m. each day.</p>', 'format' => FORMAT_HTML],
+        'display' => 5, 'printheading' => 1, 'printintro' => 0, 'printlastmodified' => 1,
     ]);
 
     crear_modulo($course, 0, 'page', [
@@ -117,30 +132,41 @@ foreach ($shortnames as $short) {
         $DB->update_record('course_sections', (object)[
             'id' => $sec->id,
             'name' => "Semana $w · Week $w ($rango)",
-            'summary' => "<p>Apertura: viernes anterior. Cierre: lunes 11:59 p.m. ET.</p><p>Opens: preceding Friday. Closes: Monday 11:59 p.m. ET.</p>",
+            'summary' => "<p>Apertura: viernes anterior. Cierre: lunes 11:59 p.m. ET. Aula lista: jueves 10:00 previo.</p><p>Opens: preceding Friday. Closes: Monday 11:59 p.m. ET.</p>",
             'summaryformat' => FORMAT_HTML,
         ]);
 
         crear_modulo($course, $w, 'page', [
-            'name' => "Semana $w · Lecturas y objetivos",
+            'name' => "Semana $w · Recursos de aprendizaje",
             'intro' => '<p>Materiales de la semana.</p>',
             'page' => ['itemid' => 0, 'text' => "<p>Objetivos de aprendizaje y lecturas de la semana $w. Se abre el viernes anterior al inicio de la semana.</p>", 'format' => FORMAT_HTML],
             'display' => 5, 'printheading' => 1, 'printintro' => 0, 'printlastmodified' => 1,
         ]);
 
-        // Discusion: publicacion inicial el jueves (dia 2), respuesta el sabado (dia 4).
+        // §10: publicacion inicial el MARTES (dia 0), respuesta el JUEVES (dia 2).
         crear_modulo($course, $w, 'forum', [
-            'name' => "Semana $w · Discusion",
-            'intro' => '<p><strong>Publicacion inicial:</strong> jueves 11:59 p.m. ET. <strong>Respuesta a companeros:</strong> sabado 11:59 p.m. ET.</p>'
-                     . '<p><strong>Initial post:</strong> Thursday 11:59 p.m. ET. <strong>Peer response:</strong> Saturday 11:59 p.m. ET.</p>',
+            'name' => "Semana $w · Foro de discusion",
+            'intro' => '<p><strong>Publicacion inicial:</strong> martes 11:59 p.m. ET (100-150 palabras). <strong>Respuesta a companeros:</strong> jueves 11:59 p.m. ET (50-100 palabras).</p>'
+                     . '<p>Publicar aqui cuenta como asistencia del dia. Se exigen al menos 3 publicaciones publicas por semana.</p>'
+                     . '<p><strong>Initial post:</strong> Tuesday 11:59 p.m. ET. <strong>Peer response:</strong> Thursday 11:59 p.m. ET.</p>',
             'type' => 'general', 'forcesubscribe' => 0,
-            'duedate' => cierre($ini, 1, 2, $tz),
-            'cutoffdate' => cierre($ini, 1, 4, $tz),
+            'duedate' => cierre($ini, 1, 0, $tz),
+            'cutoffdate' => cierre($ini, 1, 2, $tz),
+        ]);
+
+        // §8: punto de control y reflexion del viernes. Publicar aqui tambien
+        // cuenta como asistencia.
+        crear_modulo($course, $w, 'forum', [
+            'name' => "Semana $w · Punto de control y reflexion",
+            'intro' => '<p>Espacio publico para preguntas, respuestas y la reflexion del viernes. Publicar aqui cuenta como asistencia del dia y puede contar para la nota de participacion.</p>'
+                     . '<p>Public space for questions, answers and Friday reflections.</p>',
+            'type' => 'qanda', 'forcesubscribe' => 0,
+            'duedate' => cierre($ini, 1, 3, $tz),
         ]);
 
         // Entrega semanal: lunes (dia 6), que es el cierre de la semana.
         crear_modulo($course, $w, 'assign', [
-            'name' => "Semana $w · Entrega aplicada",
+            'name' => "Semana $w · Entrega",
             'intro' => '<p>Entrega de la semana. Cierre: lunes 11:59 p.m. ET.</p><p>Weekly submission. Closes Monday 11:59 p.m. ET.</p>',
             'alwaysshowdescription' => 1,
             'duedate' => cierre($ini, 1, 6, $tz),

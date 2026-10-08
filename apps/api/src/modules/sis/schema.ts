@@ -30,6 +30,15 @@ export async function migrateSis(pool: Pool): Promise<void> {
     CREATE INDEX IF NOT EXISTS admissions_applications_tenant_idx ON admissions_applications(tenant_id);
     CREATE INDEX IF NOT EXISTS admissions_applications_stage_idx ON admissions_applications(stage);
     CREATE INDEX IF NOT EXISTS admissions_applications_email_idx ON admissions_applications(email);
+    -- Postulación pública: el código es lo que el postulante usa para consultar
+    -- su estado sin crear cuenta. Opaco y no enumerable a propósito; la consulta
+    -- por código sólo devuelve la etapa, nunca datos personales.
+    ALTER TABLE admissions_applications ADD COLUMN IF NOT EXISTS tracking_code TEXT;
+    ALTER TABLE admissions_applications ADD COLUMN IF NOT EXISTS locale TEXT NOT NULL DEFAULT 'es';
+    ALTER TABLE admissions_applications ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'admin';
+    ALTER TABLE admissions_applications ADD COLUMN IF NOT EXISTS background TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS admissions_tracking_code_idx
+      ON admissions_applications(tracking_code) WHERE tracking_code IS NOT NULL;
 
     CREATE TABLE IF NOT EXISTS student_ledger (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,

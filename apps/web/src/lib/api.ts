@@ -978,6 +978,23 @@ export const api = {
   offers: () => fetchJson<Offer[]>('/v1/offers'),
   entitlements: () => fetchJson<Entitlement[]>('/v1/entitlements'),
   blueprint: () => fetchJson<PlatformBlueprintResponse>('/v1/blueprint'),
+  applyToProgram: (payload: {
+    fullName: string;
+    email: string;
+    phone?: string;
+    programId: string;
+    background?: string;
+    locale: 'es' | 'en';
+    website?: string;
+  }) =>
+    fetchJson<{ trackingCode: string; program: string; submittedAt: string }>('/v1/admissions/apply', {
+      method: 'POST',
+      body: payload
+    }),
+  admissionStatus: (code: string) =>
+    fetchJson<{ stage: string; program: string | null; updatedAt: string }>(
+      `/v1/admissions/status/${encodeURIComponent(code)}`
+    ),
   sitePages: (locale: 'es' | 'en') =>
     fetchJson<SitePageSummary[]>(`/v1/pages?locale=${encodeURIComponent(locale)}`),
   sitePage: (slug: string, locale: 'es' | 'en') =>

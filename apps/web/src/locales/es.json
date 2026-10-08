@@ -482,5 +482,49 @@
     "ferpa": "Aviso FERPA",
     "title-ix": "Título IX",
     "accessibility": "Accesibilidad"
+  },
+  "admissions": {
+    "formTitle": "Postula a un programa",
+    "formLead": "Completa el formulario y el equipo de admisiones te contacta para revisar el programa y las fechas de la convocatoria.",
+    "fullName": "Nombre completo",
+    "email": "Correo electrónico",
+    "phone": "Teléfono (opcional)",
+    "program": "Programa de interés",
+    "programPlaceholder": "Selecciona un programa",
+    "background": "Tu formación o experiencia (opcional)",
+    "backgroundHint": "Nos ayuda a orientarte mejor en la conversación de admisiones.",
+    "submit": "Enviar postulación",
+    "sending": "Enviando…",
+    "privacy": "Usamos estos datos únicamente para gestionar tu postulación, conforme a la política de privacidad.",
+    "errorName": "Escribe tu nombre completo.",
+    "errorEmail": "Revisa el correo electrónico.",
+    "errorProgram": "Elige el programa que te interesa.",
+    "errorGeneric": "No se pudo enviar la postulación. Inténtalo de nuevo.",
+    "successTitle": "Postulación recibida",
+    "successBody": "Hemos registrado tu interés en {{program}}. El equipo de admisiones te escribirá en breve.",
+    "yourCode": "Tu código de seguimiento",
+    "codeHelp": "Guárdalo: con él puedes consultar el estado de tu postulación sin crear una cuenta.",
+    "anotherApplication": "Postular a otro programa",
+    "lookupTitle": "Consulta tu estado",
+    "lookupLead": "Si ya postulaste, introduce el código que recibiste.",
+    "lookupCode": "Código de seguimiento",
+    "lookupSubmit": "Consultar",
+    "lookingUp": "Consultando…",
+    "lookupNotFound": "No encontramos ninguna postulación con ese código.",
+    "lastUpdate": "Última actualización: {{date}}",
+    "stage": {
+      "lead": "Interés registrado",
+      "applied": "Postulación recibida",
+      "admitted": "Admitido",
+      "enrolled": "Matriculado",
+      "rejected": "No admitido en esta convocatoria"
+    },
+    "level": {
+      "undergraduate": "Pregrado",
+      "graduate": "Posgrado",
+      "doctoral": "Doctorado",
+      "professional": "Profesional",
+      "other": "Otros"
+    }
   }
 }

@@ -1,6 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { z } from 'zod';
+import { blockingIssues, passingMinimum, validateSyllabus, type SyllabusContent } from './validation.js';
+import {
+  AI_STANDARDS,
+  ASSESSMENT_CATEGORIES,
+  ASSIGNMENT_RULES,
+  COURSE_SHELL_SECTIONS,
+  GRADING_SCALE,
+  GRADUATION_GPA,
+  MASTER_SYLLABUS_SECTIONS,
+  MAX_SINGLE_COMPONENT_WEIGHT,
+  PASSING_MINIMUMS,
+  WEEKLY_CADENCE
+} from './master-syllabus.js';
 
 /**
  * Phase 3 — Syllabus + Compliance (FERPA/IPEDS/WCAG).
@@ -268,11 +281,55 @@ export function registerSyllabusRoutes(app: FastifyInstance, ctx: SyllabusContex
     if (result.rowCount === 0) {
       throw app.httpErrors.notFound('Syllabus not found');
     }
-    return result.rows[0];
+    // Se devuelven los problemas en cada guardado, sin impedirlo: un borrador
+    // a medias es legítimo y la facultad necesita ver qué le falta mientras
+    // escribe, no sólo al intentar publicar.
+    const saved = result.rows[0] as { content: Record<string, unknown> | null };
+    const issues = validateSyllabus((saved.content ?? {}) as SyllabusContent);
+    return {
+      ...saved,
+      validation: {
+        canPublish: issues.every((issue) => issue.severity !== 'blocking'),
+        issues
+      }
+    };
+  });
+
+  /**
+   * Plantilla del Master Syllabus: las 24 secciones con su tratamiento, los
+   * pesos institucionales, la escala, los mínimos por nivel y la cadencia.
+   * La consume el formulario del panel para saber qué puede editar la facultad
+   * y qué está heredado.
+   */
+  app.get('/admin/syllabus/master', async (request) => {
+    ensureAdmin(request);
+    return {
+      sections: MASTER_SYLLABUS_SECTIONS,
+      assessmentCategories: ASSESSMENT_CATEGORIES,
+      gradingScale: GRADING_SCALE,
+      passingMinimums: PASSING_MINIMUMS,
+      graduationGpa: GRADUATION_GPA,
+      maxSingleComponentWeight: MAX_SINGLE_COMPONENT_WEIGHT,
+      aiStandards: AI_STANDARDS,
+      weeklyCadence: WEEKLY_CADENCE,
+      courseShellSections: COURSE_SHELL_SECTIONS,
+      assignmentRules: ASSIGNMENT_RULES
+    };
+  });
+
+  /** Valida un contenido sin guardarlo, para el botón de comprobación. */
+  app.post('/admin/syllabi/validate', async (request) => {
+    ensureAdmin(request);
+    const body = z.object({ content: z.record(z.unknown()) }).parse(request.body);
+    const issues = validateSyllabus(body.content as SyllabusContent);
+    return {
+      canPublish: issues.every((issue) => issue.severity !== 'blocking'),
+      issues
+    };
   });
 
   // Publish: fill missing sections from the template, bump version, mark published.
-  app.post('/admin/syllabi/:id/publish', async (request) => {
+  app.post('/admin/syllabi/:id/publish', async (request, reply) => {
     ensureAdmin(request);
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
 
@@ -303,6 +360,22 @@ export function registerSyllabusRoutes(app: FastifyInstance, ctx: SyllabusContex
       }
     }
 
+    // Puerta de publicación (Cláusula 6). Un borrador incompleto se guarda sin
+    // problema; lo que no se admite es publicarlo. Las reglas viven en
+    // validation.ts porque el PATCH las usa también, para ir avisando mientras
+    // la facultad edita.
+    const issues = validateSyllabus(content as SyllabusContent);
+    const blocking = blockingIssues(issues);
+    if (blocking.length > 0) {
+      return reply.status(422).send({
+        error: 'SyllabusNotPublishable',
+        message: 'El sílabo no cumple las reglas del Master Syllabus y no puede publicarse.',
+        blocking,
+        warnings: issues.filter((issue) => issue.severity === 'warning')
+      });
+    }
+
+    const level = (content as SyllabusContent).grading?.courseLevel;
     const result = await pool.query(
       `UPDATE syllabi
        SET content = $1::jsonb,
@@ -312,9 +385,29 @@ export function registerSyllabusRoutes(app: FastifyInstance, ctx: SyllabusContex
            updated_at = now()
        WHERE id = $2
        RETURNING *`,
-      [JSON.stringify(content), id]
+      [JSON.stringify({ ...content, _passingMinimum: passingMinimum(level) }), id]
     );
-    return result.rows[0];
+
+    // La Cláusula 6 pide publicar en un solo acto a tres destinos. El tercero
+    // —el repositorio de compliance— se cierra aquí: el checklist documental
+    // deja de alimentarse a mano y refleja el estado real de publicación.
+    const published = result.rows[0] as { id: string; moodle_course_id: number | null; term_id: string | null; title: string; version: number };
+    await pool.query(
+      `INSERT INTO compliance_records (area, title, status, evidence_url, notes)
+       VALUES ('syllabus', $1, 'complete', $2, $3)
+       ON CONFLICT DO NOTHING`,
+      [
+        published.title,
+        `/admin/syllabi/${published.id}`,
+        `Publicado v${published.version}${published.term_id ? ` · periodo ${published.term_id}` : ''}`
+      ]
+    ).catch(() => {
+      // El registro de evidencia no debe tumbar una publicación válida; si la
+      // tabla cambia de forma, el sílabo ya está publicado y eso es lo que
+      // importa.
+    });
+
+    return { ...published, warnings: issues.filter((issue) => issue.severity === 'warning') };
   });
 
   // ===========================================================================

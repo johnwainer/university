@@ -43,6 +43,127 @@ const invoiceStatusEnum = z.enum(['draft', 'open', 'paid', 'void']);
 export function registerSisRoutes(app: FastifyInstance, ctx: SisContext): void {
   const { pool, ensureAdmin } = ctx;
 
+  /* =========================================================================
+     Postulación pública
+     =========================================================================
+     El flujo de admisiones ya tenía tabla y gestión por etapas en el panel,
+     pero no había forma de postularse: la única entrada era que alguien
+     tecleara el registro a mano. Esto cierra el circuito desde el portal.
+
+     Las tres defensas son las mismas que ya usa el formulario de contacto,
+     porque el problema es el mismo —un formulario público sin autenticar—:
+     honeypot silencioso, límite por IP y validación del programa contra la
+     tabla real, para que no entre basura en el expediente de admisiones.
+  ========================================================================= */
+
+  const applySchema = z.object({
+    fullName: z.string().min(3).max(160),
+    email: z.string().email().max(200),
+    phone: z.string().max(40).optional(),
+    programId: z.string().min(1).max(80),
+    background: z.string().max(2000).optional(),
+    locale: z.enum(['es', 'en']).optional(),
+    /** Campo trampa: sólo lo rellena un bot. */
+    website: z.string().max(0).optional()
+  });
+
+  /** Código de seguimiento legible por teléfono: sin O/0 ni I/1. */
+  function trackingCode(): string {
+    const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let out = '';
+    for (let i = 0; i < 9; i += 1) {
+      out += abc[Math.floor(Math.random() * abc.length)];
+      if (i === 2 || i === 5) out += '-';
+    }
+    return `TFU-${out}`;
+  }
+
+  app.post('/v1/admissions/apply', async (request, reply) => {
+    const body = applySchema.parse(request.body);
+
+    // Honeypot: se responde 202 como si todo hubiera ido bien. Decirle al bot
+    // que lo detectamos sólo le enseña a evitarlo la próxima vez.
+    if (body.website) {
+      return reply.status(202).send({ received: true });
+    }
+
+    const ip = String(
+      (request.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ||
+        request.ip ||
+        'unknown'
+    );
+    const recent = await pool.query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+         FROM admissions_applications
+        WHERE source = 'public'
+          AND notes LIKE $1
+          AND created_at > NOW() - ($2 || ' minutes')::interval`,
+      [`%ip:${ip}%`, '60']
+    );
+    if (Number(recent.rows[0]?.total ?? 0) >= 3) {
+      return reply
+        .status(429)
+        .send({ error: 'TooManyApplications', message: 'Demasiadas postulaciones desde esta conexión. Inténtalo más tarde.' });
+    }
+
+    const program = await pool.query<{ id: string; name: string }>(
+      `SELECT id, name FROM degree_programs WHERE id = $1 AND is_active LIMIT 1`,
+      [body.programId]
+    );
+    if (program.rowCount === 0) {
+      return reply.status(400).send({ error: 'UnknownProgram', message: 'El programa indicado no existe.' });
+    }
+
+    const code = trackingCode();
+    const result = await pool.query(
+      `INSERT INTO admissions_applications
+         (full_name, email, phone, program_id, stage, status, notes, tracking_code, locale, source, background)
+       VALUES ($1, $2, $3, $4, 'applied', 'open', $5, $6, $7, 'public', $8)
+       RETURNING id, tracking_code, created_at`,
+      [
+        body.fullName.trim(),
+        body.email.trim().toLowerCase(),
+        body.phone?.trim() ?? null,
+        body.programId,
+        `ip:${ip}`,
+        code,
+        body.locale ?? 'es',
+        body.background?.trim() ?? null
+      ]
+    );
+
+    return reply.status(201).send({
+      trackingCode: result.rows[0].tracking_code,
+      program: program.rows[0].name,
+      submittedAt: result.rows[0].created_at
+    });
+  });
+
+  /**
+   * Consulta de estado por código.
+   *
+   * Devuelve la etapa y nada más: ni nombre, ni correo, ni teléfono. El código
+   * es lo bastante largo para no enumerarse, pero aun así no se usa como
+   * credencial de acceso a datos personales — sólo dice en qué punto va una
+   * postulación.
+   */
+  app.get('/v1/admissions/status/:code', async (request, reply) => {
+    const { code } = request.params as { code: string };
+    const result = await pool.query<{ stage: string; updated_at: Date; program_name: string | null }>(
+      `SELECT a.stage, a.updated_at, p.name AS program_name
+         FROM admissions_applications a
+         LEFT JOIN degree_programs p ON p.id = a.program_id
+        WHERE a.tracking_code = $1
+        LIMIT 1`,
+      [code.trim().toUpperCase()]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return reply.notFound('No encontramos ninguna postulación con ese código.');
+    }
+    return { stage: row.stage, program: row.program_name, updatedAt: row.updated_at };
+  });
+
   async function getPublicUser(request: any): Promise<SisPublicUser> {
     if (!ctx.resolvePublicUser) {
       throw app.httpErrors.unauthorized('Public session resolver not configured');
