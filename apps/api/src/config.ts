@@ -35,7 +35,12 @@ function requiredSecret(name: string, devFallback: string): string {
 export const config = {
   server: {
     host: process.env.HOST ?? '0.0.0.0',
-    port: Number(process.env.PORT ?? 4000)
+    port: Number(process.env.PORT ?? 4000),
+    // URL pública de la API, tal y como la ve un estudiante. Se usa para
+    // construir los enlaces del sílabo que se escriben en el aula de Moodle:
+    // un enlace a 127.0.0.1 no le sirve a nadie. Sin ella, la publicación en
+    // el aula se salta y se informa, en vez de escribir un enlace roto.
+    publicUrl: (process.env.PUBLIC_API_URL ?? '').trim().replace(/\/+$/, '')
   },
   isProduction,
   admin: {
@@ -50,6 +55,14 @@ export const config = {
   moodle: {
     baseUrl: process.env.MOODLE_BASE_URL ?? '',
     token: process.env.MOODLE_TOKEN ?? ''
+  },
+  mail: {
+    // Sin SMTP_URL no se envía nada y se dice: ver integrations/mailer.ts.
+    smtpUrl: (process.env.SMTP_URL ?? '').trim(),
+    from: process.env.MAIL_FROM ?? 'no-reply@thefloridianuniversity.com',
+    // Destinatario de respaldo para los avisos de aula cuando el programa no
+    // tiene decano cargado.
+    academicContact: (process.env.ACADEMIC_CONTACT_EMAIL ?? '').trim()
   },
   institution: {
     name: process.env.INSTITUTION_NAME ?? 'University',

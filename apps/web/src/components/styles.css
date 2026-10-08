@@ -662,3 +662,272 @@ td {
     text-align: left;
   }
 }
+
+/* ===================================================================
+   Editor del Master Syllabus (24 secciones)
+   ===================================================================
+   Dos columnas: índice de secciones agrupado por tratamiento, y el panel
+   de la sección activa. Por debajo de 900px se apilan, porque el índice
+   con 24 entradas no cabe al lado en un móvil.
+   Los puntos de estado llevan además texto en `aria-label`: el color por
+   sí solo no es un criterio válido de WCAG 2.1 AA (1.4.1).
+*/
+.syllabus-editor-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.syllabus-counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0 0;
+}
+
+.badge.danger {
+  background: rgba(255, 99, 99, 0.18);
+  border-color: var(--danger);
+  color: var(--pcl-white);
+}
+
+.syllabus-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: 20px;
+  margin-top: 18px;
+  align-items: start;
+}
+
+.syllabus-nav {
+  max-height: 70vh;
+  overflow-y: auto;
+  border-right: 1px solid var(--card-border);
+  padding-right: 12px;
+}
+
+.syllabus-nav h3 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 14px 0 6px;
+}
+
+.syllabus-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.syllabus-nav-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 8px;
+  color: var(--text);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.syllabus-nav-item:hover {
+  background: rgba(0, 205, 232, 0.1);
+}
+
+.syllabus-nav-item.active {
+  background: rgba(0, 205, 232, 0.18);
+  font-weight: 600;
+}
+
+.syllabus-nav-item:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.syllabus-nav-number {
+  min-width: 1.6em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.syllabus-dot {
+  margin-left: auto;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.syllabus-dot.blocking {
+  color: var(--danger);
+}
+
+.syllabus-dot.warning {
+  color: var(--pcl-amber, #ffb454);
+}
+
+.syllabus-panel {
+  min-width: 0;
+}
+
+.syllabus-treatment {
+  margin-top: -6px;
+  font-size: 0.82rem;
+}
+
+.syllabus-help {
+  background: rgba(0, 205, 232, 0.08);
+  border-left: 3px solid var(--accent);
+  padding: 10px 12px;
+  border-radius: 0 8px 8px 0;
+  font-size: 0.88rem;
+}
+
+.syllabus-issue {
+  font-size: 0.88rem;
+  margin: 6px 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--pcl-amber, #ffb454);
+}
+
+.syllabus-issue.blocking {
+  border-left-color: var(--danger);
+}
+
+.syllabus-field {
+  display: block;
+  margin: 14px 0;
+}
+
+.syllabus-field > span {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.syllabus-field input,
+.syllabus-field select,
+.syllabus-field textarea {
+  width: 100%;
+}
+
+.syllabus-repeat {
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 14px 0;
+}
+
+.syllabus-repeat legend {
+  padding: 0 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.syllabus-weights {
+  width: 100%;
+  margin: 16px 0;
+}
+
+.syllabus-weights caption {
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.84rem;
+  padding-bottom: 8px;
+}
+
+.syllabus-weights input {
+  width: 6em;
+}
+
+.syllabus-total.ok {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.syllabus-total.bad {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.syllabus-inherited-body {
+  border: 1px dashed var(--card-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.syllabus-blocking,
+.syllabus-published {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border-left: 4px solid var(--danger);
+  background: rgba(255, 99, 99, 0.08);
+}
+
+.syllabus-published {
+  border-left-color: var(--accent);
+  background: rgba(0, 205, 232, 0.08);
+}
+
+.link-like {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.link-like:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .syllabus-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .syllabus-nav {
+    max-height: 260px;
+    border-right: none;
+    border-bottom: 1px solid var(--card-border);
+    padding-right: 0;
+    padding-bottom: 12px;
+  }
+}
+
+/* Calendario académico: listas compactas dentro de celdas de tabla. */
+.calendar-deadlines,
+.calendar-missing {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: 0.85rem;
+}
+
+.calendar-deadlines li,
+.calendar-missing li {
+  margin: 2px 0;
+}
+
+.calendar-deadlines em {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.calendar-holiday {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}

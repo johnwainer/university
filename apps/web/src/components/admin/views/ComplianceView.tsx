@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { SyllabusEditor, type EditableSyllabus } from './SyllabusEditor';
 
 /**
  * Phase 3 — Syllabus + Compliance (admin view).
@@ -162,6 +163,8 @@ export function ComplianceView({
 
   const [templates, setTemplates] = useState<SyllabusTemplate[]>([]);
   const [syllabi, setSyllabi] = useState<Syllabus[]>([]);
+  /** Sílabo abierto en el editor de las 24 secciones; null = listado. */
+  const [editing, setEditing] = useState<Syllabus | null>(null);
   const [records, setRecords] = useState<ComplianceRecord[]>([]);
   const [ferpaLog, setFerpaLog] = useState<FerpaLogEntry[]>([]);
   const [report, setReport] = useState<IpedsReport | null>(null);
@@ -452,7 +455,26 @@ export function ComplianceView({
         {loading ? <p>Cargando...</p> : null}
       </article>
 
-      {tab === 'syllabus' && (
+      {/* El editor sustituye al listado mientras está abierto: son 24 secciones
+          y partir la pantalla las dejaría ilegibles. */}
+      {tab === 'syllabus' && editing && sessionToken ? (
+        <SyllabusEditor
+          token={sessionToken}
+          syllabus={editing as unknown as EditableSyllabus}
+          onClose={() => {
+            setEditing(null);
+            void loadSyllabusTab(sessionToken);
+          }}
+          onSaved={(updated) => {
+            setSyllabi((current) =>
+              current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
+            );
+            setEditing((current) => (current ? { ...current, ...updated } : current));
+          }}
+        />
+      ) : null}
+
+      {tab === 'syllabus' && !editing && (
         <>
           <article className="card">
             <h2>Crear plantilla</h2>
@@ -596,13 +618,18 @@ export function ComplianceView({
                       <td>v{s.version}</td>
                       <td>{s.status}</td>
                       <td>
-                        {s.status !== 'published' ? (
-                          <button className="ghost" onClick={() => void onPublishSyllabus(s.id)}>
-                            Publicar
+                        <div className="inline-actions">
+                          <button className="ghost" onClick={() => setEditing(s)}>
+                            Editar las 24 secciones
                           </button>
-                        ) : (
-                          <span className="badge">publicado</span>
-                        )}
+                          {s.status !== 'published' ? (
+                            <button className="ghost" onClick={() => void onPublishSyllabus(s.id)}>
+                              Publicar
+                            </button>
+                          ) : (
+                            <span className="badge">publicado</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))

@@ -10,9 +10,9 @@
     "populate:moodle:demo:docker": "tsx src/scripts/populate-moodle-demo-content-docker.ts"
   },
   "dependencies": {
+    "@atlas/shared": "0.1.0",
     "@fastify/cors": "^11.1.0",
     "@fastify/sensible": "^6.0.3",
-    "@atlas/shared": "0.1.0",
     "dotenv": "^17.2.3",
     "fastify": "^5.2.1",
     "pg": "^8.13.3",
@@ -23,5 +23,8 @@
     "@types/pg": "^8.11.11",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.49.1"
   }
 }

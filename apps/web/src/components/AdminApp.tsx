@@ -23,6 +23,7 @@ import { ComplianceView } from './admin/views/ComplianceView';
 import { BackofficeView } from './admin/views/BackofficeView';
 import { CredentialsView } from './admin/views/CredentialsView';
 import { CieChecklistView } from './admin/views/CieChecklistView';
+import { CalendarView } from './admin/views/CalendarView';
 
 type AdminDashboardBase = {
   config: AdminConfig;
@@ -51,6 +52,7 @@ type PanelSection =
   | 'crm'
   | 'compliance'
   | 'cie'
+  | 'calendar'
   | 'backoffice'
   | 'credentials'
   | 'routes';
@@ -1004,6 +1006,9 @@ export function AdminApp() {
         <button className={activeSection === 'cie' ? 'active' : ''} onClick={() => setActiveSection('cie')}>
           Checklist CIE
         </button>
+        <button className={activeSection === 'calendar' ? 'active' : ''} onClick={() => setActiveSection('calendar')}>
+          Calendario y aulas
+        </button>
         <button className={activeSection === 'backoffice' ? 'active' : ''} onClick={() => setActiveSection('backoffice')}>
           Back-office
         </button>
@@ -1536,6 +1541,10 @@ export function AdminApp() {
 
           {activeSection === 'cie' ? (
             <CieChecklistView sessionToken={sessionToken} setError={setError} setInfo={setInfo} />
+          ) : null}
+
+          {activeSection === 'calendar' ? (
+            <CalendarView sessionToken={sessionToken} setError={setError} setInfo={setInfo} />
           ) : null}
 
           {activeSection === 'backoffice' ? (

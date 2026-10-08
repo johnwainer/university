@@ -1,0 +1,13 @@
+[Unit]
+Description=TFU — punto de control de aulas listas (Master Syllabus §8)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/opt/plataforma-estudiantil/api/bin/deploy/tfu-shell-check.sh
+# El chequeo es de lectura más escritura de avisos; si el API no responde, el
+# temporizador lo reintenta al día siguiente y queda en el journal.
+StandardOutput=journal
+StandardError=journal

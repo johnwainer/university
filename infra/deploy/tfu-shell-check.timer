@@ -1,0 +1,12 @@
+[Unit]
+Description=TFU — chequeo diario de aulas listas
+
+[Timer]
+# 13:00 UTC = 09:00 ET en horario de verano y 08:00 ET en invierno: antes del
+# corte de las 10:00 ET del jueves, de forma que el aviso 'pending' llegue con
+# margen para arreglarlo el mismo día.
+OnCalendar=*-*-* 13:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

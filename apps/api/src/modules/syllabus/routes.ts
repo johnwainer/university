@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { z } from 'zod';
 import { blockingIssues, passingMinimum, validateSyllabus, type SyllabusContent } from './validation.js';
+import { renderSyllabusDocument } from './render.js';
 import {
   AI_STANDARDS,
   ASSESSMENT_CATEGORIES,
@@ -26,6 +27,15 @@ import {
  * attribute FERPA access-log entries to the acting administrator.
  */
 export interface SyllabusContext {
+  /** Publica el sílabo en el course shell; inyectado para no acoplar módulos. */
+  publishToCourse?: (
+    courseId: number,
+    publication: { htmlUrl: string; pdfUrl?: string; version: number; publishedAt: string }
+  ) => Promise<{ ok: boolean; placed?: string; error?: string }>;
+  /** URL pública de la API, para los enlaces que se escriben en el aula. */
+  publicApiUrl?: string;
+  /** Convierte el HTML en PDF etiquetado. Opcional: sin él, la exportación HTML sigue viva. */
+  renderPdf?: (html: string) => Promise<{ ok: boolean; buffer?: Buffer; error?: string }>;
   pool: Pool;
   ensureAdmin: (request: any) => unknown;
 }
@@ -388,10 +398,37 @@ export function registerSyllabusRoutes(app: FastifyInstance, ctx: SyllabusContex
       [JSON.stringify({ ...content, _passingMinimum: passingMinimum(level) }), id]
     );
 
-    // La Cláusula 6 pide publicar en un solo acto a tres destinos. El tercero
-    // —el repositorio de compliance— se cierra aquí: el checklist documental
-    // deja de alimentarse a mano y refleja el estado real de publicación.
+    // La Cláusula 6 pide publicar en un solo acto a TRES destinos:
+    //   1. el catálogo público   → lo sirve /v1/syllabi/:id, ya con este estado
+    //   2. el course shell de Moodle
+    //   3. el repositorio de compliance
     const published = result.rows[0] as { id: string; moodle_course_id: number | null; term_id: string | null; title: string; version: number };
+
+    // Destino 2. Un fallo aquí NO revierte la publicación —el sílabo ya es
+    // oficial— pero se informa, para que el panel no diga que está en el aula
+    // cuando no llegó.
+    let moodle: { ok: boolean; placed?: string; error?: string } = {
+      ok: false,
+      error: 'El sílabo no está asociado a ningún curso de Moodle'
+    };
+    if (published.moodle_course_id && ctx.publishToCourse) {
+      if (!ctx.publicApiUrl) {
+        // Sin URL pública no se puede escribir un enlace que le sirva al
+        // estudiante, y escribir uno a localhost sería peor que no escribirlo.
+        moodle = {
+          ok: false,
+          error: 'Falta PUBLIC_API_URL en el servidor: no se puede construir el enlace al sílabo.'
+        };
+      } else {
+        const base = `${ctx.publicApiUrl}/v1/syllabi/${published.id}/export`;
+        moodle = await ctx.publishToCourse(Number(published.moodle_course_id), {
+          htmlUrl: `${base}?format=html`,
+          pdfUrl: ctx.renderPdf ? `${base}?format=pdf` : undefined,
+          version: published.version,
+          publishedAt: new Date().toISOString()
+        });
+      }
+    }
     await pool.query(
       `INSERT INTO compliance_records (area, title, status, evidence_url, notes)
        VALUES ('syllabus', $1, 'complete', $2, $3)
@@ -407,7 +444,81 @@ export function registerSyllabusRoutes(app: FastifyInstance, ctx: SyllabusContex
       // importa.
     });
 
-    return { ...published, warnings: issues.filter((issue) => issue.severity === 'warning') };
+    return {
+      ...published,
+      destinations: {
+        catalog: { ok: true },
+        moodle,
+        complianceRepository: { ok: true }
+      },
+      warnings: issues.filter((issue) => issue.severity === 'warning')
+    };
+  });
+
+  /* =========================================================================
+     Exportación accesible (Cláusula 6)
+     =========================================================================
+     «La versión del estudiante se exporta en PDF y HTML accesible bajo
+     WCAG 2.x AA». El HTML lo genera render.ts; el PDF se produce desde ese
+     mismo HTML con el motor de impresión del navegador, así que los dos
+     formatos no pueden divergir.
+  ========================================================================= */
+
+  app.get('/v1/syllabi/:id/export', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const query = z
+      .object({ locale: z.enum(['es', 'en']).catch('es'), format: z.enum(['html', 'pdf']).catch('html') })
+      .parse(request.query);
+
+    const found = await pool.query(
+      `SELECT id, title, content, version, term_id, status, published_at
+         FROM syllabi WHERE id = $1 LIMIT 1`,
+      [id]
+    );
+    const row = found.rows[0] as
+      | { id: string; title: string; content: Record<string, unknown>; version: number; term_id: string | null; status: string; published_at: string | null }
+      | undefined;
+    if (!row) {
+      return reply.notFound('Syllabus not found');
+    }
+    // Sólo se exporta lo publicado: un borrador no es el documento que el
+    // estudiante acusa haber leído.
+    if (row.status !== 'published') {
+      return reply.notFound('Syllabus is not published');
+    }
+
+    const html = renderSyllabusDocument(row.content as SyllabusContent, {
+      locale: query.locale,
+      courseTitle: row.title,
+      termLabel: row.term_id,
+      version: row.version,
+      publishedAt: row.published_at ?? new Date().toISOString()
+    });
+
+    if (query.format === 'pdf') {
+      // El PDF se produce desde ESTE MISMO HTML con el motor de impresión del
+      // navegador, no desde un generador aparte: así los dos formatos no
+      // pueden divergir, y Chromium emite PDF etiquetado a partir del HTML
+      // semántico, que es lo que lo hace accesible de verdad.
+      if (!ctx.renderPdf) {
+        return reply
+          .status(503)
+          .send({ error: 'PdfRendererUnavailable', message: 'El motor de PDF no está disponible en este servidor. El HTML accesible sí.' });
+      }
+      const pdf = await ctx.renderPdf(html);
+      if (!pdf.ok || !pdf.buffer) {
+        return reply
+          .status(503)
+          .send({ error: 'PdfRenderFailed', message: pdf.error ?? 'No se pudo generar el PDF.' });
+      }
+      reply.header('Content-Type', 'application/pdf');
+      reply.header('Content-Disposition', `inline; filename="silabo-${row.id}.pdf"`);
+      return reply.send(pdf.buffer);
+    }
+
+    reply.header('Content-Type', 'text/html; charset=utf-8');
+    reply.header('Content-Disposition', `inline; filename="silabo-${row.id}.html"`);
+    return reply.send(html);
   });
 
   // ===========================================================================

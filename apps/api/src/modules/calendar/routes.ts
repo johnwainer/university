@@ -9,6 +9,7 @@ import {
   regenerateAllGrids
 } from './service.js';
 import { TERM_WEEKS } from './cadence.js';
+import { alertMessage, reconcileAlerts, resolveRecipients, type AlertRecipient } from './alerts.js';
 
 /**
  * Calendario académico y cadencia del aula.
@@ -23,6 +24,12 @@ export interface CalendarContext {
   ensureAdmin: (request: any) => unknown;
   /** Lee el contenido de un curso en Moodle; inyectado para no acoplar módulos. */
   getCourseContents: (courseId: number) => Promise<{ ok: boolean; data?: unknown }>;
+  /** Profesores con rol docente en un curso de Moodle, para resolver el aviso. */
+  teachersInCourse?: (courseId: number) => Promise<Array<{ fullname?: string; email?: string }>>;
+  /** Envía el aviso. Si no hay canal configurado, lo dice en vez de fingirlo. */
+  sendMail?: (input: { to: string[]; subject: string; text: string }) => Promise<{ configured: boolean; ok: boolean; detail?: string }>;
+  /** Destinatario de respaldo cuando el programa no tiene decano cargado. */
+  academicContact?: string;
   /** Empuja fechas a un curso de Moodle. */
   pushDatesToMoodle: (
     courseId: number,
@@ -133,14 +140,89 @@ export function registerCalendarRoutes(app: FastifyInstance, ctx: CalendarContex
     }
 
     const items = await checkShellReadiness(pool, termId, contents);
+
+    // El chequeo no sólo informa: reconcilia los avisos. Así el mismo endpoint
+    // sirve para la pantalla y para el temporizador diario, sin dos caminos que
+    // puedan discrepar.
+    const notify = (request.query as { notify?: string } | undefined)?.notify !== 'false';
+    const alerts = notify
+      ? await reconcileAlerts(pool, termId, items, (courseId) =>
+          resolveRecipients(pool, courseId, {
+            teachersInMoodle: ctx.teachersInCourse,
+            fallbackEmail: ctx.academicContact
+          })
+        )
+      : [];
+
+    const delivered: Array<{ moodleCourseId: number; week: number; delivery: string; detail?: string }> = [];
+    for (const alert of alerts) {
+      // Sólo se intenta entregar un aviso recién abierto o ya vencido. Un
+      // 'pending' que ya se avisó no se repite cada día.
+      if (!alert.created && alert.severity !== 'overdue') {
+        continue;
+      }
+      const course = items.find((item) => item.moodleCourseId === alert.moodleCourseId);
+      const { subject, body } = alertMessage(
+        course?.courseName ?? `Curso ${alert.moodleCourseId}`,
+        alert.week,
+        course?.shellReadyBy ?? null,
+        alert.missing,
+        alert.severity === 'overdue'
+      );
+      const result = ctx.sendMail
+        ? await ctx.sendMail({ to: alert.recipients.map((r: AlertRecipient) => r.email), subject, text: body })
+        : { configured: false, ok: false, detail: 'No hay canal de envío conectado.' };
+      const delivery = result.ok ? 'sent' : result.configured ? 'failed' : 'recorded';
+      await pool.query(
+        `UPDATE shell_alerts SET delivery = $4, delivery_detail = $5, updated_at = NOW()
+          WHERE term_id = $1 AND moodle_course_id = $2 AND week = $3 AND resolved_at IS NULL`,
+        [termId, alert.moodleCourseId, alert.week, delivery, result.detail ?? null]
+      );
+      delivered.push({
+        moodleCourseId: alert.moodleCourseId,
+        week: alert.week,
+        delivery,
+        detail: result.detail
+      });
+    }
+
     return {
       termId,
       checkedAt: new Date().toISOString(),
       total: items.length,
       ready: items.filter((item) => item.ready).length,
       overdue: items.filter((item) => item.overdue).length,
-      items
+      items,
+      alerts: { open: alerts.length, delivered }
     };
+  });
+
+  /** Avisos abiertos, para la tarjeta del panel. */
+  app.get('/admin/calendar/alerts', async (request) => {
+    ensureAdmin(request);
+    const query = z
+      .object({ termId: z.string().optional(), includeResolved: z.coerce.boolean().optional() })
+      .parse(request.query ?? {});
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    if (query.termId) {
+      params.push(query.termId);
+      conditions.push(`sa.term_id = $${params.length}`);
+    }
+    if (!query.includeResolved) {
+      conditions.push('sa.resolved_at IS NULL');
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const result = await pool.query(
+      `SELECT sa.*, COALESCE(mc.full_name, '(sin nombre)') AS course_name
+         FROM shell_alerts sa
+         LEFT JOIN moodle_courses mc ON mc.moodle_course_id = sa.moodle_course_id
+         ${where}
+        ORDER BY sa.severity DESC, sa.shell_ready_by NULLS LAST, sa.created_at DESC
+        LIMIT 200`,
+      params
+    );
+    return { alerts: result.rows };
   });
 
   app.post('/admin/calendar/terms/:termId/push-to-moodle', async (request, reply) => {

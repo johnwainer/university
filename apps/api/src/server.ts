@@ -8,6 +8,8 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { demoBlueprint } from '@atlas/shared';
 import { config, getMoodleConfig, hasMoodleConfig, setMoodleConfig } from './config.js';
+import { htmlToPdf } from './integrations/pdf.js';
+import { sendMail } from './integrations/mailer.js';
 // University OS modules (Fases 1-5) — wired below after initDb() and before app.listen()
 import { migrateSis } from './modules/sis/schema.js';
 import { registerSisRoutes } from './modules/sis/routes.js';
@@ -24,6 +26,7 @@ import { registerCieRoutes } from './modules/cie/routes.js';
 import { migrateSitePages } from './modules/pages/schema.js';
 import { registerPagesRoutes } from './modules/pages/routes.js';
 import { migrateCalendar } from './modules/calendar/schema.js';
+import { migrateShellAlerts } from './modules/calendar/alerts.js';
 import { registerCalendarRoutes } from './modules/calendar/routes.js';
 import {
   createCompany,
@@ -118,7 +121,9 @@ import {
   getMoodleEnrolledUsers,
   getMoodleNotes,
   getMoodleCourseContents,
+  getMoodleCourseTeachers,
   pushTermDatesToCourse,
+  publishSyllabusToCourse,
   getMoodleCourses,
   getMoodleSiteInfo,
   getMoodleUserCourses,
@@ -284,6 +289,7 @@ await migrateCredentials(pool);
 await migrateCie(pool);
 await migrateSitePages(pool);
 await migrateCalendar(pool);
+await migrateShellAlerts(pool);
 
 async function loadPersistedMoodleConnection(): Promise<void> {
   const stored = await getIntegrationSetting<{ baseUrl?: string; token?: string }>('moodle.connection');
@@ -3875,7 +3881,13 @@ registerSisRoutes(app, {
   }
 });
 registerCrmRoutes(app, { pool, ensureAdmin });
-registerSyllabusRoutes(app, { pool, ensureAdmin });
+registerSyllabusRoutes(app, {
+  pool,
+  ensureAdmin,
+  publishToCourse: (courseId, publication) => publishSyllabusToCourse(courseId, publication),
+  renderPdf: (html) => htmlToPdf(html),
+  publicApiUrl: config.server.publicUrl
+});
 registerBackofficeRoutes(app, { pool, ensureAdmin });
 registerCredentialsRoutes(app, {
   pool,
@@ -3890,7 +3902,10 @@ registerCalendarRoutes(app, {
   pool,
   ensureAdmin,
   getCourseContents: (courseId) => getMoodleCourseContents(courseId),
-  pushDatesToMoodle: (courseId, grid) => pushTermDatesToCourse(courseId, grid)
+  pushDatesToMoodle: (courseId, grid) => pushTermDatesToCourse(courseId, grid),
+  teachersInCourse: (courseId) => getMoodleCourseTeachers(courseId),
+  sendMail: (input) => sendMail(input),
+  academicContact: config.mail.academicContact
 });
 
 const port = config.server.port;

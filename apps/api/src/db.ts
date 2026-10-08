@@ -11,6 +11,7 @@ import {
   type Offer
 } from '@atlas/shared';
 import { config } from './config.js';
+import { stripSyllabusBlock } from './moodle.js';
 import { peregrineProgram } from './catalog/peregrine-catalog.js';
 
 export const pool = new Pool({ connectionString: config.db.url });
@@ -892,7 +893,9 @@ export async function syncMoodleCoursesWithCategories(
     // con marcado multilang, así que lo primero es separarlos por idioma; todo
     // lo demás (texto plano, respaldos) se deriva de ahí.
     const titleByLang = parseMultilang(course.fullname || shortname);
-    const summaryByLang = parseMultilang(course.summary ?? '');
+    // El bloque del sílabo que la publicación escribe en el aula no es texto
+    // de catálogo: se quita antes de que llegue a la ficha pública.
+    const summaryByLang = parseMultilang(stripSyllabusBlock(course.summary ?? ''));
 
     // Prioridad del texto, de más específico a más genérico:
     //   1. PEREGRINE_CATALOG  — programas de Peregrine, es/en del corporativo.
