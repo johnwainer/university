@@ -50,7 +50,7 @@
 }
 
 .brand-name {
-  font-family: 'Space Grotesk', 'Manrope', sans-serif;
+  font-family: var(--pcl-font-display);
   font-size: 1.1rem;
   font-weight: 900;
   letter-spacing: 0.14em;
@@ -59,7 +59,7 @@
 }
 
 .brand-suffix {
-  font-family: 'Space Grotesk', 'Manrope', sans-serif;
+  font-family: var(--pcl-font-display);
   font-size: 0.96rem;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -366,7 +366,7 @@
 .hero-content h1 {
   margin: 0;
   font-size: 3.2rem;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
   line-height: 1.02;
 }
 
@@ -433,7 +433,7 @@
 
 .webinar-highlight-content h2 {
   margin: 0;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
   font-size: clamp(1.5rem, 2.8vw, 2.3rem);
 }
 
@@ -834,7 +834,7 @@
 
 .section-header-row h2 {
   margin: 0;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
   font-size: 1.45rem;
 }
 
@@ -1119,7 +1119,7 @@
 
 .course-header h1 {
   margin: 8px 0;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
 }
 
 .course-header p {
@@ -1179,7 +1179,7 @@
 .course-header-modern h1 {
   margin: 0;
   font-size: clamp(1.85rem, 2.6vw, 2.8rem);
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
   line-height: 1.05;
   max-width: 780px;
 }
@@ -1792,7 +1792,7 @@
 .legal-hero h1 {
   margin: 0;
   font-size: 2rem;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
 }
 
 .legal-hero p {
@@ -1843,7 +1843,7 @@
 
 .legal-content-card h2 {
   margin: 0 0 14px 0;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
   line-height: 1.15;
 }
 
@@ -1922,7 +1922,7 @@
 
 .footer-col-title {
   margin: 0 0 8px;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
   color: #ffffff;
   font-size: 1rem;
 }
@@ -1945,7 +1945,7 @@
 .footer-title {
   margin: 4px 0 0;
   font-size: 1.35rem;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
   line-height: 1.2;
   color: #fff;
 }
@@ -2341,7 +2341,7 @@
 
 .auth-modal h3 {
   margin: 0;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
 }
 
 .auth-switch {
@@ -3712,7 +3712,7 @@
   font-size: 1.8rem;
   font-weight: 800;
   color: #fff;
-  font-family: 'Space Grotesk', 'Manrope', sans-serif;
+  font-family: var(--pcl-font-display);
 }
 
 /* ── Language Switcher ── */
