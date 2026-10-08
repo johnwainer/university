@@ -377,9 +377,27 @@ signal_for_type() {
     '[.sections[].items[] | select(.documentTypeId == $t)][0].signal'
 }
 
-# Sin documento -> rojo
-check "Sin evidencia el semáforo del programa está en rojo" \
-  "$([[ "$(signal_for_type "$PROG_TYPE_ID")" == "red" ]] && echo 1 || echo 0)"
+# Estado de UNA unidad concreta dentro de un tipo de documento.
+#
+# El semáforo del tipo agrega todas las unidades: con varios programas activos
+# —que es lo normal en un entorno con datos— aprobar la evidencia de uno solo
+# deja el tipo en ámbar, no en verde. Afirmar sobre el tipo haría que la prueba
+# dependiera de cuántos programas existan. Se afirma sobre la unidad propia:
+# devuelve el estado de su gap, o "approved" cuando ya no aparece como hueco.
+state_for_unit() {
+  local type_id="$1" unit_id="$2"
+  request GET /admin/cie/checklist '' admin
+  printf '%s' "$HTTP_BODY" | jq -r --arg t "$type_id" --arg u "$unit_id" \
+    '[.sections[].items[] | select(.documentTypeId == $t)][0].gaps
+     | map(select(.targetId == $u)) | if length == 0 then "approved" else .[0].state end'
+}
+
+# Sin documento: la unidad figura como no cargada y el tipo no puede ir verde.
+check "Sin evidencia la unidad figura como no cargada" \
+  "$([[ "$(state_for_unit "$PROG_TYPE_ID" "$CREATED_PROGRAM_ID")" == "missing" ]] && echo 1 || echo 0)" \
+  "estado=$(state_for_unit "$PROG_TYPE_ID" "$CREATED_PROGRAM_ID")"
+check "Con un hueco el semáforo del tipo no está en verde" \
+  "$([[ "$(signal_for_type "$PROG_TYPE_ID")" != "green" ]] && echo 1 || echo 0)"
 
 # Documento en borrador -> ámbar
 request POST /admin/cie/documents \
@@ -388,8 +406,9 @@ request POST /admin/cie/documents \
 DOC_PROG_ID="$(printf '%s' "$HTTP_BODY" | jq -r '.document.id // empty')"
 CREATED_DOCUMENT_IDS+=("$DOC_PROG_ID")
 check "Crear documento de programa devuelve 201" "$([[ "$HTTP_STATUS" == 201 ]] && echo 1 || echo 0)" "status=$HTTP_STATUS body=$HTTP_BODY"
-check "Evidencia en borrador pone el semáforo en ámbar" \
-  "$([[ "$(signal_for_type "$PROG_TYPE_ID")" == "amber" ]] && echo 1 || echo 0)"
+check "Evidencia en borrador deja la unidad como pendiente" \
+  "$([[ "$(state_for_unit "$PROG_TYPE_ID" "$CREATED_PROGRAM_ID")" == "draft" ]] && echo 1 || echo 0)" \
+  "estado=$(state_for_unit "$PROG_TYPE_ID" "$CREATED_PROGRAM_ID")"
 
 # Duplicado para la misma unidad -> 409
 request POST /admin/cie/documents \
@@ -399,13 +418,15 @@ check "Segundo documento del mismo tipo y unidad devuelve 409" "$([[ "$HTTP_STAT
 # Aprobado y vigente -> verde
 request PATCH "/admin/cie/documents/${DOC_PROG_ID}" '{"status":"approved","expiresAt":"2099-12-31"}' admin
 check "Aprobar documento devuelve 200" "$([[ "$HTTP_STATUS" == 200 ]] && echo 1 || echo 0)" "status=$HTTP_STATUS"
-check "Evidencia aprobada y vigente pone el semáforo en verde" \
-  "$([[ "$(signal_for_type "$PROG_TYPE_ID")" == "green" ]] && echo 1 || echo 0)"
+check "Evidencia aprobada y vigente saca la unidad de los huecos" \
+  "$([[ "$(state_for_unit "$PROG_TYPE_ID" "$CREATED_PROGRAM_ID")" == "approved" ]] && echo 1 || echo 0)" \
+  "estado=$(state_for_unit "$PROG_TYPE_ID" "$CREATED_PROGRAM_ID")"
 
 # Aprobado pero vencido -> NO cuenta: vuelve a ámbar
 request PATCH "/admin/cie/documents/${DOC_PROG_ID}" '{"expiresAt":"2020-01-01"}' admin
-check "Evidencia vencida deja de contar (ámbar)" \
-  "$([[ "$(signal_for_type "$PROG_TYPE_ID")" == "amber" ]] && echo 1 || echo 0)"
+check "Evidencia vencida vuelve a contar como hueco" \
+  "$([[ "$(state_for_unit "$PROG_TYPE_ID" "$CREATED_PROGRAM_ID")" == "expired" ]] && echo 1 || echo 0)" \
+  "estado=$(state_for_unit "$PROG_TYPE_ID" "$CREATED_PROGRAM_ID")"
 request GET /admin/cie/checklist '' admin
 check "La evidencia vencida se cuenta en totalExpired" \
   "$(printf '%s' "$HTTP_BODY" | jq -e '.summary.totalExpired >= 1' >/dev/null 2>&1 && echo 1 || echo 0)"
