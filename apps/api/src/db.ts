@@ -11,6 +11,7 @@ import {
   type Offer
 } from '@atlas/shared';
 import { config } from './config.js';
+import { peregrineProgram } from './catalog/peregrine-catalog.js';
 
 export const pool = new Pool({ connectionString: config.db.url });
 
@@ -810,6 +811,53 @@ function decodeMoodleText(value: string): string {
     .replace(/&#(\d+);/g, (_m, d) => String.fromCodePoint(Number(d)));
 }
 
+/**
+ * Moodle guarda el contenido bilingüe con el marcado del filtro multilang:
+ * `{mlang en}...{mlang}{mlang es}...{mlang}`. El web service devuelve el texto
+ * SIN pasar por los filtros, así que llega crudo y este es el punto donde se
+ * separa. Esa es justo la gracia: las traducciones se editan en el LMS, no en
+ * este archivo, y un cambio en Moodle no necesita despliegue.
+ *
+ * Sin marcado, el mismo texto sirve para los dos idiomas, de modo que un curso
+ * creado a mano nunca sale en blanco en inglés. `{mlang other}` es el comodín
+ * que usa Moodle para "cualquier otro idioma" y aquí hace de respaldo.
+ */
+function parseMultilang(value: string): { es: string; en: string } {
+  const blocks = [...value.matchAll(/\{\s*mlang\s+([a-zA-Z_-]+)\s*\}([\s\S]*?)\{\s*mlang\s*\}/g)];
+  if (blocks.length === 0) {
+    return { es: value, en: value };
+  }
+  const byLang = new Map<string, string>();
+  for (const block of blocks) {
+    const lang = block[1].toLowerCase().split(/[_-]/)[0];
+    // Moodle permite partir un idioma en varios bloques; el filtro los
+    // concatena en orden y aquí se hace lo mismo.
+    byLang.set(lang, (byLang.get(lang) ?? '') + block[2]);
+  }
+  const fallback = byLang.get('other') ?? blocks[0][2];
+  return {
+    es: (byLang.get('es') ?? fallback).trim(),
+    en: (byLang.get('en') ?? fallback).trim()
+  };
+}
+
+/**
+ * El resumen de Moodle es HTML. Las tarjetas del catálogo lo pintan como texto
+ * plano, así que las etiquetas se quitan aquí y no en el front: la misma cadena
+ * alimenta tarjeta, buscador y metadatos, y si cada consumidor limpiara por su
+ * cuenta acabarían divergiendo.
+ */
+function htmlToPlainText(value: string): string {
+  return decodeMoodleText(
+    value
+      .replace(/<\s*br\s*\/?>/gi, ' ')
+      .replace(/<\/\s*(p|li|h[1-6]|div)\s*>/gi, ' ')
+      .replace(/<[^>]*>/g, '')
+  )
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export async function syncMoodleCoursesWithCategories(
   courses: MoodleCourseRow[],
   categoryNameById: Record<number, string>
@@ -831,25 +879,56 @@ export async function syncMoodleCoursesWithCategories(
     const language = course.lang === 'es' ? 'es' : 'en';
     const shortname = course.shortname || `course-${course.id}`;
     const slugBase = toSlug(shortname) || `course-${course.id}`;
-    const title = decodeMoodleText(course.fullname || shortname);
-    const summary = decodeMoodleText(course.summary?.trim() || 'Course synchronized from Moodle');
-    const heroImage = `https://picsum.photos/seed/atlas-course-${course.id}/1400/800`;
-    const themedSummary = `${summary} ${courseThemePool[Math.abs(Number(course.id)) % courseThemePool.length]}`.trim();
-    // Bilingual (es/en) catalog metadata. Known Atlas courses use the curated map;
-    // any other course falls back to its Moodle title in both languages so EN never breaks.
+
+    // Moodle es la fuente de verdad del texto. Título y resumen pueden venir
+    // con marcado multilang, así que lo primero es separarlos por idioma; todo
+    // lo demás (texto plano, respaldos) se deriva de ahí.
+    const titleByLang = parseMultilang(course.fullname || shortname);
+    const summaryByLang = parseMultilang(course.summary ?? '');
+
+    // Prioridad del texto, de más específico a más genérico:
+    //   1. PEREGRINE_CATALOG  — programas de Peregrine, es/en del corporativo.
+    //   2. COURSE_I18N        — cursos demo de Atlas.
+    //   3. Lo que diga Moodle — con {mlang} si lo trae, o el mismo texto en los
+    //      dos idiomas, que es mejor que dejar el inglés vacío.
+    const program = peregrineProgram(shortname);
     const i18n = COURSE_I18N[shortname.toUpperCase()];
-    const assetTitle = i18n ? i18n.es.title : title;
-    const assetTitleEn = i18n ? i18n.en.title : title;
-    const assetSummary = i18n ? i18n.es.summary : themedSummary;
-    const assetSummaryEn = i18n ? i18n.en.summary : themedSummary;
-    const assetLanguage = i18n ? 'es' : language;
-    // El mapa de categorías llega crudo del web service, así que se decodifica
-    // aquí igual que el título: es el valor que acaba pintado en la portada.
-    const categoryName = decodeMoodleText(
+
+    const moodleTitleEs = decodeMoodleText(titleByLang.es) || shortname;
+    const moodleTitleEn = decodeMoodleText(titleByLang.en) || moodleTitleEs;
+    const moodleHtmlEs = summaryByLang.es.trim();
+    const moodleHtmlEn = summaryByLang.en.trim() || moodleHtmlEs;
+    const moodlePlainEs = htmlToPlainText(moodleHtmlEs);
+    const moodlePlainEn = htmlToPlainText(moodleHtmlEn) || moodlePlainEs;
+
+    // El relleno temático está escrito en español y sólo entra cuando Moodle no
+    // trae resumen. Antes se concatenaba también al texto inglés y la ficha
+    // salía en dos idiomas a la vez.
+    const fallbackTheme = courseThemePool[Math.abs(Number(course.id)) % courseThemePool.length];
+
+    const assetTitle = program?.title.es ?? i18n?.es.title ?? moodleTitleEs;
+    const assetTitleEn = program?.title.en ?? i18n?.en.title ?? moodleTitleEn;
+    const assetSummary = program?.summary.es ?? i18n?.es.summary ?? moodlePlainEs ?? fallbackTheme;
+    const assetSummaryEn = program?.summary.en ?? i18n?.en.summary ?? moodlePlainEn ?? assetSummary;
+    const summaryHtmlEs = program?.summaryHtml.es ?? moodleHtmlEs;
+    const summaryHtmlEn = program?.summaryHtml.en ?? moodleHtmlEn;
+    const assetLanguage = program || i18n ? 'es' : language;
+
+    // Portada y duración: decisiones de marca del sitio corporativo, no del LMS.
+    // Sin entrada en el catálogo se conserva el placeholder determinista de
+    // siempre, que al menos da una imagen estable por curso.
+    const heroImage = program?.hero ?? `https://picsum.photos/seed/atlas-course-${course.id}/1400/800`;
+    const durationMinutes = program ? program.hours * 60 : 120;
+
+    // El mapa de categorías llega crudo del web service, así que pasa por el
+    // mismo tratamiento que el título: multilang primero, entidades después.
+    const rawCategory =
       (typeof course.categoryid === 'number' ? categoryNameById[course.categoryid] : undefined) ??
-        extractCategoryFromSummary(course.summary) ??
-        (course.categoryid ? `Categoria ${course.categoryid}` : 'Sin categoría')
-    );
+      extractCategoryFromSummary(course.summary) ??
+      (course.categoryid ? `Categoria ${course.categoryid}` : 'Sin categoría');
+    const categoryByLang = parseMultilang(rawCategory);
+    const categoryName = decodeMoodleText(categoryByLang.es);
+    const categoryNameEn = decodeMoodleText(categoryByLang.en) || categoryName;
 
     await pool.query(
       `
@@ -869,7 +948,7 @@ export async function syncMoodleCoursesWithCategories(
       `,
       [
         course.id,
-        title,
+        moodleTitleEs,
         shortname,
         course.categoryid ?? null,
         course.visible !== 0,
@@ -892,13 +971,16 @@ export async function syncMoodleCoursesWithCategories(
       summary: assetSummary,
       titleEn: assetTitleEn,
       summaryEn: assetSummaryEn,
+      summaryHtml: summaryHtmlEs,
+      summaryHtmlEn,
       kind: 'course',
       accessModel: 'purchase',
-      durationMinutes: 120,
+      durationMinutes,
       language: assetLanguage,
       tags: [categoryName, 'Moodle'],
       heroImage,
       categoryName,
+      categoryNameEn,
       moodleCourseId: String(course.id),
       modules: 1,
       lessons: 1,

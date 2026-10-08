@@ -44,6 +44,16 @@ export interface ContentAsset {
   summary: string;
   titleEn?: string;
   summaryEn?: string;
+  /**
+   * Resumen con el HTML original de Moodle (lema, entradilla y lo que se
+   * practica). `summary` sigue siendo la versión en texto plano que pintan las
+   * tarjetas; esto es lo que usa la ficha del programa.
+   */
+  summaryHtml?: string;
+  summaryHtmlEn?: string;
+  /** Nombre de la categoría de Moodle, ya traducido, para la etiqueta de la tarjeta. */
+  categoryName?: string;
+  categoryNameEn?: string;
   kind: ContentKind;
   accessModel: AccessModel;
   durationMinutes?: number;
