@@ -1,14 +1,17 @@
 :root {
-  color-scheme: light;
-  --bg-top: #142238;
-  --bg-bottom: #2f1209;
-  --card: rgba(15, 23, 42, 0.78);
-  --card-border: rgba(148, 163, 184, 0.28);
-  --text: #e2e8f0;
-  --muted: #cbd5e1;
-  --accent: #f59e0b;
-  --danger: #f87171;
-  font-family: 'Source Sans 3', sans-serif;
+  color-scheme: dark;
+  /* Mismo criterio que en la web pública: los tokens existentes apuntan a la
+     paleta de marca, de modo que el panel hereda la identidad sin reescribir
+     sus reglas. */
+  --bg-top: var(--pcl-navy-800);
+  --bg-bottom: var(--pcl-navy-900);
+  --card: rgba(22, 50, 79, 0.82);
+  --card-border: rgba(0, 205, 232, 0.22);
+  --text: var(--pcl-white);
+  --muted: var(--pcl-ice);
+  --accent: var(--pcl-cyan);
+  --danger: var(--pcl-coral);
+  font-family: var(--pcl-font-body);
 }
 
 * {
@@ -20,14 +23,14 @@ body {
   min-height: 100vh;
   color: var(--text);
   background:
-    radial-gradient(circle at 10% 10%, rgba(14, 165, 233, 0.22), transparent 25%),
-    radial-gradient(circle at 90% 20%, rgba(245, 158, 11, 0.2), transparent 30%),
+    radial-gradient(circle at 10% 10%, rgba(0, 205, 232, 0.16), transparent 28%),
+    radial-gradient(circle at 90% 20%, rgba(0, 205, 232, 0.08), transparent 32%),
     linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
 }
 
 h1,
 h2 {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
   margin: 0;
 }
 
@@ -225,7 +228,7 @@ button.danger {
 }
 
 .metric strong {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
   font-size: 1.6rem;
 }
 
@@ -398,7 +401,7 @@ td {
 }
 
 .cie-percent {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--pcl-font-display);
   font-size: 2rem;
   color: var(--text);
 }

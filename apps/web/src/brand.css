@@ -1,0 +1,59 @@
+/* =========================================================================
+   Línea gráfica — Peregrine Corporate Learning
+   =========================================================================
+   Paleta y tipografía tomadas de peregrineeducationus.com, medidas sobre los
+   estilos computados del sitio en producción, no estimadas a ojo.
+
+   Tipografía
+     Titulares : Area Extended ExtraBold (Blaze Type) — la misma del sitio.
+     Texto     : Roboto.
+   La fuente se sirve desde el propio dominio en woff2 (74 KB). `font-display:
+   swap` evita el texto invisible mientras carga, y "Archivo Black" queda de
+   respaldo por ser el sustituto que ya usa el sitio corporativo.
+   ========================================================================= */
+
+@font-face {
+  font-family: 'Area Extended';
+  src: url('/fonts/AreaExtended-Extrabold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* --- Azules institucionales ------------------------------------------ */
+  --pcl-navy-900: #081627;  /* fondo más profundo            */
+  --pcl-navy-800: #0b203a;  /* fondo principal               */
+  --pcl-navy-700: #16324f;  /* superficies y tarjetas        */
+  --pcl-navy-600: #1f4063;  /* bordes y estados hover        */
+
+  /* --- Acento de marca -------------------------------------------------- */
+  --pcl-cyan:     #00cde8;  /* color distintivo de Peregrine */
+  --pcl-cyan-700: #00a8bf;
+  --pcl-cyan-100: #b8f2fa;
+
+  /* --- Texto ------------------------------------------------------------ */
+  --pcl-white:    #ffffff;
+  --pcl-ice:      #cfe0ee;  /* texto secundario              */
+  --pcl-steel:    #8fa6bf;  /* texto terciario               */
+
+  /* --- Acentos de apoyo (uso puntual) ----------------------------------- */
+  --pcl-coral:    #ff6b6b;  /* alertas y destacados          */
+  --pcl-gold:     #d4af36;  /* distinciones y certificados   */
+
+  --pcl-font-display: 'Area Extended', 'Archivo Black', 'Roboto', sans-serif;
+  --pcl-font-body: 'Roboto', 'Source Sans 3', system-ui, sans-serif;
+}
+
+/* Los titulares llevan la tipografía extendida: en Area Extended el tracking
+   negativo evita que las mayúsculas se separen de más a tamaños grandes. */
+h1, h2, h3,
+.brand-name, .brand-suffix,
+.hero-title, .section-title {
+  font-family: var(--pcl-font-display);
+  letter-spacing: -0.01em;
+}
+
+body {
+  font-family: var(--pcl-font-body);
+}

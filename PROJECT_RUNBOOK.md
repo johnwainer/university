@@ -528,3 +528,47 @@ VITE_INSTITUTION_SHORT_NAME="Floridian" \
 ```
 
 y `INSTITUTION_NAME=The Floridian University` en el `.env` de la API.
+
+## 18) Identidad visual — Peregrine Corporate Learning
+
+La paleta y la tipografía salen de `peregrineeducationus.com`, medidas sobre
+los estilos computados del sitio en producción.
+
+| Token | Valor | Uso |
+|---|---|---|
+| `--pcl-navy-900` | `#081627` | fondo más profundo |
+| `--pcl-navy-800` | `#0b203a` | fondo principal |
+| `--pcl-navy-700` | `#16324f` | superficies y tarjetas |
+| `--pcl-navy-600` | `#1f4063` | bordes y hover |
+| `--pcl-cyan` | `#00cde8` | acento de marca |
+| `--pcl-ice` | `#cfe0ee` | texto secundario |
+| `--pcl-coral` | `#ff6b6b` | alertas |
+| `--pcl-gold` | `#d4af36` | distinciones |
+
+Tipografía: **Area Extended ExtraBold** (Blaze Type) en titulares y **Roboto**
+en texto, igual que el sitio corporativo. La fuente se sirve desde el propio
+dominio en `apps/web/public/fonts/AreaExtended-Extrabold.woff2` (74 KB, 58 %
+menos que el `.otf` original).
+
+Todo vive en `apps/web/src/brand.css`, que `main.tsx` importa **antes** que
+cualquier otra hoja. Los tokens que ya usaban la web pública (`--bg`,
+`--surface`, `--accent`…) y el panel (`--bg-top`, `--card`, `--accent`…) se
+reapuntan a esta paleta: así la marca se cambia en un solo archivo sin tocar
+las casi 4.000 líneas de estilos existentes.
+
+**Licencia:** Area es una fuente comercial de Blaze Type. El sitio corporativo
+ya la usa, pero conviene confirmar que la licencia cubre uso como webfont en
+este dominio antes de salir a producción abierta.
+
+## 19) Catálogo Peregrine en Moodle
+
+`infra/catalogo/peregrine.json` tiene las 5 categorías y los 13 programas
+publicados en el sitio. `sync-peregrine.mjs` los crea o actualiza en Moodle de
+forma idempotente (categorías por `idnumber`, cursos por `shortname`) y oculta
+los cursos que no estén en el catálogo — **ocultar, no borrar**: en Moodle
+borrar un curso arrastra matrículas y calificaciones.
+
+Un curso oculto en Moodle (`visible = 0`) deja de publicarse en el catálogo
+público y su ficha se retira de `content_assets`, pero sigue en
+`moodle_courses` para que el panel admin lo vea. Los textos que vienen de
+Moodle se decodifican de entidades HTML antes de guardarse.

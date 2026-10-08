@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './brand.css';
 import { BRAND } from './i18n';
 import { App } from './components/App';
 

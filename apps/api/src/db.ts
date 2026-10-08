@@ -785,6 +785,22 @@ export async function syncMoodleCourses(courses: MoodleCourseRow[]): Promise<{
   return syncMoodleCoursesWithCategories(courses, {});
 }
 
+/**
+ * Moodle devuelve los nombres de curso con entidades HTML escapadas
+ * ("Team Performance &amp; Culture"). El catálogo los pinta como texto plano,
+ * así que sin esto el ampersand llega literal a la portada.
+ */
+function decodeMoodleText(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_m, d) => String.fromCodePoint(Number(d)));
+}
+
 export async function syncMoodleCoursesWithCategories(
   courses: MoodleCourseRow[],
   categoryNameById: Record<number, string>
@@ -797,12 +813,17 @@ export async function syncMoodleCoursesWithCategories(
   let upsertedCourses = 0;
   let upsertedCatalogAssets = 0;
 
+  // Un curso oculto en Moodle no se publica: `visible === 0` es la forma en que
+  // la institución retira una oferta sin borrar matrículas ni calificaciones.
+  // Se siguen guardando en `moodle_courses` para que el panel admin los vea.
+  const hiddenAssetIds: string[] = [];
+
   for (const course of courses) {
     const language = course.lang === 'es' ? 'es' : 'en';
     const shortname = course.shortname || `course-${course.id}`;
     const slugBase = toSlug(shortname) || `course-${course.id}`;
-    const title = course.fullname || shortname;
-    const summary = course.summary?.trim() || 'Course synchronized from Moodle';
+    const title = decodeMoodleText(course.fullname || shortname);
+    const summary = decodeMoodleText(course.summary?.trim() || 'Course synchronized from Moodle');
     const heroImage = `https://picsum.photos/seed/atlas-course-${course.id}/1400/800`;
     const themedSummary = `${summary} ${courseThemePool[Math.abs(Number(course.id)) % courseThemePool.length]}`.trim();
     // Bilingual (es/en) catalog metadata. Known Atlas courses use the curated map;
@@ -846,6 +867,11 @@ export async function syncMoodleCoursesWithCategories(
       ]
     );
     upsertedCourses += 1;
+
+    if (course.visible === 0) {
+      hiddenAssetIds.push(`moodle-course-${course.id}`);
+      continue;
+    }
 
     const moodleCourseAsset = {
       id: `moodle-course-${course.id}`,
@@ -911,6 +937,18 @@ export async function syncMoodleCoursesWithCategories(
   // an empty list (e.g. a transient Moodle error) so we never wipe the catalog.
   let prunedCourses = 0;
   let prunedCatalogAssets = 0;
+
+  // Un curso que se oculta después de haber estado publicado ya tiene su ficha
+  // en el catálogo: hay que retirarla, no solo dejar de crearla.
+  if (hiddenAssetIds.length > 0) {
+    await pool.query(`DELETE FROM entitlements WHERE content_id = ANY($1::text[])`, [hiddenAssetIds]);
+    const hiddenRemoved = await pool.query(
+      `DELETE FROM content_assets WHERE id = ANY($1::text[])`,
+      [hiddenAssetIds]
+    );
+    prunedCatalogAssets += hiddenRemoved.rowCount ?? 0;
+  }
+
   if (courses.length > 0) {
     const keepCourseIds = courses.map((c) => Number(c.id));
     const keepAssetIds = courses.map((c) => `moodle-course-${c.id}`);
