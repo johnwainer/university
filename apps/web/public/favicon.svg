@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Floridian University">
+  <!-- Marca de pestaña: monograma sobre el azul institucional de Peregrine.
+       SVG y no .ico para que se vea nítido en cualquier densidad de pantalla. -->
+  <rect width="64" height="64" rx="14" fill="#081627"/>
+  <path d="M18 44V20h22v6H25.5v4.5H38v6H25.5V44z" fill="#00cde8"/>
+</svg>
