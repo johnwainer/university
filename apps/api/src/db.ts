@@ -843,10 +843,13 @@ export async function syncMoodleCoursesWithCategories(
     const assetSummary = i18n ? i18n.es.summary : themedSummary;
     const assetSummaryEn = i18n ? i18n.en.summary : themedSummary;
     const assetLanguage = i18n ? 'es' : language;
-    const categoryName =
+    // El mapa de categorías llega crudo del web service, así que se decodifica
+    // aquí igual que el título: es el valor que acaba pintado en la portada.
+    const categoryName = decodeMoodleText(
       (typeof course.categoryid === 'number' ? categoryNameById[course.categoryid] : undefined) ??
-      extractCategoryFromSummary(course.summary) ??
-      (course.categoryid ? `Categoria ${course.categoryid}` : 'Sin categoría');
+        extractCategoryFromSummary(course.summary) ??
+        (course.categoryid ? `Categoria ${course.categoryid}` : 'Sin categoría')
+    );
 
     await pool.query(
       `
