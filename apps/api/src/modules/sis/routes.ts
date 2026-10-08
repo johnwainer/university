@@ -63,8 +63,15 @@ export function registerSisRoutes(app: FastifyInstance, ctx: SisContext): void {
     programId: z.string().min(1).max(80),
     background: z.string().max(2000).optional(),
     locale: z.enum(['es', 'en']).optional(),
-    /** Campo trampa: sólo lo rellena un bot. */
-    website: z.string().max(0).optional()
+    /**
+     * Campo trampa: sólo lo rellena un bot.
+     *
+     * Se acepta cualquier cadena a propósito. Con `.max(0)` zod lo rechazaba
+     * antes de llegar a la comprobación y devolvía un 400 de validación, que
+     * es justo la señal que no queremos darle: le dice al bot qué campo le
+     * delató. Entrando por el camino normal, recibe un 202 y se va contento.
+     */
+    website: z.string().max(200).optional()
   });
 
   /** Código de seguimiento legible por teléfono: sin O/0 ni I/1. */
