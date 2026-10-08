@@ -1010,7 +1010,7 @@ export async function syncMoodleCategories(categories: MoodleCategoryRow[]): Pro
       `,
       [
         category.id,
-        category.name,
+        decodeMoodleText(category.name),
         category.idnumber ?? null,
         category.parent ?? null,
         category.depth ?? null,
