@@ -16,6 +16,7 @@ import {
 } from '../lib/api';
 import type { ContentAsset, HomeResponse } from '@atlas/shared';
 import { EnterpriseGroupManager } from './EnterpriseGroupManager';
+import { BRAND_SHORT } from '../i18n';
 import { StudentAcademics } from './StudentAcademics';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ContactSection } from './public/ContactSection';
@@ -1645,7 +1646,7 @@ export function PublicApp() {
     <main className="public-shell netflix-ui">
       <header className="public-topbar netflix-topbar">
         <button className="brand-btn" onClick={() => setView({ type: 'home' })}>
-          <span className="brand-name">Atlas</span>
+          <span className="brand-name">{BRAND_SHORT}</span>
           <span className="brand-suffix">University</span>
         </button>
         <nav className="public-nav">

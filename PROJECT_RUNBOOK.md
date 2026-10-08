@@ -498,3 +498,33 @@ activo.
 `INSTITUTION_NAME=The Floridian University` se fija vía SSM
 (`infra/deploy/env.production.local.example` → `50-secrets-put.sh`); el default
 commiteado en `.env.example` es el de desarrollo de esta rama y no se cambia.
+
+## 17) Marca de la institución (multi-institución)
+
+El producto sirve a varias instituciones con un mismo código. El nombre NO se
+escribe a mano en los textos: las traducciones usan `{{brand}}` (nombre
+completo) y `{{brandShort}}` (nombre corto), que i18next resuelve mediante
+`interpolation.defaultVariables` en `apps/web/src/i18n.ts`.
+
+| Dónde | Variable | Por defecto |
+|---|---|---|
+| Frontend (build) | `VITE_INSTITUTION_NAME` | `Atlas Online University` |
+| Frontend (build) | `VITE_INSTITUTION_SHORT_NAME` | primera palabra del nombre completo |
+| API (runtime) | `INSTITUTION_NAME` | `University` |
+
+El título de la pestaña sale del plugin `institutionTitle` de
+`apps/web/vite.config.ts`, que sustituye `%VITE_INSTITUTION_NAME%` en
+`index.html` y garantiza un valor aunque la variable no esté definida;
+`main.tsx` lo reafirma en tiempo de ejecución.
+
+Para desplegar a una institución concreta basta con exportar esas variables
+antes del build. **No se edita el repositorio para cambiar de marca.** El
+despliegue de The Floridian University usa:
+
+```bash
+VITE_INSTITUTION_NAME="The Floridian University" \
+VITE_INSTITUTION_SHORT_NAME="Floridian" \
+  npm run build -w @atlas/web
+```
+
+y `INSTITUTION_NAME=The Floridian University` en el `.env` de la API.
