@@ -410,6 +410,10 @@ async function createSchema(): Promise<void> {
 
     ALTER TABLE public_course_interactions ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
 
+    -- Permite retirar un activo del catálogo público sin borrarlo: un curso
+    -- despublicado conserva su progreso, sus interacciones y su historia.
+    ALTER TABLE content_assets ADD COLUMN IF NOT EXISTS is_published BOOLEAN NOT NULL DEFAULT true;
+
     ALTER TABLE users ADD COLUMN IF NOT EXISTS moodle_user_id BIGINT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
     CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users(email);
@@ -686,12 +690,17 @@ export async function getTenantAndUser() {
 }
 
 export async function getCatalog(): Promise<ContentAsset[]> {
-  const result = await pool.query(`SELECT payload FROM content_assets ORDER BY created_at DESC`);
+  const result = await pool.query(
+    `SELECT payload FROM content_assets WHERE is_published ORDER BY created_at DESC`
+  );
   return result.rows.map((row) => row.payload as ContentAsset);
 }
 
 export async function getContentBySlug(slug: string): Promise<ContentAsset | null> {
-  const result = await pool.query(`SELECT payload FROM content_assets WHERE slug = $1 LIMIT 1`, [slug]);
+  const result = await pool.query(
+    `SELECT payload FROM content_assets WHERE slug = $1 AND is_published LIMIT 1`,
+    [slug]
+  );
   return result.rows[0]?.payload ?? null;
 }
 
@@ -913,7 +922,9 @@ export async function syncMoodleCoursesWithCategories(
             language = EXCLUDED.language,
             tags = EXCLUDED.tags,
             hero_image = EXCLUDED.hero_image,
-            payload = EXCLUDED.payload
+            payload = EXCLUDED.payload,
+            -- Visible otra vez en Moodle: vuelve al catálogo.
+            is_published = true
       `,
       [
         moodleCourseAsset.id,
@@ -941,9 +952,9 @@ export async function syncMoodleCoursesWithCategories(
   // Un curso que se oculta después de haber estado publicado ya tiene su ficha
   // en el catálogo: hay que retirarla, no solo dejar de crearla.
   if (hiddenAssetIds.length > 0) {
-    await pool.query(`DELETE FROM entitlements WHERE content_id = ANY($1::text[])`, [hiddenAssetIds]);
     const hiddenRemoved = await pool.query(
-      `DELETE FROM content_assets WHERE id = ANY($1::text[])`,
+      `UPDATE content_assets SET is_published = false
+       WHERE id = ANY($1::text[]) AND is_published`,
       [hiddenAssetIds]
     );
     prunedCatalogAssets += hiddenRemoved.rowCount ?? 0;
