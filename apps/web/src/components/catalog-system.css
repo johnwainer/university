@@ -1,0 +1,445 @@
+/* =========================================================================
+   Sistema visual del catálogo — Peregrine Corporate Learning
+   =========================================================================
+   Se carga DESPUÉS de public.css a propósito: aquí sólo hay añadidos y
+   afinados sobre las piezas que ya existen (tarjeta, hero, ficha, eventos),
+   no una hoja paralela. Todo se construye con los tokens de brand.css, así
+   que un cambio de paleta sigue siendo un cambio en un único archivo.
+
+   El problema que resuelve: las cinco familias de programas se pintaban todas
+   con el mismo cian, así que una parrilla de trece tarjetas se leía como una
+   sola masa y no se distinguía ventas de educación de un vistazo.
+   ========================================================================= */
+
+/* --- Acento por familia de programa --------------------------------------
+   `data-accent` lo pone categoryAccentKey() en PublicApp.tsx a partir de la
+   raíz del nombre de la categoría, de modo que funciona igual en español y en
+   inglés. Los tonos salen todos del azul-cian de Peregrine; se separan en
+   matiz, no en saturación, para que ninguno grite más que otro. */
+[data-accent] {
+  --accent: var(--pcl-cyan);
+  --accent-ink: var(--pcl-navy-900);
+}
+[data-accent='sales']      { --accent: #00cde8; }
+[data-accent='cx']         { --accent: #4fd1a5; }
+[data-accent='leadership'] { --accent: #7aa7ff; }
+[data-accent='ai']         { --accent: #b388ff; }
+[data-accent='education']  { --accent: #ffc14d; }
+[data-accent='neutral']    { --accent: var(--pcl-steel); }
+
+/* --- Etiqueta de categoría ------------------------------------------------
+   Sustituye al `public-badge` genérico en las tarjetas de curso. El borde lleva
+   el acento y el fondo apenas lo insinúa: sobre una foto, un relleno sólido
+   compite con el título. */
+.category-chip {
+  justify-self: start;
+  display: inline-block;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent, var(--pcl-cyan)) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pcl-navy-900) 72%, transparent);
+  color: var(--accent, var(--pcl-cyan));
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.3;
+  /* Las categorías de Peregrine son largas ("Customer Experience as Revenue
+     Engine"): dos líneas como máximo y luego elipsis, para que la etiqueta
+     nunca empuje al título fuera de la tarjeta. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* --- Dato de duración ----------------------------------------------------- */
+.tile-meta {
+  margin: 0;
+  color: var(--pcl-ice);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.hero-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.hero-duration {
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--pcl-white) 28%, transparent);
+  border-radius: 999px;
+  color: var(--pcl-white);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* --- Tarjeta: foto con más presencia y un filo de color -------------------
+   La imagen antes se veía plana bajo el degradado negro. El tinte navy la
+   integra en la paleta y el filo inferior identifica la familia sin ocupar
+   sitio. */
+.content-tile {
+  background: var(--pcl-navy-800);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--pcl-white) 8%, transparent) inset;
+}
+
+.content-tile img {
+  transition: transform 0.4s ease, filter 0.3s ease;
+  filter: saturate(0.92) contrast(1.04);
+}
+
+.content-tile:hover img {
+  transform: scale(1.06);
+  filter: saturate(1.05) contrast(1.06);
+}
+
+.content-tile .tile-overlay,
+.catalog-tile .catalog-tile-overlay {
+  /* Tres paradas y no dos: con un degradado lineal simple, los títulos sobre
+     foto clara (un retrato a contraluz, una oficina blanca) se quedaban por
+     debajo del contraste mínimo legible. La parada intermedia oscurece justo
+     la banda donde cae el texto sin apagar la mitad superior de la imagen. */
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--pcl-navy-900) 8%, transparent) 0%,
+      color-mix(in srgb, var(--pcl-navy-900) 48%, transparent) 42%,
+      color-mix(in srgb, var(--pcl-navy-900) 88%, transparent) 72%,
+      var(--pcl-navy-900) 100%
+    );
+}
+
+/* Refuerzo de última línea: incluso con el degradado, una foto muy clara deja
+   el título al límite. La sombra no se ve, pero sostiene el contraste. */
+.tile-overlay h4,
+.catalog-tile-overlay h4,
+.tile-meta {
+  text-shadow: 0 1px 12px color-mix(in srgb, var(--pcl-navy-900) 85%, transparent);
+}
+
+/* El filo de color vive en ::after del botón, sobre el overlay, para que no
+   lo tape el degradado. */
+.content-tile::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  background: var(--accent, var(--pcl-cyan));
+  opacity: 0.85;
+  transform: scaleX(0.28);
+  transform-origin: left;
+  transition: transform 0.28s ease, opacity 0.28s ease;
+}
+
+.content-tile:hover::after {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+.content-tile:focus-visible {
+  outline: 2px solid var(--pcl-cyan);
+  outline-offset: 3px;
+}
+
+.tile-overlay h4,
+.catalog-tile-overlay h4 {
+  /* Tres líneas: los nombres de programa de Peregrine son descriptivos
+     ("Beyond AI-Proofing: Assessment for Authentic Learning") y cortarlos en
+     dos deja títulos ininteligibles. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* --- Ficha del programa ---------------------------------------------------
+   `detail-rich-summary` pinta el HTML del catálogo: lema, entradilla y la
+   lista de lo que se practica. Antes la ficha era un párrafo recortado a 420
+   caracteres, que es justo donde se quedaba a medias. */
+.detail-rich-summary {
+  display: grid;
+  gap: 14px;
+  color: var(--pcl-ice);
+  line-height: 1.6;
+  max-width: 68ch;
+}
+
+.detail-rich-summary > p {
+  margin: 0;
+}
+
+/* El primer párrafo es el lema del programa: va como entradilla, no como
+   cuerpo. */
+.detail-rich-summary > p:first-child {
+  color: var(--pcl-white);
+  font-family: var(--pcl-font-display);
+  font-size: 1.22rem;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.detail-rich-summary > p:first-child strong {
+  font-weight: inherit;
+}
+
+.detail-rich-summary ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detail-rich-summary li {
+  position: relative;
+  padding-left: 22px;
+}
+
+.detail-rich-summary li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 8px;
+  height: 2px;
+  background: var(--accent, var(--pcl-cyan));
+}
+
+.detail-rich-summary li strong {
+  color: var(--pcl-white);
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* --- Eventos en vivo ------------------------------------------------------
+   La tarjeta tenía estado y hora, pero la descripción no se pintaba y la fecha
+   salía con toLocaleString() del navegador, sin zona horaria: "16:00" no dice
+   nada si no sabes de dónde son esas 16:00. */
+.webinar-card-description {
+  margin: 0;
+  color: var(--pcl-ice);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.webinar-card-datetime {
+  color: var(--pcl-cyan);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+/* El punto que late sólo aparece cuando el evento está en directo; en
+   "próximo" o "grabado" sería ruido. */
+.webinar-state-pill.state-live::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pcl-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pcl-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* --- Ritmo de las secciones ----------------------------------------------
+   Los bloques iban todos con el mismo margen de 16px, así que la portada se
+   leía como una lista continua sin jerarquía. */
+.section-block,
+.content-row-block {
+  margin-top: 34px;
+}
+
+.section-header-row h2 {
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.row-subtitle {
+  color: var(--pcl-steel);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-tile img,
+  .content-tile::after {
+    transition: none;
+  }
+  .content-tile:hover img {
+    transform: none;
+  }
+  .webinar-state-pill.state-live::before {
+    animation: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .hero-meta-row {
+    gap: 8px;
+  }
+  .category-chip {
+    font-size: 0.62rem;
+  }
+  .detail-rich-summary > p:first-child {
+    font-size: 1.08rem;
+  }
+}
+
+/* --- Tarjeta de evento en vivo, reconstruida ------------------------------
+   El contenido iba en `align-content: end` dentro de un alto mínimo de 340px,
+   así que en cuanto el evento tenía descripción el bloque crecía hacia arriba
+   y el título acababa flotando en mitad de la foto, encima de la parte clara.
+   Ahora la foto ocupa una banda fija arriba y el texto vive en una superficie
+   sólida debajo: la altura la marca el texto y la legibilidad no depende de
+   qué se vea en la imagen. */
+.webinar-card-modern {
+  display: grid;
+  grid-template-rows: 150px 1fr;
+  min-height: 0;
+  background: var(--pcl-navy-700);
+  border: 1px solid color-mix(in srgb, var(--pcl-cyan) 18%, transparent);
+  border-radius: 16px;
+}
+
+.webinar-card-modern img {
+  position: relative;
+  inset: auto;
+  height: 150px;
+  width: 100%;
+  object-fit: cover;
+}
+
+/* El velo se queda sólo sobre la franja de la imagen, para fundirla con la
+   superficie de texto en lugar de tapar la tarjeta entera. */
+.webinar-card-modern .webinar-card-overlay {
+  inset: 0 0 auto 0;
+  height: 150px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--pcl-navy-900) 20%, transparent) 0%,
+    color-mix(in srgb, var(--pcl-navy-700) 92%, transparent) 100%
+  );
+}
+
+.webinar-card-modern .webinar-card-body-overlay {
+  position: relative;
+  inset: auto;
+  align-content: start;
+  gap: 8px;
+  padding: 16px 18px 18px;
+}
+
+.webinar-card-modern h4 {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.3;
+  color: var(--pcl-white);
+  text-wrap: balance;
+}
+
+.webinar-card-modern .webinar-card-subtitle {
+  margin: 0;
+  color: var(--pcl-steel);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+
+/* La plataforma ya sale como chip arriba; repetirla en la lista de canales era
+   la misma palabra dos veces. La lista sólo tiene sentido cuando el evento
+   tiene varios enlaces de verdad. */
+.webinar-card-modern .webinar-channel-list:has(a:only-child) {
+  display: none;
+}
+
+.webinar-card-modern .webinar-card-actions {
+  margin-top: 4px;
+}
+
+.webinar-card-modern .webinar-card-actions a {
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  background: var(--pcl-cyan);
+  color: var(--pcl-navy-900);
+  border: 0;
+}
+
+.webinar-card-modern .webinar-card-actions a:hover {
+  background: var(--pcl-cyan-100);
+}
+
+.webinar-state-pill {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+}
+
+/* El CTA se ancla abajo: las descripciones tienen dos o tres líneas según el
+   evento y, sin esto, el botón quedaba a distinta altura en cada tarjeta.
+   Columna flex y no filas de grid a propósito: con una fila `1fr` el navegador
+   estiraba la descripción y el recorte a tres líneas dejaba de aplicarse,
+   asomando una cuarta línea cortada por la mitad. */
+.webinar-card-modern .webinar-card-body-overlay {
+  display: flex;
+  flex-direction: column;
+}
+
+.webinar-card-modern .webinar-card-actions {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+/* "EXTERNAL" no le dice nada a quien lee: el registro va al formulario del
+   corporativo y eso ya lo dice el botón. El chip se reserva para plataformas
+   que sí significan algo (YouTube, Zoom). */
+.webinar-card-modern .webinar-platform-chip:not(.platform-meaningful) {
+  display: none;
+}
+
+/* El título del programa y el lema quedaban pegados, y se leían como una sola
+   frase partida. */
+.detail-cinematic h2 {
+  margin: 10px 0 14px;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+/* El CTA heredaba el dorado del tema anterior, que no está en la paleta de
+   Peregrine y además compite con el ámbar de Transformación Educativa. */
+.detail-cinematic .go-course-btn,
+.course-header-modern .go-course-btn {
+  background: var(--pcl-cyan);
+  color: var(--pcl-navy-900);
+  border: 0;
+  font-weight: 700;
+  padding: 11px 20px;
+  border-radius: 999px;
+}
+
+.detail-cinematic .go-course-btn:hover,
+.course-header-modern .go-course-btn:hover {
+  background: var(--pcl-cyan-100);
+}
+
+.detail-cinematic {
+  align-items: start;
+}

@@ -398,6 +398,14 @@ export type WebinarRecord = {
   }>;
   free_reservation_url: string | null;
   vip_reservation_url: string | null;
+  /**
+   * Traducción al inglés. La API la devuelve con COALESCE sobre el campo en
+   * español, así que nunca llega vacía aunque nadie la haya rellenado.
+   */
+  title_en: string;
+  subtitle_en: string | null;
+  description_en: string | null;
+  cta_label_en: string;
   created_at: string;
   updated_at: string;
 };
@@ -405,6 +413,8 @@ export type WebinarRecord = {
 export type PodcastRecord = {
   id: string;
   title: string;
+  /** Igual que en los webinars: viene con COALESCE sobre el título español. */
+  title_en: string;
   video_code: string;
   video_url: string;
   published_at: string;

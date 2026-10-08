@@ -21,6 +21,8 @@ import { StudentAcademics } from './StudentAcademics';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ContactSection } from './public/ContactSection';
 import './public.css';
+// Después de public.css a propósito: añade y afina sobre esas piezas.
+import './catalog-system.css';
 
 type ViewState =
   | { type: 'home' }
@@ -178,14 +180,96 @@ function toApiProgress(progress: CourseProgress) {
 }
 
 function localizeAsset(item: ContentAsset, lang: string): ContentAsset {
-  if (lang === 'en' && item.titleEn) {
-    return {
-      ...item,
-      title: item.titleEn,
-      summary: item.summaryEn ?? item.summary
-    };
+  if (lang !== 'en' || !item.titleEn) {
+    return item;
   }
-  return item;
+  // La categoría también se traduce: es la etiqueta más visible de la tarjeta y
+  // antes se quedaba en español aunque el resto del portal estuviera en inglés.
+  // `tags[0]` es la categoría, y es de donde tira el filtro del catálogo.
+  const categoryEn = item.categoryNameEn ?? item.categoryName;
+  return {
+    ...item,
+    title: item.titleEn,
+    summary: item.summaryEn ?? item.summary,
+    summaryHtml: item.summaryHtmlEn ?? item.summaryHtml,
+    categoryName: categoryEn,
+    tags: categoryEn && item.tags.length > 0 ? [categoryEn, ...item.tags.slice(1)] : item.tags
+  };
+}
+
+/**
+ * Cada familia de programas tiene su propio acento dentro de la paleta de
+ * Peregrine. Sin esto las cinco categorías se pintaban con el mismo cian y el
+ * catálogo se leía como una sola masa.
+ *
+ * El emparejamiento se hace contra la raíz del nombre y no contra el nombre
+ * completo, para que funcione igual en español y en inglés sin mantener dos
+ * listas ("Ventas y Crecimiento..." / "Sales and Revenue Growth").
+ */
+const CATEGORY_ACCENTS: Array<{ match: RegExp; key: string }> = [
+  { match: /\b(sales|ventas)\b/i, key: 'sales' },
+  { match: /(customer|cliente)/i, key: 'cx' },
+  { match: /(leadership|liderazgo)/i, key: 'leadership' },
+  { match: /(\bai\b|\bia\b|artificial)/i, key: 'ai' },
+  { match: /(education|educativa|school|escuela)/i, key: 'education' }
+];
+
+function categoryAccentKey(label: string): string {
+  return CATEGORY_ACCENTS.find((entry) => entry.match.test(label))?.key ?? 'neutral';
+}
+
+/**
+ * Las horas son el dato que más piden los compradores corporativos y el que el
+ * sitio de Peregrine pone junto al nombre de cada programa. `durationMinutes`
+ * viene en minutos porque es el campo común a todos los tipos de contenido.
+ */
+/**
+ * Los eventos en vivo guardan su traducción en columnas aparte (title_en, ...).
+ * La API las devuelve con COALESCE sobre el español, así que aquí basta con
+ * elegir la columna y nunca sale una tarjeta a medio traducir.
+ */
+function localizeWebinar(webinar: WebinarRecord, lang: string) {
+  const en = lang === 'en';
+  return {
+    title: en ? webinar.title_en : webinar.title,
+    subtitle: en ? webinar.subtitle_en : webinar.subtitle,
+    description: en ? webinar.description_en : webinar.description,
+    ctaLabel: en ? webinar.cta_label_en : webinar.cta_label
+  };
+}
+
+/**
+ * Fecha del evento en su propia zona horaria y con ella escrita: un webinar a
+ * las 16:00 no significa nada si el lector no sabe de dónde son esas 16:00.
+ */
+function webinarWhen(webinar: WebinarRecord, lang: string): string {
+  const locale = lang === 'en' ? 'en-US' : 'es-ES';
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: webinar.timezone || 'UTC',
+      timeZoneName: 'short'
+    }).format(new Date(webinar.starts_at));
+  } catch {
+    // Una zona horaria inválida guardada desde el admin no debe tumbar la portada.
+    return new Date(webinar.starts_at).toLocaleString(locale);
+  }
+}
+
+function durationLabel(item: ContentAsset, lang: string): string | null {
+  const minutes = item.durationMinutes;
+  if (!minutes || minutes <= 0) {
+    return null;
+  }
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return lang === 'en' ? `${hours} h` : `${hours} h`;
+  }
+  return lang === 'en' ? `${minutes} min` : `${minutes} min`;
 }
 
 function ContentBadge({ kind }: { kind: ContentAsset['kind'] }) {
@@ -408,17 +492,26 @@ function PasswordToggleIcon({ visible }: { visible: boolean }) {
 
 function ContentCard({
   item,
-  onOpen
+  onOpen,
+  lang
 }: {
   item: ContentAsset;
   onOpen: (item: ContentAsset) => void;
+  lang: string;
 }) {
+  const category = getCourseCategoryLabel(item);
+  const duration = durationLabel(item, lang);
   return (
-    <button className="content-tile" onClick={() => onOpen(item)}>
-      <img src={item.heroImage} alt={item.title} />
+    <button
+      className="content-tile"
+      data-accent={categoryAccentKey(category)}
+      onClick={() => onOpen(item)}
+    >
+      <img src={item.heroImage} alt={item.title} loading="lazy" />
       <div className="tile-overlay">
-        <span className={`public-badge kind-${item.kind}`}>{getCourseCategoryLabel(item)}</span>
+        <span className="category-chip">{category}</span>
         <h4>{item.title}</h4>
+        {duration ? <p className="tile-meta">{duration}</p> : null}
       </div>
     </button>
   );
@@ -654,7 +747,17 @@ export function PublicApp() {
       setError(null);
       try {
         const detail = await api.catalogBySlug(view.slug);
-        setSelectedDetail(detail);
+        // La ficha se pide por su cuenta, fuera del catálogo, así que no pasaba
+        // por localizeAsset: el portal salía en inglés y el programa en español.
+        setSelectedDetail({
+          ...detail,
+          // El tipo de la respuesta lleva Record<string, unknown> para los
+          // campos extra del payload (moodleCourseId, categoryName...), y
+          // localizeAsset devuelve el ContentAsset estricto; el cast reconstruye
+          // ese índice sin perder ninguno de los campos extra, que se copian en
+          // el spread de dentro.
+          content: localizeAsset(detail.content, currentLang) as typeof detail.content
+        });
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : 'Error cargando detalle');
       } finally {
@@ -663,7 +766,7 @@ export function PublicApp() {
     };
 
     void loadDetail();
-  }, [view]);
+  }, [view, currentLang]);
 
   useEffect(() => {
     if (view.type !== 'course' || publicSession?.token) {
@@ -1154,11 +1257,12 @@ export function PublicApp() {
   };
 
   const openItem = (item: ContentAsset) => {
-    if (item.kind === 'course') {
-      if (!publicSession?.token) {
-        requestAuthForCourse(item.slug);
-        return;
-      }
+    // Un curso llevaba directo al modal de registro, así que un visitante no
+    // podía leer de qué iba el programa sin antes crear una cuenta: la ficha
+    // pública existía y no se alcanzaba nunca. Ahora todo pasa por ella, que ya
+    // trae el botón de entrar con su propia comprobación de sesión; el salto
+    // directo al aula se mantiene para quien ya tiene sesión abierta.
+    if (item.kind === 'course' && publicSession?.token) {
       setView({ type: 'course', slug: item.slug });
       return;
     }
@@ -1841,10 +1945,20 @@ export function PublicApp() {
       {view.type === 'home' ? (
         <>
           {activeHero ? (
-            <section className="hero hero-netflix" style={{ backgroundImage: `url(${activeHero.heroImage})` }}>
+            <section
+              className="hero hero-netflix"
+              data-accent={categoryAccentKey(getCourseCategoryLabel(activeHero))}
+              style={{ backgroundImage: `url(${activeHero.heroImage})` }}
+            >
               <div className="hero-backdrop" />
               <div className="hero-content">
-                <ContentBadge kind={activeHero.kind} />
+                <div className="hero-meta-row">
+                  <ContentBadge kind={activeHero.kind} />
+                  <span className="category-chip">{getCourseCategoryLabel(activeHero)}</span>
+                  {durationLabel(activeHero, currentLang) ? (
+                    <span className="hero-duration">{durationLabel(activeHero, currentLang)}</span>
+                  ) : null}
+                </div>
                 <h1>{activeHero.title}</h1>
                 <p>{snippet(activeHero.summary, activeHero.title, 260)}</p>
                 <div className="hero-actions">
@@ -1905,7 +2019,7 @@ export function PublicApp() {
                         : savedProgress.progressPercent;
                     return (
                       <article key={`my-${item.id}`} className="my-course-card-wrap">
-                        <ContentCard item={item} onOpen={openItem} />
+                        <ContentCard item={item} onOpen={openItem} lang={currentLang} />
                         <p className="my-course-progress-text">{t('home.progress')}: {percent}%</p>
                         <div className="my-course-progress-track" aria-hidden="true">
                           <div className="my-course-progress-fill" style={{ width: `${percent}%` }} />
@@ -1946,7 +2060,7 @@ export function PublicApp() {
                 </div>
                 <div className="content-row-scroll" ref={row.id === 'continue-learning' ? continueLearningRowRef : undefined}>
                   {row.items.map((item) => (
-                    <ContentCard key={`${row.id}-${item.id}`} item={item} onOpen={openItem} />
+                    <ContentCard key={`${row.id}-${item.id}`} item={item} onOpen={openItem} lang={currentLang} />
                   ))}
                 </div>
               </section>
@@ -1969,21 +2083,31 @@ export function PublicApp() {
                 {sortedLandingWebinars.map((webinar) => {
                   const state = webinarState(webinar, nowMs);
                   const links = webinarLiveLinks(webinar);
-                  const startsAtLabel = new Date(webinar.starts_at).toLocaleString();
+                  const localized = localizeWebinar(webinar, currentLang);
+                  const startsAtLabel = webinarWhen(webinar, currentLang);
                   return (
                     <article key={webinar.id} className="webinar-card webinar-card-modern">
-                      <img src={webinar.hero_image} alt={webinar.title} />
+                      <img src={webinar.hero_image} alt={localized.title} loading="lazy" />
                       <div className="webinar-card-overlay" />
                       <div className="webinar-card-body webinar-card-body-overlay">
                         <div className="webinar-card-top">
                           <span className={`webinar-state-pill state-${state}`}>
                             {state === 'live' ? t('home.live') : state === 'upcoming' ? t('home.upcoming') : t('home.ended')}
                           </span>
-                          <span className="webinar-platform-chip">{webinar.source_type.toUpperCase()}</span>
+                          <span
+                            className={`webinar-platform-chip ${
+                              webinar.source_type === 'external' ? '' : 'platform-meaningful'
+                            }`}
+                          >
+                            {webinar.source_type.toUpperCase()}
+                          </span>
                         </div>
-                        <h4>{webinar.title}</h4>
-                        <p className="webinar-card-subtitle">{webinar.subtitle ?? t('home.exclusive')}</p>
+                        <h4>{localized.title}</h4>
+                        <p className="webinar-card-subtitle">{localized.subtitle ?? t('home.exclusive')}</p>
                         <p className="webinar-card-datetime">{startsAtLabel}</p>
+                        {localized.description ? (
+                          <p className="webinar-card-description">{localized.description}</p>
+                        ) : null}
                         <div className="webinar-channel-list">
                           {links.slice(0, 3).map((link) => (
                             <a key={`${webinar.id}-${link.platform}-${link.url}`} href={link.url} target="_blank" rel="noreferrer noopener">
@@ -2003,7 +2127,7 @@ export function PublicApp() {
                             </a>
                           ) : (
                             <a href={webinar.source_url} target="_blank" rel="noreferrer noopener">
-                              {webinar.cta_label || t('home.openWebinar')}
+                              {localized.ctaLabel || t('home.openWebinar')}
                             </a>
                           )}
                         </div>
@@ -2034,7 +2158,7 @@ export function PublicApp() {
                 </div>
                 <div className="content-row-scroll">
                   {row.items.map((item) => (
-                    <ContentCard key={`${row.id}-${item.id}`} item={item} onOpen={openItem} />
+                    <ContentCard key={`${row.id}-${item.id}`} item={item} onOpen={openItem} lang={currentLang} />
                   ))}
                 </div>
               </section>
@@ -2056,6 +2180,7 @@ export function PublicApp() {
               <div className="content-row-scroll">
                 {landingPodcasts.map((podcast) => {
                   const embedUrl = youtubeEmbedUrl(podcast.video_url || podcast.video_code);
+                  const podcastTitle = currentLang === 'en' ? podcast.title_en : podcast.title;
                   return (
                     <button
                       key={podcast.id}
@@ -2065,15 +2190,19 @@ export function PublicApp() {
                           return;
                         }
                         setPodcastPreview({
-                          title: podcast.title,
+                          title: podcastTitle,
                           embedUrl
                         });
                       }}
                     >
-                      <img src={youtubeThumbUrl(podcast.video_url || podcast.video_code)} alt={podcast.title} />
+                      <img
+                        src={youtubeThumbUrl(podcast.video_url || podcast.video_code)}
+                        alt={podcastTitle}
+                        loading="lazy"
+                      />
                       <div className="tile-overlay">
                         <span className="public-badge kind-vod">{t('nav.podcasts')}</span>
-                        <h4>{podcast.title}</h4>
+                        <h4>{podcastTitle}</h4>
                       </div>
                     </button>
                   );
@@ -2100,7 +2229,7 @@ export function PublicApp() {
               </div>
               <div className="content-row-scroll">
                 {row.items.map((item) => (
-                  <ContentCard key={`${row.id}-${item.id}`} item={item} onOpen={openItem} />
+                  <ContentCard key={`${row.id}-${item.id}`} item={item} onOpen={openItem} lang={currentLang} />
                 ))}
               </div>
             </section>
@@ -2187,11 +2316,16 @@ export function PublicApp() {
                   : 0;
 
               return (
-                <button key={item.id} className="content-tile catalog-tile" onClick={() => openItem(item)}>
-                  <img src={item.heroImage} alt={item.title} />
+                <button
+                  key={item.id}
+                  className="content-tile catalog-tile"
+                  data-accent={categoryAccentKey(getCourseCategoryLabel(item))}
+                  onClick={() => openItem(item)}
+                >
+                  <img src={item.heroImage} alt={item.title} loading="lazy" />
                   <div className="tile-overlay catalog-tile-overlay">
                     <div className="catalog-tile-head">
-                      <span className={`public-badge kind-${item.kind}`}>{getCourseCategoryLabel(item)}</span>
+                      <span className="category-chip">{getCourseCategoryLabel(item)}</span>
                       {item.kind === 'course' ? (
                         <span className={`catalog-status-pill ${isEnrolled ? 'enrolled' : 'locked'}`}>
                           {isEnrolled ? t('catalog.enrolled') : t('catalog.notEnrolled')}
@@ -2199,6 +2333,9 @@ export function PublicApp() {
                       ) : null}
                     </div>
                     <h4>{item.title}</h4>
+                    {durationLabel(item, currentLang) ? (
+                      <p className="tile-meta">{durationLabel(item, currentLang)}</p>
+                    ) : null}
                     {item.kind === 'course' ? (
                       <div className="catalog-progress-wrap">
                         <div className="catalog-progress-track" aria-hidden="true">
@@ -2235,12 +2372,28 @@ export function PublicApp() {
           {loadingDetail || !selectedDetail ? (
             <p>{t('course.contentLoading')}</p>
           ) : (
-            <article className="detail-cinematic">
+            <article className="detail-cinematic" data-accent={categoryAccentKey(getCourseCategoryLabel(selectedDetail.content))}>
               <img src={selectedDetail.content.heroImage} alt={selectedDetail.content.title} />
               <div>
-                <ContentBadge kind={selectedDetail.content.kind} />
+                <div className="hero-meta-row">
+                  <ContentBadge kind={selectedDetail.content.kind} />
+                  <span className="category-chip">{getCourseCategoryLabel(selectedDetail.content)}</span>
+                  {durationLabel(selectedDetail.content, currentLang) ? (
+                    <span className="hero-duration">{durationLabel(selectedDetail.content, currentLang)}</span>
+                  ) : null}
+                </div>
                 <h2>{selectedDetail.content.title}</h2>
-                <p>{snippet(selectedDetail.content.summary, selectedDetail.content.title, 420)}</p>
+                {selectedDetail.content.summaryHtml ? (
+                  // El HTML viene del catálogo versionado y de Moodle, no de
+                  // entrada de usuario: trae lema, entradilla y lo que se
+                  // practica, que es justo lo que da cuerpo a la ficha.
+                  <div
+                    className="detail-rich-summary"
+                    dangerouslySetInnerHTML={{ __html: selectedDetail.content.summaryHtml }}
+                  />
+                ) : (
+                  <p>{snippet(selectedDetail.content.summary, selectedDetail.content.title, 420)}</p>
+                )}
                 {'moodleCourseId' in selectedDetail.content ? (
                   <button
                     className="go-course-btn"
