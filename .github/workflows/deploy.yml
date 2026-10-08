@@ -1,0 +1,315 @@
+# deploy.yml - manual production/staging deployment.
+#
+# ==============================================================================
+# SECRETS this workflow needs (Settings > Secrets and variables > Actions)
+# ------------------------------------------------------------------------------
+#   AWS_ACCESS_KEY_ID          IAM user key with infra/deploy/iam/deploy-ci-policy.json
+#   AWS_SECRET_ACCESS_KEY        (s3 put/delete on the bucket, lightsail
+#                                 GetBucketAccessKeys + ResetDistributionCache,
+#                                 ssm read on /plataforma-estudiantil/*)
+#   SSH_PRIVATE_KEY            Private half of test-html-thefloridianuniversity-key,
+#                                in OpenSSH PEM form, for ubuntu@<api instance>
+#   SMOKE_ADMIN_EMAIL          ADMIN_EMAIL, so the smoke test can log in
+#   SMOKE_ADMIN_PASSWORD       ADMIN_PASSWORD
+#
+# OPTIONAL SECRETS
+#   SSH_KNOWN_HOSTS            Pinned host key for the API instance. Strongly
+#                                recommended: without it the first connection is
+#                                accepted on trust (ssh-keyscan).
+#   BUCKET_ACCESS_KEY_ID       Lightsail BUCKET access keys. Set these when the
+#   BUCKET_SECRET_ACCESS_KEY     Lightsail API will not return the secret (it is
+#                                only shown at creation time), otherwise
+#                                30-frontend-deploy.sh fetches them itself.
+#   SMOKE_MOODLE_TOKEN         Moodle web-service token, to let the smoke test
+#                                call the LMS directly. Omit it and that one
+#                                check reports SKIP; the API -> Moodle check
+#                                still runs.
+#
+# VARIABLES (Settings > Secrets and variables > Actions > Variables), per
+# GitHub Environment. All optional - the production defaults are compiled in.
+#   AWS_REGION API_HOST PORTAL_HOST LMS_HOST API_SSH_HOST API_SSH_USER
+#   FRONTEND_BUCKET CDN_DISTRIBUTION SSM_PREFIX
+# ==============================================================================
+#
+# Shape of a run:
+#   frontend  build the SPA with the production VITE_API_URL -> Lightsail bucket
+#             -> reset the CDN cache
+#   api       rsync the checkout to the instance -> run 10-api-bootstrap.sh,
+#             which builds a timestamped release, flips the `current` symlink,
+#             reloads PM2 and rolls itself back if the local health check fails
+#   smoke     run 90-smoke-test.sh end to end; on failure, roll the API back to
+#             the previous release and fail the job
+#
+# The API is deployed AFTER the frontend on purpose: a new SPA talking to the
+# old API is the safer transient state, since the API only ever adds routes.
+
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        default: staging
+        options: [staging, production]
+      skip_frontend:
+        description: Skip the frontend build and publish
+        required: false
+        type: boolean
+        default: false
+      skip_api:
+        description: Skip the API deployment
+        required: false
+        type: boolean
+        default: false
+      ref:
+        description: Git ref to deploy (defaults to the ref this run was started from)
+        required: false
+        type: string
+
+# Never let two deployments touch the same environment at once.
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+  API_HOST: ${{ vars.API_HOST || 'api.portal.thefloridianuniversity.com' }}
+  PORTAL_HOST: ${{ vars.PORTAL_HOST || 'portal.thefloridianuniversity.com' }}
+  LMS_HOST: ${{ vars.LMS_HOST || 'lms.portal.thefloridianuniversity.com' }}
+  FRONTEND_BUCKET: ${{ vars.FRONTEND_BUCKET || 'plataforma-estudiantil-frontend' }}
+  CDN_DISTRIBUTION: ${{ vars.CDN_DISTRIBUTION || 'plataforma-estudiantil-cdn' }}
+  API_SSH_HOST: ${{ vars.API_SSH_HOST || '44.210.204.140' }}
+  API_SSH_USER: ${{ vars.API_SSH_USER || 'ubuntu' }}
+  SSM_PREFIX: ${{ vars.SSM_PREFIX || format('/plataforma-estudiantil/{0}', inputs.environment) }}
+  # Where the runner rsyncs the checkout. Owned by the SSH user, so no sudo is
+  # needed for the copy itself.
+  REMOTE_STAGING: /home/ubuntu/paeu-release-staging
+
+jobs:
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: Frontend -> Lightsail bucket + CDN
+    if: ${{ !inputs.skip_frontend }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build and publish the SPA
+        env:
+          BUCKET_ACCESS_KEY_ID: ${{ secrets.BUCKET_ACCESS_KEY_ID }}
+          BUCKET_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_SECRET_ACCESS_KEY }}
+        run: |
+          set -Eeuo pipefail
+          ./infra/deploy/30-frontend-deploy.sh \
+            --repo "${GITHUB_WORKSPACE}" \
+            --api-url "https://${API_HOST}/api"
+
+  # ---------------------------------------------------------------------------
+  api:
+    name: API -> Lightsail instance
+    needs: [frontend]
+    # A skipped `needs` would normally skip this job too, so the condition
+    # accepts 'skipped' explicitly - that is what skip_frontend produces.
+    if: >-
+      ${{ always() && !cancelled() && !inputs.skip_api
+          && (needs.frontend.result == 'success' || needs.frontend.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          if [ -z "${SSH_PRIVATE_KEY}" ]; then
+            echo "::error::the SSH_PRIVATE_KEY secret is not set"
+            exit 1
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          if [ -n "${SSH_KNOWN_HOSTS}" ]; then
+            printf '%s\n' "${SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          else
+            echo "::warning::SSH_KNOWN_HOSTS is not set; trusting the host key on first use. Pin it with: ssh-keyscan -H ${API_SSH_HOST}"
+            ssh-keyscan -H "${API_SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host api-target
+            HostName ${API_SSH_HOST}
+            User ${API_SSH_USER}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+            ConnectTimeout 15
+          EOF
+          chmod 600 ~/.ssh/config
+          ssh api-target 'echo "ssh ok on $(hostname)"'
+
+      - name: Record the currently live release (for rollback)
+        id: before
+        run: |
+          set -Eeuo pipefail
+          current="$(ssh api-target 'readlink -f /opt/plataforma-estudiantil/api/current 2>/dev/null || true')"
+          echo "current=${current}" >> "$GITHUB_OUTPUT"
+          echo "live release before this deploy: ${current:-<none>}"
+
+      - name: Copy the checkout to the instance
+        run: |
+          set -Eeuo pipefail
+          ssh api-target "install -d -m 0755 '${REMOTE_STAGING}'"
+          rsync -az --delete \
+            --exclude '.git/' --exclude 'node_modules/' --exclude 'dist/' \
+            --exclude '.env' --exclude '*.pem' \
+            -e 'ssh -F ~/.ssh/config' \
+            "${GITHUB_WORKSPACE}/" "api-target:${REMOTE_STAGING}/"
+          ssh api-target "test -f '${REMOTE_STAGING}/infra/deploy/10-api-bootstrap.sh'"
+
+      - name: Deploy the API
+        id: deploy
+        run: |
+          set -Eeuo pipefail
+          # 10-api-bootstrap.sh builds a new timestamped release, renders .env
+          # from SSM, flips `current`, reloads PM2 and - if the loopback health
+          # check fails - rolls itself back before exiting non-zero.
+          ssh api-target "sudo bash -c '
+            set -Eeuo pipefail
+            if [ -f /etc/plataforma-estudiantil/aws.env ]; then
+              set -a; . /etc/plataforma-estudiantil/aws.env; set +a
+            fi
+            export DEPLOY_ENVIRONMENT=\"${DEPLOY_ENVIRONMENT}\"
+            export SSM_PREFIX=\"${SSM_PREFIX}\"
+            export AWS_REGION=\"${AWS_REGION}\"
+            chmod +x \"${REMOTE_STAGING}/infra/deploy\"/*.sh
+            \"${REMOTE_STAGING}/infra/deploy/10-api-bootstrap.sh\" \
+              --source local --from \"${REMOTE_STAGING}\" --force
+          '"
+
+      - name: PM2 status
+        if: always()
+        run: ssh api-target 'sudo -u paeu -H env PM2_HOME=/home/paeu/.pm2 pm2 ls || true'
+
+      - name: API log tail on failure
+        if: failure()
+        run: |
+          ssh api-target 'sudo tail -n 120 /opt/plataforma-estudiantil/api/logs/paeu-api.err.log || true'
+
+  # ---------------------------------------------------------------------------
+  smoke:
+    name: Smoke test (gates the deployment)
+    needs: [frontend, api]
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 15
+    steps:
+      - name: Fail early if an earlier job failed
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: |
+          echo "::error::an earlier job failed; not declaring this deployment good"
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Run the smoke test
+        id: smoke
+        env:
+          ADMIN_EMAIL: ${{ secrets.SMOKE_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
+          MOODLE_TOKEN: ${{ secrets.SMOKE_MOODLE_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq jq
+          ./infra/deploy/90-smoke-test.sh \
+            --base-url "https://${API_HOST}" \
+            --portal-url "https://${PORTAL_HOST}" \
+            --lms-url "https://${LMS_HOST}"
+
+      # ---- rollback -------------------------------------------------------
+      # The local health check inside 10-api-bootstrap.sh already protects
+      # against a release that will not boot. This catches the rest: a release
+      # that boots but breaks the public contract (routing, TLS, CORS, auth).
+      - name: Roll the API back
+        if: ${{ failure() && !inputs.skip_api }}
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          if [ -n "${SSH_KNOWN_HOSTS}" ]; then
+            printf '%s\n' "${SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -H "${API_SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+          echo "::warning::the smoke test failed - rolling the API back to the previous release"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+            "${API_SSH_USER}@${API_SSH_HOST}" "sudo bash -c '
+              set -Eeuo pipefail
+              if [ -f /etc/plataforma-estudiantil/aws.env ]; then
+                set -a; . /etc/plataforma-estudiantil/aws.env; set +a
+              fi
+              /opt/plataforma-estudiantil/api/bin/deploy/10-api-bootstrap.sh --rollback --force
+            '"
+          echo "::error::deployment rolled back. The frontend was NOT rolled back: re-run this workflow against the previous ref with skip_api=true to restore it."
+          exit 1
+
+      - name: Summary
+        if: success()
+        run: |
+          {
+            echo "### Deployment to \`${DEPLOY_ENVIRONMENT}\` verified"
+            echo ""
+            echo "| target | url |"
+            echo "| --- | --- |"
+            echo "| portal | https://${PORTAL_HOST} |"
+            echo "| api | https://${API_HOST}/api |"
+            echo "| lms | https://${LMS_HOST} |"
+            echo ""
+            echo "Ref: \`${{ inputs.ref || github.ref }}\` (\`${GITHUB_SHA}\`)"
+          } >> "$GITHUB_STEP_SUMMARY"

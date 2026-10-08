@@ -1,0 +1,190 @@
+# ci.yml - typecheck, build and prove the API's boot-time schema creation works.
+#
+# No secrets are needed: everything runs against a throwaway Postgres service
+# container. The API has no migration tool - apps/api/src/db.ts initDb() issues
+# CREATE TABLE IF NOT EXISTS at boot - so "does it boot against an empty
+# database" is the only meaningful schema test, and it is the one that catches
+# a broken DDL change before it reaches production.
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # @atlas/shared ships compiled JS (packages/shared/dist), so the built API
+  # runs on plain Node with no TypeScript stripping. 22 is the LTS line the
+  # production instance runs.
+  NODE_VERSION: '22'
+
+jobs:
+  build:
+    name: typecheck + build + boot
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: paeu_ci
+          POSTGRES_PASSWORD: paeu_ci
+          POSTGRES_DB: paeu_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U paeu_ci -d paeu_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Show Node version
+        run: node -v
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck all workspaces
+        run: npm run check
+
+      - name: Build all workspaces
+        run: npm run build
+
+      - name: Assert the built API entrypoint exists
+        run: |
+          set -Eeuo pipefail
+          # Must match API_ENTRY_REL in infra/deploy/00-config.sh. apps/api's
+          # tsconfig has baseUrl "." at the monorepo root, so tsc nests the
+          # output; if that ever changes, the deploy would start the wrong file.
+          entry="apps/api/dist/apps/api/src/server.js"
+          if [ ! -f "$entry" ]; then
+            echo "::error::expected entrypoint ${entry} not found. Emitted tree:"
+            find apps/api/dist -name '*.js' | sort
+            echo "::error::update API_ENTRY_REL in infra/deploy/00-config.sh to match."
+            exit 1
+          fi
+          echo "entrypoint ok: ${entry}"
+
+      - name: Boot the API and verify it creates its own schema
+        env:
+          HOST: 127.0.0.1
+          PORT: '4000'
+          DATABASE_URL: postgresql://paeu_ci:paeu_ci@127.0.0.1:5432/paeu_ci
+          ADMIN_EMAIL: ci-admin@pae-u.invalid
+          ADMIN_PASSWORD: ci-only-not-a-real-secret
+          ADMIN_API_KEY: ci-only-not-a-real-secret
+          # Leave MOODLE_* unset: the API must boot cleanly with no LMS
+          # configured, which is exactly the state of a fresh environment.
+          MOODLE_BASE_URL: ''
+          MOODLE_TOKEN: ''
+          NODE_ENV: production
+        run: |
+          set -Eeuo pipefail
+
+          node apps/api/dist/apps/api/src/server.js > api.log 2>&1 &
+          api_pid=$!
+          # shellcheck disable=SC2064
+          trap "kill ${api_pid} 2>/dev/null || true" EXIT
+
+          echo "waiting for the API to answer /api/health"
+          ok=0
+          for i in $(seq 1 40); do
+            if ! kill -0 "${api_pid}" 2>/dev/null; then
+              echo "::error::the API process exited before becoming healthy"
+              cat api.log
+              exit 1
+            fi
+            body="$(curl -fsS --max-time 3 http://127.0.0.1:4000/api/health || true)"
+            if [ -n "${body}" ]; then
+              echo "health response: ${body}"
+              echo "${body}" | node -e '
+                let d = "";
+                process.stdin.on("data", c => d += c).on("end", () => {
+                  const j = JSON.parse(d);
+                  if (j.status !== "ok") { console.error("status is not ok"); process.exit(1); }
+                  if (!j.db) { console.error("health reports no database time"); process.exit(1); }
+                });
+              '
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+          [ "${ok}" = "1" ] || { echo "::error::the API never became healthy"; cat api.log; exit 1; }
+
+          # The /api prefix must survive: Fastify's rewriteUrl strips it, so
+          # /api/v1/catalog and /v1/catalog both have to answer.
+          for path in /api/v1/home /api/v1/catalog /v1/catalog; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:4000${path}")"
+            echo "GET ${path} -> ${code}"
+            [ "${code}" = "200" ] || { echo "::error::GET ${path} returned ${code}"; cat api.log; exit 1; }
+          done
+
+          # The admin surface must refuse an unauthenticated caller.
+          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:4000/api/admin/auth/me)"
+          echo "GET /api/admin/auth/me (no token) -> ${code}"
+          [ "${code}" = "401" ] || { echo "::error::expected 401, got ${code}"; cat api.log; exit 1; }
+
+          echo "API booted, created its schema and served its public routes"
+
+      - name: Confirm initDb() actually created tables
+        env:
+          PGPASSWORD: paeu_ci
+        run: |
+          set -Eeuo pipefail
+          count="$(psql -h 127.0.0.1 -U paeu_ci -d paeu_ci -tAc \
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';")"
+          echo "public schema now holds ${count} table(s)"
+          if [ "${count}" -le 0 ]; then
+            echo "::error::initDb() created no tables - the boot-time schema creation is broken"
+            exit 1
+          fi
+
+      - name: API log (always)
+        if: always()
+        run: tail -n 200 api.log || true
+
+      - name: Validate the deployment kit
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          fails=0
+          while IFS= read -r f; do
+            bash -n "$f" || fails=1
+          done < <(find infra -name '*.sh' -type f)
+          ( cd infra/deploy && shellcheck -x -P . ./*.sh lib/*.sh ) || fails=1
+          shellcheck infra/moodle/*.sh || fails=1
+          if command -v php >/dev/null 2>&1; then
+            for f in infra/moodle/cli/*.php; do php -l "$f" || fails=1; done
+          else
+            echo "php not on the runner; skipping the Moodle CLI lint"
+          fi
+          for y in .github/workflows/*.yml; do
+            python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" "$y"
+          done
+          for j in infra/deploy/iam/*.json; do
+            python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$j"
+          done
+          [ "$fails" = "0" ] || { echo "::error::deployment kit validation failed"; exit 1; }
+          echo "deployment kit is syntactically clean"

@@ -18,6 +18,7 @@ import type { ContentAsset, HomeResponse } from '@atlas/shared';
 import { EnterpriseGroupManager } from './EnterpriseGroupManager';
 import { StudentAcademics } from './StudentAcademics';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { ContactSection } from './public/ContactSection';
 import './public.css';
 
 type ViewState =
@@ -29,6 +30,7 @@ type ViewState =
   | { type: 'academics' }
   | { type: 'profile' }
   | { type: 'enterprise' }
+  | { type: 'contact' }
   | { type: 'terms' }
   | { type: 'privacy' };
 
@@ -1668,6 +1670,16 @@ export function PublicApp() {
             >
               {t('nav.catalog')}
             </button>
+            <button
+              className={view.type === 'contact' ? 'active' : ''}
+              onClick={() => {
+                setView({ type: 'contact' });
+                setMobileMenuOpen(false);
+                setSectionsMenuOpen(false);
+              }}
+            >
+              {t('nav.contact')}
+            </button>
             {topMenuSectionLinks.length > 0 ? (
               <div className="sections-menu-wrap" ref={sectionsMenuRef}>
                 <button
@@ -1723,6 +1735,15 @@ export function PublicApp() {
                 }}
               >
                 {t('nav.catalog')}
+              </button>
+              <button
+                className={view.type === 'contact' ? 'active' : ''}
+                onClick={() => {
+                  setView({ type: 'contact' });
+                  setMobileMenuOpen(false);
+                }}
+              >
+                {t('nav.contact')}
               </button>
               {topMenuSectionLinks.map((section) => (
                 <button
@@ -3426,6 +3447,15 @@ export function PublicApp() {
             {authError ? <p className="public-error">{authError}</p> : null}
           </div>
         </div>
+      ) : null}
+
+      {view.type === 'contact' ? (
+        <section className="section-block contact-main">
+          <button className="back-link" onClick={() => setView({ type: 'home' })}>
+            {t('legal.back')}
+          </button>
+          <ContactSection />
+        </section>
       ) : null}
 
       {(view.type === 'terms' || view.type === 'privacy') ? (

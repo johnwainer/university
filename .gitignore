@@ -11,3 +11,5 @@ apps/*/.vite
 .abacusai
 
 .playwright-mcp
+*.tsbuildinfo
+packages/*/dist

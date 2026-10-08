@@ -8,12 +8,12 @@ import {
   listEmployees,
   listWorkers,
   type StaffMember
-} from '../../integrations/gusto';
+} from '../../integrations/gusto.js';
 import {
   isQuickbooksConfigured,
   pushInvoice,
   pushPayment
-} from '../../integrations/quickbooks';
+} from '../../integrations/quickbooks.js';
 
 /**
  * Phase 4 — Back-office connectors (HR + Accounting) admin routes.

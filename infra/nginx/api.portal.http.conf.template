@@ -1,0 +1,33 @@
+# api.portal.http.conf.template  ->  /etc/nginx/sites-available/__API_HOST__.conf
+#
+# Stage 1 (pre-TLS) and permanent port-80 vhost.
+#   * serves the ACME http-01 challenge from __ACME_WEBROOT__
+#   * redirects everything else to HTTPS (smoke test asserts this)
+#
+# Placeholders substituted by 11-api-nginx-tls.sh:
+#   __API_HOST__ __ACME_WEBROOT__
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __API_HOST__;
+
+    server_tokens off;
+
+    # Certbot --webroot writes its challenge files here.
+    location ^~ /.well-known/acme-challenge/ {
+        root __ACME_WEBROOT__;
+        default_type "text/plain";
+        try_files $uri =404;
+    }
+
+    location = /nginx-health {
+        access_log off;
+        default_type "text/plain";
+        return 200 "nginx ok\n";
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}

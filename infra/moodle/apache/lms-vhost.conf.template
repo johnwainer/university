@@ -1,0 +1,26 @@
+# lms-vhost.conf.template -> /opt/bitnami/apache/conf/vhosts/paeu-lms-vhost.conf
+#
+# Port 80 vhost for Moodle: ACME challenge + permanent HTTPS redirect.
+# Bitnami includes /opt/bitnami/apache/conf/vhosts/*.conf automatically.
+#
+# Placeholders substituted by 20-moodle-install.sh:
+#   __LMS_HOST__ __MOODLE_DIR__ __ACME_WEBROOT__
+
+<VirtualHost *:80>
+  ServerName __LMS_HOST__
+  DocumentRoot "__MOODLE_DIR__"
+
+  # Let's Encrypt http-01 challenge must stay reachable over plain HTTP.
+  Alias /.well-known/acme-challenge/ "__ACME_WEBROOT__/.well-known/acme-challenge/"
+
+  <Directory "__ACME_WEBROOT__/.well-known/acme-challenge">
+    Options None
+    AllowOverride None
+    Require all granted
+    ForceType text/plain
+  </Directory>
+
+  RewriteEngine On
+  RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+  RewriteRule ^/?(.*) https://__LMS_HOST__/$1 [R=301,L]
+</VirtualHost>

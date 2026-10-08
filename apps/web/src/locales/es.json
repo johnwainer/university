@@ -18,7 +18,8 @@
     "account": "Cuenta",
     "refresh": "Actualizar",
     "sections": "Secciones",
-    "academics": "Mi Universidad"
+    "academics": "Mi Universidad",
+    "contact": "Contacto"
   },
   "hero": {
     "enterCourse": "Entrar al curso",
@@ -419,6 +420,51 @@
         "in_progress": "En progreso",
         "mastered": "Dominada"
       }
+    }
+  },
+  "common": {
+    "required": "(obligatorio)",
+    "optional": "(opcional)",
+    "sending": "Enviando…"
+  },
+  "programs": {
+    "level": {
+      "certificate": "Certificado",
+      "associate": "Técnico",
+      "bachelor": "Pregrado",
+      "master": "Maestría",
+      "doctoral": "Doctorado",
+      "professional": "Título profesional"
+    }
+  },
+  "contact": {
+    "title": "Hablemos de tu programa",
+    "subtitle": "Déjanos tus datos y un asesor académico te contacta con la información del programa que te interesa.",
+    "submit": "Enviar mensaje",
+    "privacy": "Usamos tus datos únicamente para responder a esta solicitud. No los compartimos con terceros.",
+    "field": {
+      "fullName": "Nombre completo",
+      "email": "Correo electrónico",
+      "phone": "Teléfono",
+      "program": "Programa de interés",
+      "programPlaceholder": "Selecciona un programa…",
+      "subject": "Asunto",
+      "message": "Mensaje",
+      "messagePlaceholder": "Cuéntanos qué te gustaría saber."
+    },
+    "validation": {
+      "fullName": "Escribe tu nombre completo.",
+      "email": "Escribe un correo electrónico válido.",
+      "message": "El mensaje debe tener al menos 10 caracteres."
+    },
+    "error": {
+      "generic": "No se pudo enviar el mensaje. Inténtalo de nuevo en unos minutos.",
+      "rateLimited": "Recibimos varios mensajes desde tu conexión. Espera un momento antes de volver a enviar."
+    },
+    "success": {
+      "title": "Mensaje recibido",
+      "body": "Gracias por escribirnos. Un asesor académico te responderá al correo que nos dejaste.",
+      "again": "Enviar otro mensaje"
     }
   }
 }

@@ -10,7 +10,7 @@
     "dev": "npm run dev -w @atlas/api & npm run dev -w @atlas/web",
     "dev:api": "npm run dev -w @atlas/api",
     "dev:web": "npm run dev -w @atlas/web",
-    "build": "npm run build -ws",
+    "build": "npm run build -w @atlas/shared && npm run build -w @atlas/api && npm run build -w @atlas/web",
     "check": "npm run check -ws",
     "check:runbook": "node scripts/check-runbook-update.mjs"
   }

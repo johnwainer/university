@@ -304,3 +304,358 @@ td {
     flex-wrap: wrap;
   }
 }
+
+/* ========================================================================== */
+/* Etapa I — Checklist CIE: repositorio de evidencia y estado documental      */
+/* ========================================================================== */
+
+.cie-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.cie-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cie-tabs button {
+  padding: 8px 14px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.cie-tabs button.active {
+  border-color: var(--accent);
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--text);
+}
+
+/* --------------------------------- Semáforo ------------------------------- */
+
+.cie-signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cie-signal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  /* El color nunca es el único portador del estado: va acompañado del texto
+     ("Completo", "Incompleto", "Sin evidencia") para cumplir WCAG 2.1 AA. */
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
+}
+
+.cie-signal-green {
+  color: #6ee7b7;
+}
+.cie-signal-green .cie-signal-dot {
+  background: #10b981;
+}
+
+.cie-signal-amber {
+  color: #fcd34d;
+}
+.cie-signal-amber .cie-signal-dot {
+  background: #f59e0b;
+}
+
+.cie-signal-red {
+  color: #fca5a5;
+}
+.cie-signal-red .cie-signal-dot {
+  background: #ef4444;
+}
+
+/* --------------------------------- Resumen -------------------------------- */
+
+.cie-summary {
+  padding: 18px;
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.cie-summary-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.cie-percent {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 2rem;
+  color: var(--text);
+}
+
+.cie-counters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin: 18px 0 0;
+}
+
+.cie-counters div {
+  padding: 10px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+}
+
+.cie-counters dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cie-counters dd {
+  margin: 4px 0 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.cie-ready {
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #6ee7b7;
+  font-size: 0.86rem;
+}
+
+.cie-warning {
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+  font-size: 0.86rem;
+}
+
+/* -------------------------------- Checklist ------------------------------- */
+
+.cie-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+}
+
+.cie-checklist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.cie-checklist-item + .cie-checklist-item {
+  border-top: 1px solid var(--card-border);
+}
+
+.cie-checklist-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cie-checklist-row:hover {
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.cie-item-name {
+  font-weight: 600;
+}
+
+.cie-badge {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--accent);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.cie-item-counts {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+.cie-checklist-detail {
+  padding: 4px 14px 16px;
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.cie-help {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.cie-ok {
+  margin: 0;
+  color: #6ee7b7;
+  font-size: 0.84rem;
+}
+
+/* ---------------------------------- Tablas -------------------------------- */
+
+.cie-table,
+.cie-gap-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.cie-table th,
+.cie-table td,
+.cie-gap-table th,
+.cie-gap-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--card-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.cie-table th,
+.cie-gap-table th {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cie-table small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.cie-table a {
+  color: var(--accent);
+}
+
+.cie-row-expired {
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.cie-expired {
+  color: var(--danger);
+}
+
+.cie-message-cell {
+  max-width: 420px;
+  white-space: pre-wrap;
+}
+
+.cie-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* -------------------------------- Formularios ----------------------------- */
+
+.cie-form-card {
+  padding: 16px;
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.cie-form-card h3 {
+  margin: 0 0 14px;
+  font-size: 1rem;
+}
+
+.cie-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.cie-form-grid label,
+.cie-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.cie-form-grid input,
+.cie-form-grid select,
+.cie-filters select,
+.cie-table select {
+  padding: 8px 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.6);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.84rem;
+}
+
+.cie-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.cie-note,
+.cie-generated,
+.cie-loading {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.cie-empty {
+  padding: 16px 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .cie-checklist-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cie-item-counts {
+    text-align: left;
+  }
+}

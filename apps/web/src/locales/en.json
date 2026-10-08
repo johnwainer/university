@@ -18,7 +18,8 @@
     "account": "Account",
     "refresh": "Refresh",
     "sections": "Sections",
-    "academics": "My University"
+    "academics": "My University",
+    "contact": "Contact"
   },
   "hero": {
     "enterCourse": "Enter Course",
@@ -419,6 +420,51 @@
         "in_progress": "In progress",
         "mastered": "Mastered"
       }
+    }
+  },
+  "common": {
+    "required": "(required)",
+    "optional": "(optional)",
+    "sending": "Sending…"
+  },
+  "programs": {
+    "level": {
+      "certificate": "Certificate",
+      "associate": "Associate",
+      "bachelor": "Bachelor's",
+      "master": "Master's",
+      "doctoral": "Doctoral",
+      "professional": "Professional degree"
+    }
+  },
+  "contact": {
+    "title": "Let's talk about your program",
+    "subtitle": "Leave us your details and an academic advisor will reach out with information about the program you are interested in.",
+    "submit": "Send message",
+    "privacy": "We use your details only to answer this request. We do not share them with third parties.",
+    "field": {
+      "fullName": "Full name",
+      "email": "Email address",
+      "phone": "Phone",
+      "program": "Program of interest",
+      "programPlaceholder": "Select a program…",
+      "subject": "Subject",
+      "message": "Message",
+      "messagePlaceholder": "Tell us what you would like to know."
+    },
+    "validation": {
+      "fullName": "Please enter your full name.",
+      "email": "Please enter a valid email address.",
+      "message": "The message must be at least 10 characters long."
+    },
+    "error": {
+      "generic": "We could not send your message. Please try again in a few minutes.",
+      "rateLimited": "We received several messages from your connection. Please wait a moment before sending again."
+    },
+    "success": {
+      "title": "Message received",
+      "body": "Thanks for writing. An academic advisor will reply to the address you gave us.",
+      "again": "Send another message"
     }
   }
 }

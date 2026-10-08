@@ -1,0 +1,56 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublishFrontendToLightsailBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::plataforma-estudiantil-frontend",
+        "arn:aws:s3:::plataforma-estudiantil-frontend/*"
+      ]
+    },
+    {
+      "Sid": "ReadBucketKeysAndResetCdnCache",
+      "Effect": "Allow",
+      "Action": [
+        "lightsail:GetBuckets",
+        "lightsail:GetBucketAccessKeys",
+        "lightsail:GetDistributions",
+        "lightsail:ResetDistributionCache",
+        "lightsail:GetCertificates",
+        "lightsail:GetRelationalDatabase"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadDeployParameters",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
+      "Resource": [
+        "arn:aws:ssm:us-east-1:467590374794:parameter/plataforma-estudiantil/*"
+      ]
+    },
+    {
+      "Sid": "DecryptSecureStringsViaSsmOnly",
+      "Effect": "Allow",
+      "Action": "kms:Decrypt",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "ssm.us-east-1.amazonaws.com"
+        }
+      }
+    }
+  ]
+}

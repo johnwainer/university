@@ -1,0 +1,42 @@
+# Files operators create next to these scripts. None of them belong in git.
+
+# Operator overrides for 00-config.sh and any other *.local scratch file
+*.local
+*.local.sh
+00-config.local.sh
+
+# Anything resembling a rendered or hand-written environment file
+.env
+.env.*
+env.*.local
+*.env
+
+# Private keys and certificates (SSH keys, TLS material, bucket key dumps)
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# Tokens captured from 21-moodle-webservices.sh
+*.token
+*.tokens
+
+# Credential dumps from `aws lightsail get-bucket-access-keys` and friends.
+# These are deliberately narrow: a blanket '*secret*' would also hide
+# 50-secrets-put.sh, which must be committed.
+aws.env
+*credentials.json
+*credentials.txt
+*-credentials
+bucket-keys*
+bucket-access-key*
+access-keys*.json
+
+# Local AWS CLI payloads
+cli-input-*.json
+
+# Never ignore the tracked templates and policy documents
+!*.example
+!iam/*.json
+!.gitignore

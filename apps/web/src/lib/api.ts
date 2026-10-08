@@ -624,6 +624,41 @@ export type CompetencyRecord = {
   description: string | null;
 };
 
+/**
+ * Etapa I — Programa del catálogo público, servido por `GET /v1/programs`.
+ * Sale de `degree_programs`, que tiene un único `name` (no un par ES/EN).
+ */
+export type PublicProgram = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  degreeLevel: string;
+  creditHours: number | null;
+};
+
+export type PublicProgramsResponse = {
+  locale: 'es' | 'en';
+  programs: PublicProgram[];
+};
+
+export type ContactSubmitPayload = {
+  fullName: string;
+  email: string;
+  phone?: string | null;
+  programId?: string | null;
+  subject?: string | null;
+  message: string;
+  locale?: 'es' | 'en';
+  /** Honeypot: la API descarta el envío si llega con contenido. */
+  company?: string;
+};
+
+export type ContactSubmitResponse = {
+  received: boolean;
+  id: string;
+};
+
 export const api = {
   home: () => fetchJson<HomeResponse>('/v1/home'),
   catalog: () => fetchJson<ContentAsset[]>('/v1/catalog'),
@@ -632,6 +667,10 @@ export const api = {
   catalogBySlug: (slug: string) => fetchJson<CatalogContentDetailResponse>(`/v1/catalog/${encodeURIComponent(slug)}`),
   terms: () => fetchJson<AcademicTermRecord[]>('/v1/terms'),
   degrees: () => fetchJson<DegreeProgram[]>('/v1/degrees'),
+  publicPrograms: (locale: 'es' | 'en') =>
+    fetchJson<PublicProgramsResponse>(`/v1/programs?locale=${encodeURIComponent(locale)}`),
+  submitContact: (payload: ContactSubmitPayload) =>
+    fetchJson<ContactSubmitResponse>('/v1/contact', { method: 'POST', body: payload }),
   publicAuth: {
     register: (payload: { fullName: string; email: string; password: string; locale?: string }) =>
       fetchJson<{

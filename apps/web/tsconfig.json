@@ -5,7 +5,8 @@
     "types": [
       "vite/client"
     ],
-    "noEmit": true
+    "noEmit": true,
+    "tsBuildInfoFile": "../../node_modules/.tmp/web.tsbuildinfo"
   },
   "include": [
     "src"

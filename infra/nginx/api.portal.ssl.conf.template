@@ -1,0 +1,103 @@
+# api.portal.ssl.conf.template  ->  /etc/nginx/sites-available/__API_HOST__-ssl.conf
+#
+# Public entrypoint for the Fastify API.
+#
+# CRITICAL ROUTING CONTRACT
+#   The app is created with Fastify's `rewriteUrl`, which strips a leading
+#   "/api" itself. The public contract is therefore:
+#       https://__API_HOST__/api/health
+#       https://__API_HOST__/api/v1/...
+#       https://__API_HOST__/api/admin/...
+#   nginx MUST pass the request URI through byte-for-byte. `proxy_pass` is
+#   written WITHOUT a trailing URI component precisely so nginx does not
+#   rewrite the path. Do not add a trailing "/" to proxy_pass and do not
+#   introduce a `rewrite ... /$1` here - that would double-strip /api and
+#   every route would 404.
+#
+# Placeholders substituted by 11-api-nginx-tls.sh:
+#   __API_HOST__ __API_UPSTREAM__ __ACME_WEBROOT__ __TLS_CERT__ __TLS_KEY__
+#   __TLS_CHAIN__ __CLIENT_MAX_BODY__
+
+upstream paeu_api {
+    server __API_UPSTREAM__;
+    keepalive 32;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name __API_HOST__;
+
+    server_tokens off;
+
+    ssl_certificate         __TLS_CERT__;
+    ssl_certificate_key     __TLS_KEY__;
+    ssl_trusted_certificate __TLS_CHAIN__;
+
+    ssl_protocols             TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_ciphers               ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_session_cache         shared:paeu_tls:10m;
+    ssl_session_timeout       1d;
+    ssl_session_tickets       off;
+    ssl_stapling              on;
+    ssl_stapling_verify       on;
+    resolver                  169.254.169.253 valid=300s;
+    resolver_timeout          5s;
+
+    include /etc/nginx/snippets/paeu-security-headers.conf;
+
+    client_max_body_size __CLIENT_MAX_BODY__;
+    client_body_timeout  120s;
+
+    gzip             on;
+    gzip_vary        on;
+    gzip_proxied     any;
+    gzip_comp_level  5;
+    gzip_min_length  512;
+    gzip_types       application/json application/javascript application/xml
+                     text/plain text/css text/xml text/javascript
+                     application/vnd.api+json;
+
+    access_log /var/log/nginx/__API_HOST__.access.log;
+    error_log  /var/log/nginx/__API_HOST__.error.log warn;
+
+    # Keep the renewal path reachable on 443 as well.
+    location ^~ /.well-known/acme-challenge/ {
+        root __ACME_WEBROOT__;
+        default_type "text/plain";
+        try_files $uri =404;
+    }
+
+    # Health passthrough. Same URI, just quieter logs and a tighter timeout so
+    # a wedged upstream is reported fast instead of hanging a load balancer.
+    location = /api/health {
+        access_log off;
+        include /etc/nginx/snippets/paeu-proxy-params.conf;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout    10s;
+        proxy_pass http://paeu_api;
+    }
+
+    # Everything else, URI untouched.
+    location / {
+        include /etc/nginx/snippets/paeu-proxy-params.conf;
+        proxy_pass http://paeu_api;
+    }
+
+    # Do not expose the app's own HTML route inventory in production.
+    location = /api/admin/routes/html {
+        return 404;
+    }
+
+    # Connection-level failures (upstream down / timing out) are answered with
+    # a plain JSON envelope so nothing about nginx or the host leaks. Upstream
+    # 5xx bodies are NOT intercepted - Fastify already returns JSON errors and
+    # swallowing them would hide real incidents.
+    error_page 502 503 504 = @paeu_unavailable;
+    location @paeu_unavailable {
+        default_type application/json;
+        return 503 '{"error":"Service Unavailable","statusCode":503}';
+    }
+}

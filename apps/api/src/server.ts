@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import sensible from '@fastify/sensible';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { createReadStream, existsSync, statSync } from 'node:fs';
@@ -19,6 +19,8 @@ import { migrateBackoffice } from './modules/backoffice/schema.js';
 import { registerBackofficeRoutes } from './modules/backoffice/routes.js';
 import { migrateCredentials } from './modules/credentials/schema.js';
 import { registerCredentialsRoutes } from './modules/credentials/routes.js';
+import { migrateCie } from './modules/cie/schema.js';
+import { registerCieRoutes } from './modules/cie/routes.js';
 import {
   createCompany,
   createPodcast,
@@ -191,6 +193,70 @@ await app.register(cors, {
 });
 await app.register(sensible);
 
+/**
+ * Manejador global de errores.
+ *
+ * Sin esto, cualquier `schema.parse()` que falle sale como HTTP 500 con el
+ * volcado interno de Zod — incluidas las rutas preexistentes
+ * `/v1/auth/register`, `/v1/auth/login` y `/admin/auth/login`. Aquí se
+ * traduce cada familia de error al código que le corresponde y el detalle de
+ * los 5xx se queda en el log, nunca en la respuesta.
+ */
+app.setErrorHandler((error, request, reply) => {
+  if (error instanceof ZodError) {
+    const fields = error.issues.map((issue) => ({
+      field: issue.path.join('.') || '(body)',
+      message: issue.message
+    }));
+    request.log.info({ fields }, 'request rejected by schema validation');
+    return reply.code(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: `Validation failed: ${fields.map((f) => `${f.field} ${f.message}`).join('; ')}`,
+      fields
+    });
+  }
+
+  const pgCode = (error as { code?: string }).code;
+  if (pgCode === '23505') {
+    request.log.info({ pgCode }, 'unique constraint violation');
+    return reply.code(409).send({
+      statusCode: 409,
+      error: 'Conflict',
+      message: 'That record already exists.'
+    });
+  }
+  if (pgCode === '23503' || pgCode === '23514' || pgCode === '22P02') {
+    request.log.info({ pgCode }, 'constraint violation rejected');
+    return reply.code(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'The request references data that does not exist or is not allowed.'
+    });
+  }
+
+  // Errores ya tipados por @fastify/sensible u otro codigo explicito (4xx).
+  // El narrowing de `instanceof ZodError` deja `error` como unknown en esta
+  // rama, asi que se reafirma la forma minima que se necesita leer.
+  const typed = error as { name?: string; message?: string; statusCode?: number };
+  const statusCode = Number(typed.statusCode ?? 500);
+  if (statusCode >= 400 && statusCode < 500) {
+    return reply.code(statusCode).send({
+      statusCode,
+      error: typed.name || 'Error',
+      message: typed.message || 'Request rejected.'
+    });
+  }
+
+  // 5xx: el detalle se queda en el log del servidor, nunca en la respuesta.
+  request.log.error({ err: error }, 'unhandled error');
+  return reply.code(500).send({
+    statusCode: 500,
+    error: 'Internal Server Error',
+    message: 'Unexpected error. The incident was logged.'
+  });
+});
+
 await initDb();
 
 // University OS module migrations (idempotent CREATE TABLE IF NOT EXISTS)
@@ -199,6 +265,7 @@ await migrateCrm(pool);
 await migrateSyllabus(pool);
 await migrateBackoffice(pool);
 await migrateCredentials(pool);
+await migrateCie(pool);
 
 async function loadPersistedMoodleConnection(): Promise<void> {
   const stored = await getIntegrationSetting<{ baseUrl?: string; token?: string }>('moodle.connection');
@@ -3620,6 +3687,65 @@ app.post('/admin/degree-programs', async (request, reply) => {
   return reply.status(201).send(result.rows[0]);
 });
 
+/**
+ * Actualiza un programa, incluido `is_active`.
+ *
+ * Por que existe: `is_active` es el denominador del checklist CIE de la Etapa I
+ * — cada programa activo exige su propia evidencia (Master Syllabus, malla,
+ * resultados de aprendizaje, acta de aprobacion). Sin esta ruta, un programa
+ * creado por error inflaba para siempre la evidencia exigida y no habia forma
+ * de sacarlo del conteo.
+ *
+ * No se expone DELETE a proposito: `degree_programs` es referenciada por
+ * matriculas, solicitudes de admision y expedientes de faculty. Desactivar es
+ * la operacion correcta en un SIS; borrar arrastraria historia academica.
+ */
+app.patch('/admin/degree-programs/:programId', async (request, reply) => {
+  ensureAdmin(request);
+  const { programId } = request.params as { programId: string };
+  const body = z
+    .object({
+      name: z.string().min(1).optional(),
+      code: z.string().min(1).optional(),
+      degreeLevel: z
+        .enum(['certificate', 'associate', 'bachelor', 'master', 'doctoral', 'professional'])
+        .optional(),
+      departmentId: z.string().nullable().optional(),
+      creditHoursRequired: z.number().int().min(0).optional(),
+      description: z.string().nullable().optional(),
+      isActive: z.boolean().optional()
+    })
+    .parse(request.body);
+
+  const result = await pool.query(
+    `UPDATE degree_programs SET
+       name                  = COALESCE($2, name),
+       code                  = COALESCE($3, code),
+       degree_level          = COALESCE($4, degree_level),
+       department_id         = COALESCE($5, department_id),
+       credit_hours_required = COALESCE($6, credit_hours_required),
+       description           = COALESCE($7, description),
+       is_active             = COALESCE($8, is_active)
+     WHERE id = $1
+     RETURNING *`,
+    [
+      programId,
+      body.name ?? null,
+      body.code ?? null,
+      body.degreeLevel ?? null,
+      body.departmentId ?? null,
+      body.creditHoursRequired ?? null,
+      body.description ?? null,
+      body.isActive ?? null
+    ]
+  );
+
+  if (!result.rows[0]) {
+    return reply.notFound('Degree program not found');
+  }
+  return result.rows[0];
+});
+
 setInterval(() => {
   if (!hasMoodleConfig()) {
     return;
@@ -3652,6 +3778,9 @@ registerCredentialsRoutes(app, {
   ensureAdmin,
   getPublicSession: (req) => getPublicSessionFromRequest(req)
 });
+// Etapa I — CIE Readiness: checklist documental, expedientes de faculty y
+// formulario de contacto público.
+registerCieRoutes(app, { pool, ensureAdmin });
 
 const port = config.server.port;
 const host = config.server.host;
