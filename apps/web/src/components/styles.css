@@ -92,8 +92,8 @@ select {
 }
 
 button {
-  background: linear-gradient(120deg, #0ea5e9 0%, #f59e0b 100%);
-  color: #0f172a;
+  background: linear-gradient(120deg, var(--pcl-cyan) 0%, var(--pcl-cyan-700) 100%);
+  color: var(--pcl-navy-900);
   font-weight: 700;
   cursor: pointer;
 }
@@ -133,8 +133,8 @@ button.danger {
 }
 
 .section-tabs button.active {
-  background: linear-gradient(120deg, #0ea5e9 0%, #f59e0b 100%);
-  color: #0f172a;
+  background: linear-gradient(120deg, var(--pcl-cyan) 0%, var(--pcl-cyan-700) 100%);
+  color: var(--pcl-navy-900);
 }
 
 .ghost {

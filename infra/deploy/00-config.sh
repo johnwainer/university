@@ -221,8 +221,18 @@ CACHE_CONTROL_IMMUTABLE="${CACHE_CONTROL_IMMUTABLE:-public, max-age=31536000, im
 CACHE_CONTROL_NO_CACHE="${CACHE_CONTROL_NO_CACHE:-no-cache, no-store, must-revalidate}"
 # Lightsail distributions have no custom-error-response API, so wildcard SPA
 # fallback is emulated by publishing index.html under each client-side route.
-# See the "SPA fallback" note in infra/README.md.
-SPA_FALLBACK_ROUTES="${SPA_FALLBACK_ROUTES:-admin admin/companies admin/courses admin/users login registro catalogo cuenta}"
+# See the "SPA fallback" note en infra/README.md.
+#
+# La lista tiene que ser exactamente la de las rutas que el SPA lee de
+# window.location.pathname; cualquier otra "ruta" es estado interno y nunca
+# llega a la barra de direcciones:
+#   components/App.tsx        -> '/' y todo lo que empieza por '/admin'
+#   components/PublicApp.tsx  -> '/terminos', '/terminos-y-condiciones',
+#                                '/privacidad', '/politica-de-privacidad'
+# Publicar alias de rutas que no existen no rompe nada (devuelven el index),
+# pero omitir una real deja un 403 de S3 en el enlace directo y en el F5.
+# 'contact' y 'programas' quedan por compatibilidad con enlaces ya repartidos.
+SPA_FALLBACK_ROUTES="${SPA_FALLBACK_ROUTES:-admin terminos terminos-y-condiciones privacidad politica-de-privacidad contact programas}"
 
 # ---------------------------------------------------------------------------
 # SSM Parameter Store
