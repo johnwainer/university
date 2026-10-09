@@ -1,0 +1,654 @@
+/* =========================================================================
+   Panel administrativo — tema claro
+   =========================================================================
+   El panel era la misma interfaz oscura que el portal público: tarjetas
+   translúcidas con desenfoque, bordes en cian, sombras de 50px y botones con
+   degradado. Para una web de marca funciona; para una herramienta de trabajo
+   que alguien mira ocho horas, no: el contraste permanente cansa, el
+   desenfoque emborrona las tablas y las sombras hacen que todo flote.
+
+   Esto lo convierte en un panel claro y sobrio, del tipo que se espera de una
+   herramienta profesional:
+
+     · Fondo gris muy claro, tarjetas blancas, filetes de 1px.
+     · Sin desenfoque y sin sombras marcadas: una sombra de 1px basta para
+       separar la tarjeta del fondo.
+     · Radios de 10px en vez de 20: menos «burbuja», más instrumento.
+     · Un solo color de acción —el azul institucional— y el cian reservado
+       para el estado activo y el foco.
+     · Tablas sin líneas verticales, con la cabecera en versalita gris.
+
+   Va en su propio archivo y se carga después de styles.css: el tema se lee
+   de un tirón y se puede revertir quitando un import.
+
+   Contraste medido sobre blanco: principal #0B203A 16.38:1, secundario
+   #5A6B80 5.46:1, terciario #5F6E82 5.2:1 (4.8:1 sobre el gris del fondo).
+   El filete #E3E8EF es decorativo y no porta información.
+   ========================================================================= */
+
+.admin-shell {
+  --adm-bg: #f4f6f8;
+  --adm-surface: #ffffff;
+  --adm-surface-2: #f8fafc;
+  --adm-line: #e3e8ef;
+  --adm-line-strong: #d3dae4;
+  --adm-ink: #0b203a;
+  --adm-ink-2: #5a6b80;
+  /* El terciario se eligió midiendo: #8696A8 daba 3.0:1 sobre blanco y no
+     pasa AA en texto pequeño, que es justo donde se usa (cabeceras de tabla,
+     antetítulos, notas). */
+  --adm-ink-3: #5f6e82;
+  --adm-accent: #2dc4c7;
+  --adm-accent-ink: #11797b;
+  --adm-danger: #c0392f;
+  --adm-ok: #0f7a52;
+  --adm-warn: #9a6400;
+
+  color-scheme: light;
+  background: var(--adm-bg);
+  color: var(--adm-ink);
+  min-height: 100vh;
+  padding: 28px 28px 56px;
+  font-family: var(--pcl-font-body);
+}
+
+/* El fondo del documento sigue siendo el del portal; mientras el panel esté
+   montado se aclara para que no asome una franja oscura al rebotar el scroll. */
+body:has(.admin-shell) {
+  background: #f4f6f8;
+}
+
+.admin-shell h1,
+.admin-shell h2,
+.admin-shell h3 {
+  font-family: var(--pcl-font-display);
+  color: var(--adm-ink);
+  letter-spacing: -0.015em;
+}
+
+.admin-shell h1 { font-size: 1.6rem; }
+.admin-shell h2 { font-size: 1.12rem; }
+.admin-shell h3 { font-size: 1rem; }
+
+.admin-shell p,
+.admin-shell label,
+.admin-shell li {
+  color: var(--adm-ink-2);
+}
+
+.admin-shell .muted,
+.admin-shell small {
+  color: var(--adm-ink-3);
+}
+
+/* ---------------------------------------------------------------- tarjetas */
+
+.admin-shell .login-card,
+.admin-shell .card,
+.admin-shell .status-card,
+.admin-shell .topbar,
+.admin-shell .cie-summary,
+.admin-shell .cie-form-card {
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-line);
+  border-radius: 10px;
+  backdrop-filter: none;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+
+.admin-shell .card,
+.admin-shell .status-card {
+  padding: 20px;
+}
+
+/* --------------------------------------------------------------- cabecera */
+
+.admin-shell .topbar {
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  border-radius: 10px;
+}
+
+.admin-shell .eyebrow {
+  color: var(--adm-ink-3);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+}
+
+/* Las pestañas de sección, como un control segmentado: una pista gris y la
+   activa en blanco. Antes eran ocho botones sueltos con degradado. */
+.admin-shell .section-tabs {
+  background: #eceff3;
+  border: 1px solid var(--adm-line);
+  border-radius: 10px;
+  padding: 4px;
+  gap: 2px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.admin-shell .section-tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--adm-ink-2);
+  font-size: 0.86rem;
+  font-weight: 500;
+  padding: 9px 14px;
+  box-shadow: none;
+}
+
+.admin-shell .section-tabs button:hover {
+  color: var(--adm-ink);
+}
+
+.admin-shell .section-tabs button.active {
+  background: var(--adm-surface);
+  color: var(--adm-ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+
+/* ---------------------------------------------------------------- botones */
+
+.admin-shell button {
+  background: var(--adm-ink);
+  color: #ffffff;
+  border: 1px solid var(--adm-ink);
+  border-radius: 8px;
+  padding: 10px 15px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  box-shadow: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-shell button:hover:not(:disabled) {
+  background: #15304f;
+  border-color: #15304f;
+}
+
+.admin-shell button:disabled {
+  opacity: 0.45;
+}
+
+.admin-shell button.ghost,
+.admin-shell .cie-tabs button {
+  background: var(--adm-surface);
+  color: var(--adm-ink);
+  border: 1px solid var(--adm-line-strong);
+}
+
+.admin-shell button.ghost:hover:not(:disabled) {
+  background: var(--adm-surface-2);
+  border-color: var(--adm-ink-3);
+}
+
+.admin-shell button.danger {
+  background: var(--adm-danger);
+  border-color: var(--adm-danger);
+  color: #ffffff;
+}
+
+.admin-shell button.ghost.danger {
+  background: var(--adm-surface);
+  color: var(--adm-danger);
+  border-color: #efc4c0;
+}
+
+.admin-shell .cie-tabs button.active {
+  background: var(--adm-ink);
+  border-color: var(--adm-ink);
+  color: #ffffff;
+}
+
+.admin-shell button:focus-visible,
+.admin-shell input:focus-visible,
+.admin-shell select:focus-visible,
+.admin-shell textarea:focus-visible,
+.admin-shell a:focus-visible {
+  outline: 2px solid var(--adm-accent);
+  outline-offset: 2px;
+}
+
+/* ----------------------------------------------------------------- campos */
+
+.admin-shell label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--adm-ink-2);
+}
+
+.admin-shell input,
+.admin-shell select,
+.admin-shell textarea {
+  background: var(--adm-surface);
+  color: var(--adm-ink);
+  border: 1px solid var(--adm-line-strong);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.92rem;
+}
+
+.admin-shell input::placeholder,
+.admin-shell textarea::placeholder {
+  color: #9fadbd;
+}
+
+.admin-shell input:focus,
+.admin-shell select:focus,
+.admin-shell textarea:focus {
+  outline: none;
+  border-color: var(--adm-accent);
+  box-shadow: 0 0 0 3px rgba(45, 196, 199, 0.18);
+}
+
+.admin-shell .login-card {
+  max-width: 420px;
+  margin: 12vh auto 0;
+  padding: 32px;
+}
+
+/* ----------------------------------------------------------------- tablas */
+
+.admin-shell table {
+  border-collapse: collapse;
+}
+
+.admin-shell th {
+  color: var(--adm-ink-3);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--adm-line-strong);
+  padding: 10px 12px;
+}
+
+.admin-shell td {
+  color: var(--adm-ink);
+  border-bottom: 1px solid var(--adm-line);
+  padding: 12px;
+  font-size: 0.9rem;
+}
+
+.admin-shell tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-shell tbody tr:hover td {
+  background: var(--adm-surface-2);
+}
+
+.admin-shell caption {
+  color: var(--adm-ink-3);
+  font-size: 0.82rem;
+  text-align: left;
+  padding-bottom: 10px;
+}
+
+.admin-shell .scroll-card {
+  max-height: 520px;
+}
+
+/* ---------------------------------------------------------------- señales */
+
+.admin-shell .badge {
+  background: #eef2f7;
+  border: 1px solid var(--adm-line-strong);
+  color: var(--adm-ink-2);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.admin-shell .badge.danger {
+  background: #fdeeec;
+  border-color: #f3cfca;
+  color: var(--adm-danger);
+}
+
+.admin-shell .error-msg {
+  background: #fdeeec;
+  border: 1px solid #f3cfca;
+  color: var(--adm-danger);
+  border-radius: 8px;
+  padding: 11px 14px;
+}
+
+.admin-shell .info-msg {
+  background: #eaf7f7;
+  border: 1px solid #c3e8e8;
+  color: var(--adm-accent-ink);
+  border-radius: 8px;
+  padding: 11px 14px;
+}
+
+/* El semáforo del checklist: los mismos tres estados, con tonos que sobre
+   blanco mantienen el contraste del texto (verde 5.35:1, ámbar 5.0:1,
+   rojo 5.43:1). El punto sigue acompañado de su etiqueta escrita. */
+.admin-shell .cie-signal-green { color: var(--adm-ok); }
+.admin-shell .cie-signal-green .cie-signal-dot { background: #12a06a; }
+.admin-shell .cie-signal-amber { color: var(--adm-warn); }
+.admin-shell .cie-signal-amber .cie-signal-dot { background: #d08700; }
+.admin-shell .cie-signal-red { color: var(--adm-danger); }
+.admin-shell .cie-signal-red .cie-signal-dot { background: #d64535; }
+.admin-shell .cie-signal-dot { box-shadow: 0 0 0 2px rgba(11, 32, 58, 0.08); }
+
+.admin-shell .metric strong {
+  font-size: 1.8rem;
+  color: var(--adm-ink);
+}
+
+.admin-shell .clean-list {
+  color: var(--adm-ink-2);
+}
+
+/* ------------------------------------------- editor de sílabo y calendario */
+
+.admin-shell .syllabus-nav {
+  border-right-color: var(--adm-line);
+}
+
+.admin-shell .syllabus-nav h3 {
+  color: var(--adm-ink-3);
+}
+
+.admin-shell .syllabus-nav-item {
+  color: var(--adm-ink-2);
+}
+
+.admin-shell .syllabus-nav-item:hover {
+  background: var(--adm-surface-2);
+  color: var(--adm-ink);
+}
+
+.admin-shell .syllabus-nav-item.active {
+  background: #eaf7f7;
+  color: var(--adm-ink);
+}
+
+.admin-shell .syllabus-nav-number {
+  color: var(--adm-ink-3);
+}
+
+.admin-shell .syllabus-help {
+  background: var(--adm-surface-2);
+  border-left-color: var(--adm-accent);
+  color: var(--adm-ink-2);
+}
+
+.admin-shell .syllabus-issue {
+  color: var(--adm-warn);
+  border-left-color: #d08700;
+}
+
+.admin-shell .syllabus-issue.blocking {
+  color: var(--adm-danger);
+  border-left-color: var(--adm-danger);
+}
+
+.admin-shell .syllabus-repeat {
+  border-color: var(--adm-line);
+  border-radius: 10px;
+  background: var(--adm-surface-2);
+}
+
+.admin-shell .syllabus-repeat legend {
+  color: var(--adm-ink-3);
+}
+
+.admin-shell .syllabus-inherited-body {
+  border: 1px solid var(--adm-line);
+  border-radius: 10px;
+  background: var(--adm-surface-2);
+  color: var(--adm-ink-2);
+}
+
+.admin-shell .syllabus-blocking {
+  background: #fdeeec;
+  border-left-color: var(--adm-danger);
+}
+
+.admin-shell .syllabus-published {
+  background: #eaf7f7;
+  border-left-color: var(--adm-accent);
+}
+
+.admin-shell .syllabus-total.ok { color: var(--adm-ok); }
+.admin-shell .syllabus-total.bad { color: var(--adm-danger); }
+.admin-shell .syllabus-dot.blocking { color: var(--adm-danger); }
+.admin-shell .syllabus-dot.warning { color: #d08700; }
+
+.admin-shell .link-like {
+  color: var(--adm-ink);
+}
+
+.admin-shell .calendar-deadlines em,
+.admin-shell .calendar-holiday {
+  color: var(--adm-ink-3);
+}
+
+/* ------------------------------------------------------------ adaptación */
+
+@media (max-width: 860px) {
+  .admin-shell {
+    padding: 16px 14px 40px;
+  }
+
+  .admin-shell .login-card {
+    margin-top: 6vh;
+    padding: 24px;
+  }
+}
+
+/* El fondo del hover genérico de botón ganaba sobre las pestañas, que sólo
+   declaraban color: al pasar el ratón por la pestaña activa se volvía azul
+   oscuro y parecía otro control. */
+.admin-shell .section-tabs button:hover,
+.admin-shell .section-tabs button:hover:not(:disabled) {
+  background: rgba(11, 32, 58, 0.05);
+  border-color: transparent;
+}
+
+.admin-shell .section-tabs button.active:hover,
+.admin-shell .section-tabs button.active:hover:not(:disabled) {
+  background: var(--adm-surface);
+  border-color: transparent;
+}
+
+.admin-shell .section-tabs {
+  row-gap: 4px;
+}
+
+/* Las acciones de fila no necesitan el peso de un botón sólido: en una tabla
+   de treinta filas, treinta botones rojos tapan los datos. Se quedan como
+   contorno y sólo el borde avisa de que la acción es destructiva. */
+.admin-shell td button,
+.admin-shell td button.danger {
+  padding: 7px 11px;
+  font-size: 0.8rem;
+}
+
+.admin-shell td button.danger {
+  background: var(--adm-surface);
+  color: var(--adm-danger);
+  border-color: #efc4c0;
+}
+
+.admin-shell td button.danger:hover:not(:disabled) {
+  background: #fdeeec;
+  border-color: var(--adm-danger);
+}
+
+/* Una métrica larga —una fecha con hora— no puede ir al mismo cuerpo que un
+   número de dos cifras: se partía en dos líneas y rompía la retícula. */
+.admin-shell .metric strong {
+  font-size: clamp(1.1rem, 1.1rem + 0.6vw, 1.8rem);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================================
+   Checklist CIE en claro
+   =========================================================================
+   Esta vista traía sus propios fondos oscuros (`.cie-checklist`,
+   `.cie-counters`, el detalle desplegable) y quedaba como una isla negra
+   dentro del panel claro, con los rótulos de los contadores casi ilegibles.
+   ========================================================================= */
+
+.admin-shell .cie-summary {
+  padding: 20px;
+}
+
+.admin-shell .cie-summary-main,
+.admin-shell .cie-generated,
+.admin-shell .cie-note,
+.admin-shell .cie-help,
+.admin-shell .cie-item-counts,
+.admin-shell .cie-empty,
+.admin-shell .cie-loading {
+  color: var(--adm-ink-2);
+}
+
+.admin-shell .cie-percent {
+  color: var(--adm-ink);
+}
+
+.admin-shell .cie-counters div {
+  border: 1px solid var(--adm-line);
+  background: var(--adm-surface-2);
+  border-radius: 10px;
+}
+
+.admin-shell .cie-counters dt {
+  color: var(--adm-ink-3);
+}
+
+.admin-shell .cie-counters dd {
+  color: var(--adm-ink);
+}
+
+.admin-shell .cie-checklist {
+  border: 1px solid var(--adm-line);
+  border-radius: 10px;
+  background: var(--adm-surface);
+  overflow: hidden;
+}
+
+.admin-shell .cie-checklist-item + .cie-checklist-item {
+  border-top: 1px solid var(--adm-line);
+}
+
+.admin-shell .cie-checklist-row {
+  background: var(--adm-surface);
+  color: var(--adm-ink);
+}
+
+.admin-shell .cie-checklist-row:hover {
+  background: var(--adm-surface-2);
+}
+
+.admin-shell .cie-checklist-detail {
+  background: var(--adm-surface-2);
+  border-top: 1px solid var(--adm-line);
+}
+
+.admin-shell .cie-badge {
+  background: #eef2f7;
+  color: var(--adm-ink-2);
+  border: 1px solid var(--adm-line-strong);
+}
+
+.admin-shell .cie-ready {
+  border-color: #bfe3d2;
+  background: #eef9f3;
+  color: var(--adm-ok);
+}
+
+.admin-shell .cie-warning {
+  border-color: #efdcb4;
+  background: #fdf6e7;
+  color: var(--adm-warn);
+}
+
+.admin-shell .cie-ok {
+  color: var(--adm-ok);
+}
+
+.admin-shell .cie-expired,
+.admin-shell .cie-row-expired {
+  color: var(--adm-danger);
+}
+
+.admin-shell .cie-table th,
+.admin-shell .cie-gap-table th {
+  color: var(--adm-ink-3);
+  border-bottom-color: var(--adm-line-strong);
+}
+
+.admin-shell .cie-table td,
+.admin-shell .cie-gap-table td {
+  color: var(--adm-ink);
+  border-bottom-color: var(--adm-line);
+}
+
+.admin-shell .cie-section h3 {
+  color: var(--adm-ink);
+}
+
+.admin-shell .cie-message-cell {
+  color: var(--adm-ink-2);
+}
+
+/* Los filtros y el formulario de la vista comparten el mismo marco claro. */
+.admin-shell .cie-filters,
+.admin-shell .cie-form-grid {
+  gap: 12px;
+}
+
+/* El índice de las 24 secciones son `button`, así que heredaban el botón
+   sólido del panel y quedaba una columna de bloques azul oscuro. Y sus
+   encabezados de grupo perdían su tamaño pequeño frente a la regla general de
+   `h3` de este tema, que se declara después. */
+.admin-shell .syllabus-nav-item {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  font-weight: 500;
+}
+
+.admin-shell .syllabus-nav-item:hover:not(:disabled) {
+  background: var(--adm-surface-2);
+  border: 0;
+}
+
+.admin-shell .syllabus-nav-item.active,
+.admin-shell .syllabus-nav-item.active:hover:not(:disabled) {
+  background: #eaf7f7;
+  border: 0;
+  font-weight: 600;
+}
+
+.admin-shell .syllabus-nav h3 {
+  font-family: var(--pcl-font-body);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--adm-ink-3);
+}
+
+/* Lo mismo para los otros botones que no son acciones sino navegación. */
+.admin-shell .link-like {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  font-weight: 500;
+}
+
+.admin-shell .link-like:hover:not(:disabled) {
+  background: none;
+  color: var(--adm-accent-ink);
+}

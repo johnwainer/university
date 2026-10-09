@@ -544,5 +544,34 @@
       "professional": "Profesional",
       "other": "Otros"
     }
+  },
+  "program": {
+    "breadcrumbHome": "Inicio",
+    "breadcrumbPrograms": "Programas",
+    "eyebrow": "Programa de The Floridian University",
+    "navAbout": "Sobre el programa",
+    "navLearn": "Lo que aprenderás",
+    "navPlan": "Plan del curso",
+    "navFormat": "Formato y entrega",
+    "navSimilar": "Programas similares",
+    "aboutTitle": "Sobre el programa",
+    "learnTitle": "Lo que aprenderás y practicarás",
+    "planTitle": "Plan del curso",
+    "planLead": "El aula está organizada en semanas. Cada una abre el viernes anterior y cierra el lunes a las 23:59 ET.",
+    "planWeek": "Semana {{n}}",
+    "planActivities": "{{count}} actividades",
+    "planEmpty": "El aula de este programa todavía no tiene publicado su plan semanal.",
+    "formatTitle": "Formato y entrega",
+    "formatOnlineTitle": "En línea y asincrónico",
+    "formatOnlineBody": "Todo el programa se cursa en el aula virtual de TFU. No hay sesiones obligatorias en directo; la facultad y los estudiantes pueden convocar encuentros opcionales.",
+    "formatCadenceTitle": "Cadencia semanal fija",
+    "formatCadenceBody": "Respuesta inicial a la discusión el martes, respuestas a compañeros el jueves y entrega el lunes, todas a las 23:59 ET.",
+    "formatBilingualTitle": "Bilingüe",
+    "formatBilingualBody": "El programa existe en español y en inglés como contenido equivalente, no como traducción automática. El estudiante elige el idioma del portal y del aula.",
+    "formatHours": "Duración estimada",
+    "similarTitle": "Programas similares",
+    "ctaTitle": "Lleva este programa a tu equipo",
+    "ctaBody": "Escríbenos y revisamos contigo el programa, la dedicación semanal que exige y las fechas de la convocatoria vigente.",
+    "ctaButton": "Hablar con admisiones"
   }
 }

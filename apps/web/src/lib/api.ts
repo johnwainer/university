@@ -248,6 +248,10 @@ export type UserCoursesResponse = {
 
 export type CatalogContentDetailResponse = {
   content: ContentAsset & Record<string, unknown>;
+  /** Índice público del aula: títulos de las semanas, sin materiales. */
+  outline?: Array<{ week: number; title: string; activities: number }>;
+  /** Programas de la misma área, para el bloque de programas similares. */
+  related?: Array<ContentAsset & Record<string, unknown>>;
   entitlement: Entitlement | null;
 };
 

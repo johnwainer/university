@@ -544,5 +544,34 @@
       "professional": "Professional",
       "other": "Other"
     }
+  },
+  "program": {
+    "breadcrumbHome": "Home",
+    "breadcrumbPrograms": "Programs",
+    "eyebrow": "A The Floridian University program",
+    "navAbout": "About this program",
+    "navLearn": "What you'll learn",
+    "navPlan": "Course plan",
+    "navFormat": "Format & delivery",
+    "navSimilar": "Similar programs",
+    "aboutTitle": "About this program",
+    "learnTitle": "What you'll learn and practice",
+    "planTitle": "Course plan",
+    "planLead": "The classroom is organized by week. Each one opens the previous Friday and closes Monday at 11:59 PM ET.",
+    "planWeek": "Week {{n}}",
+    "planActivities": "{{count}} activities",
+    "planEmpty": "This program's classroom has not published its weekly plan yet.",
+    "formatTitle": "Format & delivery",
+    "formatOnlineTitle": "Online and asynchronous",
+    "formatOnlineBody": "The whole program runs in TFU's virtual classroom. There are no required live sessions; faculty and students may arrange optional ones.",
+    "formatCadenceTitle": "Fixed weekly cadence",
+    "formatCadenceBody": "Initial discussion response on Tuesday, peer responses on Thursday and the assignment on Monday, all at 11:59 PM ET.",
+    "formatBilingualTitle": "Bilingual",
+    "formatBilingualBody": "The program exists in Spanish and English as equivalent content, not machine translation. Students choose the language of the portal and the classroom.",
+    "formatHours": "Estimated length",
+    "similarTitle": "Similar programs",
+    "ctaTitle": "Bring this program to your team",
+    "ctaBody": "Write to us and we will review the program with you, the weekly commitment it asks for and the dates of the current intake.",
+    "ctaButton": "Talk to admissions"
   }
 }

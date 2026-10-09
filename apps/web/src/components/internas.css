@@ -821,3 +821,104 @@
   background: rgba(255, 255, 255, 0.16);
   color: var(--pcl-white);
 }
+
+/* =========================================================================
+   Hero del inicio — distribución del texto
+   =========================================================================
+   El bloque de texto ocupaba 1.180px de ancho: el título llegaba casi al
+   centro de la pantalla y el párrafo se cortaba a 760, así que cada línea
+   terminaba en un sitio distinto y no se leía como un bloque.
+
+   Ahora todo el texto vive en una columna de 620px alineada abajo a la
+   izquierda, como en el mockup del manual: metadatos, título, entradilla,
+   acciones e indicadores comparten el mismo eje y el mismo ancho.
+   ========================================================================= */
+.hero-netflix {
+  display: flex;
+  align-items: flex-end;
+}
+
+.hero-content {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 44px 64px;
+  display: block;
+}
+
+.hero-content > * {
+  max-width: 620px;
+}
+
+.hero-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Los metadatos del hero, como en la ficha: texto separado por puntos en vez
+   de tres cápsulas con borde compitiendo con el título. */
+.hero-content .hero-meta-row > * {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  letter-spacing: inherit;
+  color: var(--pcl-ice);
+}
+
+.hero-content .hero-meta-row .category-chip {
+  color: var(--cat-accent, var(--pcl-cyan));
+  font-weight: 700;
+}
+
+.hero-content .hero-meta-row > * + *::before {
+  content: '·';
+  margin-right: 10px;
+  color: var(--pcl-steel);
+}
+
+.hero-content h1 {
+  font-size: clamp(2.2rem, 4.2vw, 3.6rem);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  margin: 0 0 18px;
+}
+
+.hero-content p {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--pcl-ice);
+  margin: 0 0 28px;
+  max-width: 560px;
+}
+
+.hero-actions {
+  margin: 0 0 26px;
+  gap: 14px;
+}
+
+.hero-dots {
+  margin: 0;
+  gap: 8px;
+}
+
+@media (max-width: 860px) {
+  .hero-content {
+    padding: 0 20px 44px;
+  }
+
+  .hero-content > * {
+    max-width: 100%;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

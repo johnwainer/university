@@ -16,6 +16,8 @@ import {
   type UserCoursesResponse
 } from '../lib/api';
 import './styles.css';
+// Tema claro del panel; se carga después para poder leerse como una capa.
+import './admin-ui.css';
 import { CompaniesView } from './admin/views/CompaniesView';
 import { SisView } from './admin/views/SisView';
 import { CrmView } from './admin/views/CrmView';

@@ -1,0 +1,527 @@
+/* =========================================================================
+   Ficha de programa
+   =========================================================================
+   Estructura tomada del sitio corporativo hermano: hero a sangre con migas y
+   entradilla, índice pegajoso de secciones, y luego bandas alternas con el
+   resumen, lo que se practica, el plan semanal, el formato y los programas de
+   la misma área.
+
+   Dos marcas de esa línea gráfica que se reproducen aquí: el título de
+   sección abre con una barra en cian, y las tarjetas llevan un filo de color
+   arriba en vez de borde alrededor.
+
+   Lo que NO se copia es el texto. El resumen y las competencias salen del
+   catálogo versionado de la plataforma; el plan semanal, del índice real del
+   aula en Moodle; y el formato describe cómo se imparte de verdad: ocho
+   semanas, asincrónico, con los plazos del Master Syllabus. Ninguna de estas
+   secciones afirma resultados de negocio.
+   ========================================================================= */
+
+.program-page {
+  margin-inline: -20px;
+}
+
+@media (max-width: 1100px) { .program-page { margin-inline: -14px; } }
+@media (max-width: 860px)  { .program-page { margin-inline: -12px; } }
+@media (max-width: 560px)  { .program-page { margin-inline: -10px; } }
+
+.program-loading {
+  padding: 80px 24px;
+  text-align: center;
+  color: var(--pcl-ice);
+}
+
+/* ------------------------------------------------------------------- hero */
+
+.program-hero {
+  position: relative;
+  min-height: 56vh;
+  display: flex;
+  align-items: flex-end;
+  background-size: cover;
+  background-position: center;
+  isolation: isolate;
+}
+
+.program-hero-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(8, 22, 39, 0.92) 0%, rgba(8, 22, 39, 0.55) 60%, rgba(8, 22, 39, 0.75) 100%),
+    linear-gradient(180deg, rgba(8, 22, 39, 0.35) 0%, var(--pcl-navy-800) 100%);
+}
+
+.program-hero-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 44px 52px;
+}
+
+.program-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--pcl-steel);
+  margin-bottom: 16px;
+}
+
+.program-breadcrumb button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--pcl-ice);
+  font: inherit;
+  cursor: pointer;
+}
+
+.program-breadcrumb button:hover {
+  color: var(--pcl-cyan);
+}
+
+.program-breadcrumb button:focus-visible,
+.program-section-nav a:focus-visible,
+.program-cta-btn:focus-visible,
+.program-cta-secondary:focus-visible,
+.program-similar-card:focus-visible {
+  outline: 3px solid var(--pcl-cyan);
+  outline-offset: 3px;
+}
+
+.program-breadcrumb-current {
+  color: var(--cat-accent, var(--pcl-cyan));
+}
+
+.program-eyebrow {
+  margin: 0 0 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cat-accent, var(--pcl-cyan));
+}
+
+.program-hero h1 {
+  margin: 0 0 16px;
+  font-family: var(--pcl-font-display);
+  font-size: clamp(2.2rem, 4.6vw, 3.9rem);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  max-width: 15ch;
+}
+
+.program-lead {
+  margin: 0;
+  max-width: 640px;
+  font-size: 1.08rem;
+  line-height: 1.6;
+  color: var(--pcl-ice);
+}
+
+.program-hours {
+  margin: 18px 0 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pcl-steel);
+}
+
+.program-hours strong {
+  color: var(--pcl-white);
+}
+
+/* ------------------------------------------------- índice de secciones */
+
+/* Pegajoso justo debajo de la cabecera del sitio, que mide dos bandas. */
+.program-section-nav {
+  position: sticky;
+  top: calc(var(--tfu-utility-h) + var(--tfu-nav-h));
+  z-index: 25;
+  background: var(--pcl-navy-900);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.program-section-nav-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 44px;
+  display: flex;
+  gap: 30px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.program-section-nav-inner::-webkit-scrollbar {
+  display: none;
+}
+
+.program-section-nav a {
+  padding: 17px 0;
+  color: var(--pcl-ice);
+  text-decoration: none;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+
+.program-section-nav a:hover {
+  color: var(--pcl-white);
+  border-bottom-color: var(--pcl-cyan);
+}
+
+/* ------------------------------------------------------------------ bandas */
+
+.program-band {
+  background: var(--pcl-navy-900);
+  padding: 72px 0;
+}
+
+.program-band.alt {
+  background: var(--pcl-navy-800);
+}
+
+.program-band-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 44px;
+}
+
+/* La barra en cian delante del título es la marca de sección del corporativo. */
+.program-h2 {
+  margin: 0 0 26px;
+  font-family: var(--pcl-font-display);
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.program-h2::before {
+  content: '/';
+  color: var(--pcl-cyan);
+  font-weight: 400;
+}
+
+.program-band-lead {
+  margin: -10px 0 30px;
+  max-width: 720px;
+  color: var(--pcl-ice);
+  font-size: 1.02rem;
+  line-height: 1.65;
+}
+
+/* -------------------------------------------------------- sobre el programa */
+
+.program-about {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
+  gap: 56px;
+  align-items: start;
+}
+
+.program-prose {
+  color: var(--pcl-ice);
+  font-size: 1.04rem;
+  line-height: 1.75;
+  max-width: 680px;
+}
+
+.program-prose > p:first-child {
+  font-size: 1.22rem;
+  line-height: 1.5;
+  color: var(--pcl-white);
+  margin-top: 0;
+}
+
+.program-prose p {
+  margin: 0 0 18px;
+}
+
+.program-prose strong {
+  color: var(--pcl-white);
+}
+
+/* Tarjeta de contacto, en cian sólido como la del corporativo. La tinta es el
+   azul institucional: sobre #2DC4C7 el blanco da 2.14:1 y no pasa AA. */
+.program-cta-card {
+  background: var(--pcl-cyan);
+  color: var(--pcl-navy-900);
+  padding: 30px 28px;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.program-cta-kicker {
+  margin: 0;
+  font-family: var(--pcl-font-display);
+  font-size: 1.45rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.program-cta-body {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: rgba(11, 32, 58, 0.86);
+}
+
+.program-cta-btn {
+  background: var(--pcl-navy-900);
+  color: var(--pcl-white);
+  border: 0;
+  padding: 14px 18px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.program-cta-btn:hover {
+  background: var(--pcl-navy-700);
+}
+
+.program-cta-secondary {
+  background: transparent;
+  color: var(--pcl-navy-900);
+  border: 1px solid rgba(11, 32, 58, 0.45);
+  padding: 13px 18px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.program-cta-secondary:hover {
+  border-color: var(--pcl-navy-900);
+}
+
+/* ----------------------------------------------- lo que se practica */
+
+/* Cada competencia numerada, como el «01 — DESCUBRIMIENTO CONSULTIVO» del
+   corporativo: el número en el acento y el texto en una columna legible. */
+.program-practice ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  counter-reset: competencia;
+}
+
+.program-practice li {
+  counter-increment: competencia;
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 24px;
+  padding: 26px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--pcl-ice);
+  font-size: 1.02rem;
+  line-height: 1.65;
+}
+
+.program-practice li:last-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.program-practice li::before {
+  content: counter(competencia, decimal-leading-zero) ' —';
+  color: var(--cat-accent, var(--pcl-cyan));
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding-top: 0.35em;
+}
+
+.program-practice li strong {
+  display: block;
+  color: var(--pcl-white);
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+
+/* ------------------------------------------------------------ plan semanal */
+
+.program-weeks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.program-weeks li {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: baseline;
+  padding: 18px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.program-weeks li:last-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.program-week-n {
+  color: var(--cat-accent, var(--pcl-cyan));
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.program-week-title {
+  color: var(--pcl-white);
+  font-size: 1.02rem;
+}
+
+.program-week-count {
+  color: var(--pcl-steel);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------- formato */
+
+.program-format {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.program-format-card {
+  background: var(--pcl-navy-900);
+  border-top: 3px solid var(--pcl-cyan);
+  padding: 26px 24px;
+}
+
+.program-band:not(.alt) .program-format-card {
+  background: var(--pcl-navy-800);
+}
+
+.program-format-card h3 {
+  margin: 0 0 10px;
+  font-family: var(--pcl-font-display);
+  font-size: 1.14rem;
+  letter-spacing: -0.01em;
+  color: var(--pcl-white);
+}
+
+.program-format-card p {
+  margin: 0;
+  color: var(--pcl-ice);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+/* --------------------------------------------------------- similares */
+
+.program-similar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 26px;
+}
+
+.program-similar-card {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.program-similar-card img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 10px;
+  transition: transform 0.4s ease;
+}
+
+.program-similar-card:hover img {
+  transform: scale(1.015);
+}
+
+.program-similar-cat {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cat-accent, var(--pcl-cyan));
+}
+
+.program-similar-title {
+  font-family: var(--pcl-font-display);
+  font-size: 1.02rem;
+  line-height: 1.3;
+  color: var(--pcl-white);
+}
+
+.program-similar-meta {
+  color: var(--pcl-steel);
+  font-size: 0.84rem;
+}
+
+/* ------------------------------------------------------------ adaptación */
+
+@media (max-width: 1000px) {
+  .program-about {
+    grid-template-columns: 1fr;
+    gap: 34px;
+  }
+
+  .program-format,
+  .program-similar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .program-hero-inner,
+  .program-band-inner,
+  .program-section-nav-inner {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .program-band {
+    padding: 48px 0;
+  }
+
+  .program-practice li {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .program-weeks li {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .program-week-count {
+    grid-column: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .program-similar-card img {
+    transition: none;
+  }
+
+  .program-similar-card:hover img {
+    transform: none;
+  }
+}

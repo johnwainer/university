@@ -8,6 +8,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { demoBlueprint } from '@atlas/shared';
 import { config, getMoodleConfig, hasMoodleConfig, setMoodleConfig } from './config.js';
+import { weeklyOutline } from './catalog/weekly-outline.js';
 import { htmlToPdf } from './integrations/pdf.js';
 import { sendMail } from './integrations/mailer.js';
 // University OS modules (Fases 1-5) — wired below after initDb() and before app.listen()
@@ -1735,8 +1736,61 @@ app.get('/v1/catalog/:slug', async (request, reply) => {
     return reply.notFound(`Content with slug ${slug} was not found`);
   }
 
+  // Esquema público del aula: sólo los títulos de las secciones semanales y
+  // cuántas actividades tiene cada una. No se devuelve ni el contenido ni los
+  // enlaces a los materiales, que siguen exigiendo matrícula; esto es el
+  // índice que cualquier universidad publica de sus programas.
+  // Plan de ocho semanas del programa.
+  //
+  // El temario sale del catálogo versionado (weekly-outline.ts) y NO del aula:
+  // de las trece aulas de Moodle sólo dos tienen montada la malla completa, y
+  // hacer depender la ficha pública de eso dejaría once programas sin plan.
+  // De Moodle se toma únicamente cuántas actividades tiene cada semana, que es
+  // el dato que sólo el aula conoce; donde el aula aún no existe, ese dato se
+  // omite en vez de inventarse.
+  const moodleCourseId = 'moodleCourseId' in content ? Number((content as { moodleCourseId?: number }).moodleCourseId) : NaN;
+  const locale = ((request.query as { locale?: string } | undefined)?.locale === 'en' ? 'en' : 'es') as 'es' | 'en';
+
+  let shortname: string | null = null;
+  if (Number.isInteger(moodleCourseId) && moodleCourseId > 0) {
+    const curso = await pool.query<{ short_name: string }>(
+      `SELECT short_name FROM moodle_courses WHERE moodle_course_id = $1 LIMIT 1`,
+      [moodleCourseId]
+    );
+    shortname = curso.rows[0]?.short_name ?? null;
+  }
+
+  const actividadesPorSemana = new Map<number, number>();
+  if (Number.isInteger(moodleCourseId) && moodleCourseId > 0 && hasMoodleConfig()) {
+    const result = await getMoodleCourseContents(moodleCourseId);
+    if (result.ok && Array.isArray(result.data)) {
+      result.data.forEach((section, index) => {
+        // La sección 0 es la de contacto y sílabo, no una semana lectiva.
+        if (index > 0 && Array.isArray(section.modules) && section.modules.length > 0) {
+          actividadesPorSemana.set(index, section.modules.length);
+        }
+      });
+    }
+  }
+
+  const temario = weeklyOutline(shortname);
+  const outline = (temario ?? []).map((semana, index) => ({
+    week: index + 1,
+    title: semana[locale],
+    activities: actividadesPorSemana.get(index + 1) ?? 0
+  }));
+
+  // Programas de la misma área, para el bloque de «programas similares».
+  const catalog = await getCatalog();
+  const categoria = (content as { categoryName?: string }).categoryName;
+  const related = catalog
+    .filter((item) => item.id !== content.id && (item as { categoryName?: string }).categoryName === categoria)
+    .slice(0, 3);
+
   return {
     content,
+    outline,
+    related,
     entitlement: entitlements.find((item) => item.contentId === content.id) ?? null
   };
 });

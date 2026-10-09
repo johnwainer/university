@@ -28,6 +28,7 @@ import './public.css';
 import './catalog-system.css';
 // Capa de rediseño de las vistas internas; va la última a propósito.
 import './internas.css';
+import './programa.css';
 
 type ViewState =
   | { type: 'home' }
@@ -263,6 +264,36 @@ function isNavActive(view: ViewState, item: NavItem): boolean {
 
 /** Las que van en el pie, en orden. El resto se enlazan desde el menú. */
 const FOOTER_PAGE_SLUGS = ['terms', 'privacy', 'ferpa', 'title-ix', 'accessibility'];
+
+/**
+ * Parte el resumen enriquecido de un programa en sus dos mitades.
+ *
+ * El `summaryHtml` del catálogo trae, en este orden: el lema, la entradilla,
+ * un título «Lo que aprenderás y practicarás» y la lista de competencias.
+ * La ficha las presenta como dos secciones distintas, así que aquí se corta
+ * por la lista: lo de antes es el «sobre el programa» y la lista es lo que se
+ * practica. Si un programa no trae lista, todo el texto va a la primera y la
+ * segunda sección no se pinta.
+ *
+ * Se corta con un índice de cadena y no con una expresión regular glotona
+ * porque el HTML viene del repositorio versionado y su forma es conocida.
+ */
+function splitProgramHtml(html: string | undefined): { about: string; practice: string } {
+  if (!html) {
+    return { about: '', practice: '' };
+  }
+  const listaInicio = html.indexOf('<ul>');
+  if (listaInicio === -1) {
+    return { about: html, practice: '' };
+  }
+  let cabeza = html.slice(0, listaInicio);
+  // El párrafo que anuncia la lista se queda con la lista, no con el resumen.
+  const anuncio = cabeza.lastIndexOf('<p><strong>');
+  if (anuncio !== -1 && cabeza.slice(anuncio).length < 120) {
+    cabeza = cabeza.slice(0, anuncio);
+  }
+  return { about: cabeza, practice: html.slice(listaInicio) };
+}
 
 function localizeAsset(item: ContentAsset, lang: string): ContentAsset {
   if (lang !== 'en' || !item.titleEn) {
@@ -2494,52 +2525,194 @@ export function PublicApp() {
         </section>
       ) : null}
 
-      {view.type === 'detail' ? (
-        <section className="section-block detail-block">
-          <button className="back-link" onClick={() => setView({ type: 'home' })}>
-            {t('catalog.backHome')}
-          </button>
+      {/* Ficha de programa, con la estructura del sitio corporativo hermano:
+          hero a sangre con migas y entradilla, índice pegajoso de secciones,
+          y luego sobre el programa, lo que se practica, el plan semanal real
+          del aula, el formato y los programas de la misma área.
 
+          El plan semanal NO es texto de marketing: sale del índice del aula en
+          Moodle (`outline`), que la API devuelve con los títulos de las
+          secciones y cuántas actividades tiene cada una, sin materiales ni
+          enlaces. Es el índice que cualquier universidad publica. */}
+      {view.type === 'detail' ? (
+        <section className="program-page">
           {loadingDetail || !selectedDetail ? (
-            <p>{t('course.contentLoading')}</p>
+            <p className="program-loading">{t('course.contentLoading')}</p>
           ) : (
-            <article className="detail-cinematic" data-accent={categoryAccentKey(getCourseCategoryLabel(selectedDetail.content))}>
-              <img src={selectedDetail.content.heroImage} alt={selectedDetail.content.title} />
-              <div>
-                <div className="hero-meta-row">
-                  <ContentBadge kind={selectedDetail.content.kind} />
-                  <span className="category-chip">{getCourseCategoryLabel(selectedDetail.content)}</span>
+            <article data-accent={categoryAccentKey(getCourseCategoryLabel(selectedDetail.content))}>
+              <header
+                className="program-hero"
+                style={
+                  selectedDetail.content.heroImage
+                    ? { backgroundImage: `url(${selectedDetail.content.heroImage})` }
+                    : undefined
+                }
+              >
+                <div className="program-hero-veil" />
+                <div className="program-hero-inner">
+                  <nav className="program-breadcrumb" aria-label={t('program.breadcrumbPrograms')}>
+                    <button onClick={() => setView({ type: 'home' })}>{t('program.breadcrumbHome')}</button>
+                    <span aria-hidden="true">/</span>
+                    <button onClick={() => setView({ type: 'catalog' })}>{t('program.breadcrumbPrograms')}</button>
+                    <span aria-hidden="true">/</span>
+                    <span className="program-breadcrumb-current">{getCourseCategoryLabel(selectedDetail.content)}</span>
+                  </nav>
+                  <p className="program-eyebrow">{t('program.eyebrow')}</p>
+                  <h1>{selectedDetail.content.title}</h1>
+                  <p className="program-lead">
+                    {snippet(selectedDetail.content.summary, selectedDetail.content.title, 300)}
+                  </p>
                   {durationLabel(selectedDetail.content, currentLang) ? (
-                    <span className="hero-duration">{durationLabel(selectedDetail.content, currentLang)}</span>
+                    <p className="program-hours">
+                      {t('program.formatHours')}: <strong>{durationLabel(selectedDetail.content, currentLang)}</strong>
+                    </p>
                   ) : null}
                 </div>
-                <h2>{selectedDetail.content.title}</h2>
-                {selectedDetail.content.summaryHtml ? (
-                  // El HTML viene del catálogo versionado y de Moodle, no de
-                  // entrada de usuario: trae lema, entradilla y lo que se
-                  // practica, que es justo lo que da cuerpo a la ficha.
-                  <div
-                    className="detail-rich-summary"
-                    dangerouslySetInnerHTML={{ __html: selectedDetail.content.summaryHtml }}
-                  />
-                ) : (
-                  <p>{snippet(selectedDetail.content.summary, selectedDetail.content.title, 420)}</p>
-                )}
-                {'moodleCourseId' in selectedDetail.content ? (
-                  <button
-                    className="go-course-btn"
-                    onClick={() => {
-                      if (!publicSession?.token) {
-                        requestAuthForCourse(selectedDetail.content.slug);
-                        return;
-                      }
-                      setView({ type: 'course', slug: selectedDetail.content.slug });
-                    }}
-                  >
-                    {isCurrentCourseAssigned ? t('catalog.enterFullCourse') : t('catalog.viewPreview')}
-                  </button>
-                ) : null}
-              </div>
+              </header>
+
+              <nav className="program-section-nav" aria-label={t('nav.sections')}>
+                <div className="program-section-nav-inner">
+                  <a href="#programa-sobre">{t('program.navAbout')}</a>
+                  {splitProgramHtml(selectedDetail.content.summaryHtml).practice ? (
+                    <a href="#programa-aprender">{t('program.navLearn')}</a>
+                  ) : null}
+                  {(selectedDetail.outline?.length ?? 0) > 0 ? (
+                    <a href="#programa-plan">{t('program.navPlan')}</a>
+                  ) : null}
+                  <a href="#programa-formato">{t('program.navFormat')}</a>
+                  {(selectedDetail.related?.length ?? 0) > 0 ? (
+                    <a href="#programa-similares">{t('program.navSimilar')}</a>
+                  ) : null}
+                </div>
+              </nav>
+
+              <section className="program-band" id="programa-sobre">
+                <div className="program-band-inner program-about">
+                  <div>
+                    <h2 className="program-h2">{t('program.aboutTitle')}</h2>
+                    {splitProgramHtml(selectedDetail.content.summaryHtml).about ? (
+                      // El HTML viene del catálogo versionado, no de entrada de
+                      // usuario: trae lema y entradilla.
+                      <div
+                        className="program-prose"
+                        dangerouslySetInnerHTML={{
+                          __html: splitProgramHtml(selectedDetail.content.summaryHtml).about
+                        }}
+                      />
+                    ) : (
+                      <p className="program-prose">{selectedDetail.content.summary}</p>
+                    )}
+                  </div>
+                  <aside className="program-cta-card">
+                    <p className="program-cta-kicker">{t('program.ctaTitle')}</p>
+                    <p className="program-cta-body">{t('program.ctaBody')}</p>
+                    <button
+                      className="program-cta-btn"
+                      onClick={() => setView({ type: 'page', slug: 'admissions' })}
+                    >
+                      {t('program.ctaButton')}
+                    </button>
+                    {'moodleCourseId' in selectedDetail.content ? (
+                      <button
+                        className="program-cta-secondary"
+                        onClick={() => {
+                          if (!publicSession?.token) {
+                            requestAuthForCourse(selectedDetail.content.slug);
+                            return;
+                          }
+                          setView({ type: 'course', slug: selectedDetail.content.slug });
+                        }}
+                      >
+                        {isCurrentCourseAssigned ? t('catalog.enterFullCourse') : t('catalog.viewPreview')}
+                      </button>
+                    ) : null}
+                  </aside>
+                </div>
+              </section>
+
+              {splitProgramHtml(selectedDetail.content.summaryHtml).practice ? (
+                <section className="program-band alt" id="programa-aprender">
+                  <div className="program-band-inner">
+                    <h2 className="program-h2">{t('program.learnTitle')}</h2>
+                    <div
+                      className="program-practice"
+                      dangerouslySetInnerHTML={{
+                        __html: splitProgramHtml(selectedDetail.content.summaryHtml).practice
+                      }}
+                    />
+                  </div>
+                </section>
+              ) : null}
+
+              {(selectedDetail.outline?.length ?? 0) > 0 ? (
+                <section className="program-band" id="programa-plan">
+                  <div className="program-band-inner">
+                    <h2 className="program-h2">{t('program.planTitle')}</h2>
+                    <p className="program-band-lead">{t('program.planLead')}</p>
+                    <ol className="program-weeks">
+                      {selectedDetail.outline?.map((week) => (
+                        <li key={week.week}>
+                          <span className="program-week-n">{String(week.week).padStart(2, '0')}</span>
+                          <span className="program-week-title">{week.title}</span>
+                          {week.activities > 0 ? (
+                            <span className="program-week-count">
+                              {t('program.planActivities', { count: week.activities })}
+                            </span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="program-band alt" id="programa-formato">
+                <div className="program-band-inner">
+                  <h2 className="program-h2">{t('program.formatTitle')}</h2>
+                  <div className="program-format">
+                    <div className="program-format-card">
+                      <h3>{t('program.formatOnlineTitle')}</h3>
+                      <p>{t('program.formatOnlineBody')}</p>
+                    </div>
+                    <div className="program-format-card">
+                      <h3>{t('program.formatCadenceTitle')}</h3>
+                      <p>{t('program.formatCadenceBody')}</p>
+                    </div>
+                    <div className="program-format-card">
+                      <h3>{t('program.formatBilingualTitle')}</h3>
+                      <p>{t('program.formatBilingualBody')}</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {(selectedDetail.related?.length ?? 0) > 0 ? (
+                <section className="program-band" id="programa-similares">
+                  <div className="program-band-inner">
+                    <h2 className="program-h2">{t('program.similarTitle')}</h2>
+                    <div className="program-similar">
+                      {selectedDetail.related?.map((item) => {
+                        const localizado = localizeAsset(item, currentLang) as typeof item;
+                        return (
+                          <button
+                            key={localizado.id}
+                            className="program-similar-card"
+                            data-accent={categoryAccentKey(getCourseCategoryLabel(localizado))}
+                            onClick={() => openItem(localizado)}
+                          >
+                            <img src={localizado.heroImage} alt="" loading="lazy" />
+                            <span className="program-similar-cat">{getCourseCategoryLabel(localizado)}</span>
+                            <span className="program-similar-title">{localizado.title}</span>
+                            {durationLabel(localizado, currentLang) ? (
+                              <span className="program-similar-meta">{durationLabel(localizado, currentLang)}</span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </section>
+              ) : null}
             </article>
           )}
         </section>
