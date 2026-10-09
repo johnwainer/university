@@ -338,7 +338,7 @@
   },
   "legal": {
     "title": "{{brandShort}} Legal Center",
-    "back": "← Back",
+    "back": "Back",
     "loadingContent": "Loading legal content...",
     "infoTitle": "Information",
     "infoDesc": "This content applies to the use of {{brandShort}}.",

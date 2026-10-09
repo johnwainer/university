@@ -1,0 +1,823 @@
+/* =========================================================================
+   Vistas internas — rediseño
+   =========================================================================
+   Las internas (páginas institucionales, catálogo, ficha de curso) venían de
+   la plantilla original: cada una era una caja con borde dentro de otra caja
+   con borde, sobre un tercer fondo. Mucho marco y poco aire; el contenido
+   competía con su propio contenedor.
+
+   El criterio aquí es el contrario, y es el de una página de producto bien
+   hecha: quitar el marco y dejar que el espacio y la tipografía ordenen. En
+   concreto:
+
+     · Fuera los bordes y los fondos de tarjeta donde no separan nada.
+     · Una medida de lectura de 720px para la prosa. A 1.400px de ancho un
+       párrafo de borde a borde es ilegible por mucho que el color acierte.
+     · Ritmo vertical generoso y constante, en vez de 10-14px entre todo.
+     · Un solo acento, el cian de marca, y jerarquía por tamaño y peso.
+
+   Este archivo se carga después de public.css a propósito: el rediseño se
+   expresa como una capa encima y no reescribiendo 3.700 líneas, de modo que
+   se puede leer de un tirón qué cambió y revertirlo si hiciera falta.
+   ========================================================================= */
+
+/* ---------------------------------------------------------------- contenedor */
+
+/* Las secciones internas dejan de ser tarjetas y pasan a ser bandas con una
+   medida máxima; el ancho completo lo marcan la cabecera, el hero y el pie. */
+.public-shell.netflix-ui .section-block,
+.public-shell.netflix-ui .legal-block,
+.public-shell.netflix-ui .course-layout {
+  max-width: 1180px;
+  margin-inline: auto;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+}
+
+.public-shell.netflix-ui .section-block {
+  margin-top: 56px;
+}
+
+/* Cabecera de sección: título grande, subtítulo discreto, sin la cápsula con
+   el recuento a la derecha. */
+.section-header-row {
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.section-header-row h2 {
+  font-family: var(--pcl-font-display);
+  font-size: clamp(1.7rem, 2.4vw, 2.3rem);
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.catalog-results-count {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--pcl-steel);
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ botones */
+
+.go-course-btn,
+.ghost-btn,
+.back-link {
+  border-radius: 4px;
+  font-family: var(--pcl-font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.go-course-btn {
+  background: var(--pcl-cyan);
+  /* Tinta oscura: el blanco sobre #2DC4C7 da 2.14:1 y no pasa AA. */
+  color: var(--pcl-navy-900);
+  border: 1px solid var(--pcl-cyan);
+  padding: 13px 22px;
+}
+
+.go-course-btn:hover {
+  background: var(--pcl-cyan-100);
+  border-color: var(--pcl-cyan-100);
+}
+
+.ghost-btn {
+  background: transparent;
+  color: var(--pcl-white);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  padding: 13px 22px;
+}
+
+.ghost-btn:hover {
+  border-color: var(--pcl-cyan);
+  color: var(--pcl-cyan);
+}
+
+/* El «volver» no es un botón: es un enlace con una flecha. Compite menos. */
+.back-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--pcl-ice);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: 0.9rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.back-link::before {
+  content: '←';
+  font-size: 1em;
+  line-height: 1;
+}
+
+.back-link:hover {
+  color: var(--pcl-cyan);
+}
+
+.go-course-btn:focus-visible,
+.ghost-btn:focus-visible,
+.back-link:focus-visible {
+  outline: 3px solid var(--pcl-cyan);
+  outline-offset: 3px;
+}
+
+/* ----------------------------------------------- páginas institucionales */
+
+.legal-block {
+  margin-top: 0;
+}
+
+/* La cabecera de la página deja de ser una tarjeta con degradado: ahora es
+   una banda sobria con el azul institucional, a ancho completo, y el título
+   alineado a la medida de lectura. */
+.legal-hero {
+  border: 0;
+  border-radius: 0;
+  background: var(--pcl-navy-800);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-inline: calc(50% - 50vw);
+  padding: 34px calc(50vw - 50% + 0px) 30px;
+  display: block;
+}
+
+/* El título comparte el margen izquierdo con el cuerpo: alinear la cabecera a
+   1.180px y la prosa a 720px dejaba dos ejes distintos en la misma página. */
+.legal-hero > * {
+  max-width: 720px;
+  margin-inline: auto;
+}
+
+.legal-hero h1 {
+  font-size: clamp(2rem, 4vw, 3.1rem);
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  margin: 14px 0 0;
+  max-width: 900px;
+}
+
+/* El conmutador de políticas pasa de cápsulas a enlaces con subrayado. */
+.legal-switch {
+  margin-top: 22px;
+  gap: 20px;
+}
+
+.legal-switch button {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 4px 0;
+  color: var(--pcl-ice);
+  font-size: 0.86rem;
+  border-bottom: 2px solid transparent;
+}
+
+.legal-switch button:hover {
+  color: var(--pcl-white);
+}
+
+.legal-switch button.active {
+  background: none;
+  color: var(--pcl-white);
+  border-bottom-color: var(--pcl-cyan);
+}
+
+.legal-switch button:focus-visible {
+  outline: 3px solid var(--pcl-cyan);
+  outline-offset: 4px;
+}
+
+/* Una sola columna: la prosa a 720px y el bloque de contacto debajo. La
+   columna lateral pegajosa repetía lo mismo en todas las páginas y empujaba
+   el texto a una medida más estrecha de lo que el cuerpo necesita. */
+.legal-layout {
+  display: block;
+  margin-top: 0;
+}
+
+.legal-content-card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 56px 0 0;
+  max-width: 720px;
+  margin-inline: auto;
+}
+
+.legal-content-prose {
+  color: var(--pcl-ice);
+  font-size: 1.06rem;
+  line-height: 1.75;
+}
+
+.legal-content-prose > p:first-child {
+  /* Entradilla: el primer párrafo de estas páginas siempre es el resumen. */
+  font-size: 1.22rem;
+  line-height: 1.6;
+  color: var(--pcl-white);
+  margin-bottom: 28px;
+}
+
+.legal-content-prose h2,
+.legal-content-prose h3 {
+  font-family: var(--pcl-font-display);
+  color: var(--pcl-white);
+  letter-spacing: -0.01em;
+  margin-top: 44px;
+  margin-bottom: 12px;
+  font-size: 1.22rem;
+}
+
+.legal-content-prose p,
+.legal-content-prose li {
+  color: var(--pcl-ice);
+}
+
+.legal-content-prose li {
+  margin-bottom: 8px;
+}
+
+.legal-content-prose a {
+  color: var(--pcl-cyan);
+}
+
+.legal-updated {
+  margin-top: 44px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--pcl-steel);
+  font-size: 0.86rem;
+}
+
+.legal-side-card {
+  position: static;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  max-width: 720px;
+  margin: 40px auto 0;
+  padding: 26px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 8px;
+}
+
+.legal-side-card h2 {
+  margin: 0;
+  font-family: var(--pcl-font-display);
+  font-size: 1.05rem;
+  color: var(--pcl-white);
+}
+
+.legal-side-card p {
+  color: var(--pcl-ice);
+}
+
+.legal-side-card a {
+  color: var(--pcl-cyan);
+  justify-self: start;
+}
+
+/* ------------------------------------------------------------------ catálogo */
+
+.catalog-toolbar {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 22px;
+  margin-top: 0;
+  margin-bottom: 26px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+.catalog-search-input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 12px 14px;
+  color: var(--pcl-white);
+  font-size: 0.95rem;
+}
+
+.catalog-search-input:focus {
+  outline: none;
+  border-color: var(--pcl-cyan);
+  box-shadow: 0 0 0 3px rgba(45, 196, 199, 0.22);
+}
+
+.catalog-filters label {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pcl-steel);
+}
+
+.catalog-filters select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 11px 12px;
+  color: var(--pcl-white);
+}
+
+/* Cuatro columnas en vez de cinco: a cinco, la portada de cada curso bajaba
+   de 230px y el título se partía en cuatro líneas. */
+.catalog-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 26px 22px;
+  margin-top: 0;
+}
+
+@media (max-width: 1100px) {
+  .catalog-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 780px) {
+  .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .catalog-grid { grid-template-columns: 1fr; }
+}
+
+/* --------------------------------------------------------- ficha del curso */
+
+/* De dos columnas con la imagen recortada a lo alto, a una composición
+   editorial: imagen ancha arriba y el texto debajo a medida de lectura. Es
+   lo que ve alguien que entra sin cuenta, así que es la página que decide
+   si se registra. */
+.detail-block {
+  margin-top: 0;
+}
+
+.detail-block > .back-link {
+  display: inline-flex;
+  margin: 26px 0 18px;
+}
+
+.detail-cinematic {
+  display: block;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.detail-cinematic img {
+  width: 100%;
+  max-height: 440px;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+
+.detail-cinematic > div {
+  padding: 0;
+  max-width: 760px;
+  margin: 36px auto 0;
+}
+
+.detail-cinematic .hero-meta-row {
+  margin-bottom: 18px;
+}
+
+.detail-cinematic h2 {
+  margin: 0 0 22px;
+  font-family: var(--pcl-font-display);
+  font-size: clamp(1.9rem, 3.4vw, 2.9rem);
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+
+.detail-rich-summary {
+  color: var(--pcl-ice);
+  font-size: 1.04rem;
+  line-height: 1.72;
+}
+
+.detail-rich-summary > p:first-child {
+  font-size: 1.2rem;
+  line-height: 1.6;
+  color: var(--pcl-white);
+}
+
+.detail-rich-summary p {
+  margin: 0 0 16px;
+}
+
+.detail-rich-summary strong {
+  color: var(--pcl-white);
+}
+
+.detail-rich-summary ul {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 14px;
+}
+
+/* Cada punto de «lo que aprenderás» es una fila con una regla de acento a la
+   izquierda, en vez de una viñeta suelta dentro de un párrafo largo. */
+.detail-rich-summary li {
+  padding-left: 16px;
+  border-left: 2px solid var(--cat-accent, var(--pcl-cyan));
+  color: var(--pcl-ice);
+}
+
+.detail-cinematic .go-course-btn {
+  margin-top: 32px;
+}
+
+/* ------------------------------------------------------- modal de acceso */
+
+/* Es la última pantalla antes de registrarse: se le quita el degradado
+   morado heredado y se le da el azul de marca y aire suficiente. */
+.auth-modal {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: var(--pcl-navy-800);
+  padding: 30px 28px;
+  gap: 16px;
+  box-shadow: 0 40px 80px rgba(0, 0, 0, 0.55);
+}
+
+.auth-modal h3 {
+  font-family: var(--pcl-font-display);
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.auth-modal input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  padding: 12px 14px;
+  color: var(--pcl-white);
+  width: 100%;
+}
+
+.auth-modal input:focus {
+  outline: none;
+  border-color: var(--pcl-cyan);
+  box-shadow: 0 0 0 3px rgba(45, 196, 199, 0.22);
+}
+
+.auth-modal-backdrop {
+  background: rgba(4, 11, 20, 0.82);
+  backdrop-filter: blur(6px);
+}
+
+@media (max-width: 860px) {
+  .public-shell.netflix-ui .section-block {
+    margin-top: 40px;
+  }
+
+  .legal-content-card {
+    padding-top: 36px;
+  }
+
+  .detail-cinematic > div {
+    margin-top: 26px;
+  }
+}
+
+/* ------------------------------------------------- tarjeta del catálogo */
+
+/* La tarjeta tenía todo encima de la foto: dos cápsulas solapadas, el título
+   centrado sobre la imagen, una barra de progreso vacía y un rótulo. Sobre
+   una fotografía cualquiera, nada de eso se lee bien.
+
+   Ahora la foto es la foto y el texto va debajo, alineado a la izquierda:
+   categoría en pequeño, título, duración. Lo que no aporta a quien mira
+   —la cápsula de «no matriculado» y una barra al 0%— desaparece. */
+.catalog-tile {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 14px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none;
+}
+
+.catalog-tile img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  height: auto;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+  transition: transform 0.4s ease, filter 0.4s ease;
+}
+
+.catalog-tile:hover img {
+  transform: scale(1.015);
+  filter: brightness(1.06);
+}
+
+.catalog-tile .catalog-tile-overlay {
+  position: static;
+  inset: auto;
+  background: none;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+  justify-items: start;
+  opacity: 1;
+  transform: none;
+}
+
+.catalog-tile .catalog-tile-head {
+  display: block;
+}
+
+/* La categoría deja de ser una cápsula de color y pasa a ser una línea de
+   texto en el acento; sigue identificando el área sin gritar. */
+.catalog-tile .category-chip {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cat-accent, var(--pcl-cyan));
+}
+
+.catalog-tile h4 {
+  margin: 0;
+  font-family: var(--pcl-font-display);
+  font-size: 1.02rem;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  color: var(--pcl-white);
+  text-align: left;
+}
+
+.catalog-tile .tile-meta {
+  margin: 0;
+  color: var(--pcl-steel);
+  font-size: 0.84rem;
+  text-align: left;
+}
+
+/* Cápsula de estado y progreso: fuera para quien no está matriculado. */
+.catalog-tile .catalog-status-pill.locked {
+  display: none;
+}
+
+.catalog-tile[data-enrolled='false'] .catalog-progress-wrap {
+  display: none;
+}
+
+.catalog-tile[data-enrolled='true'] .catalog-progress-wrap {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--pcl-steel);
+}
+
+.catalog-tile .catalog-status-pill.enrolled {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--pcl-cyan);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.catalog-tile:focus-visible {
+  outline: 3px solid var(--pcl-cyan);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
+/* El botón de limpiar filtros era una caja del tamaño de un desplegable. */
+.catalog-filters .ghost-btn,
+.catalog-toolbar .ghost-btn {
+  border: 0;
+  background: none;
+  padding: 11px 0;
+  color: var(--pcl-ice);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.catalog-filters .ghost-btn:hover,
+.catalog-toolbar .ghost-btn:hover {
+  color: var(--pcl-cyan);
+}
+
+/* El «ver más» del final sí es un botón, y se centra con aire. */
+.catalog-load-more-wrap {
+  margin-top: 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-tile img {
+    transition: none;
+  }
+
+  .catalog-tile:hover img {
+    transform: none;
+  }
+}
+
+/* El filo de color del borde inferior se diseñó para la tarjeta con overlay,
+   donde marcaba el canto de la foto. Con el texto fuera de la imagen cae
+   encima de la duración, así que en el catálogo se mueve al pie de la foto. */
+.catalog-tile::after {
+  inset: auto 0 auto 0;
+  top: calc(100% * 10 / 16);
+  transform: translateY(-3px) scaleX(0.22);
+}
+
+.catalog-tile:hover::after,
+.catalog-tile:focus-visible::after {
+  transform: translateY(-3px) scaleX(1);
+}
+
+/* Las tarjetas se alinean por arriba: con títulos de una, dos o tres líneas,
+   estirarlas a la misma altura dejaba huecos raros bajo las cortas. */
+.catalog-grid {
+  align-items: start;
+}
+
+.catalog-tile .tile-meta {
+  text-shadow: none;
+}
+
+.catalog-tile h4 {
+  text-shadow: none;
+}
+
+/* La fila de metadatos de la ficha: de tres cápsulas con borde a una línea de
+   texto separada por puntos. Son datos, no etiquetas que haya que destacar. */
+.detail-cinematic .hero-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pcl-steel);
+}
+
+.detail-cinematic .hero-meta-row > * {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+.detail-cinematic .hero-meta-row .category-chip {
+  color: var(--cat-accent, var(--pcl-cyan));
+  font-weight: 700;
+}
+
+.detail-cinematic .hero-meta-row > * + *::before {
+  content: '·';
+  margin-right: 10px;
+  color: var(--pcl-steel);
+}
+
+/* El «volver» se alinea con la columna de lectura y no con el contenedor
+   ancho: si no, cuelga solo a la izquierda de la página. */
+.detail-block > .back-link {
+  max-width: 760px;
+  margin-inline: auto;
+  width: 100%;
+}
+
+/* El punto de la lista se pintaba dos veces: el guion de `::before` que venía
+   del sistema de catálogo y la regla de acento de la izquierda que añade este
+   rediseño. Se queda la regla, que es la que marca la columna. */
+.detail-rich-summary li::before {
+  content: none;
+}
+
+.detail-rich-summary li {
+  padding-left: 16px;
+}
+
+/* El conmutador registro/acceso: el inactivo era casi negro y parecía
+   deshabilitado. Ahora es un contorno fino y el activo, el cian de marca. */
+.auth-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.auth-switch button {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: var(--pcl-white);
+  border-radius: 6px;
+  padding: 11px 12px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-switch button:hover {
+  border-color: var(--pcl-cyan);
+}
+
+.auth-switch button.active {
+  background: var(--pcl-cyan);
+  border-color: var(--pcl-cyan);
+  color: var(--pcl-navy-900);
+}
+
+.auth-switch button:focus-visible {
+  outline: 3px solid var(--pcl-cyan);
+  outline-offset: 3px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+/* La casilla de condiciones quedaba con el cuadro a un lado y el texto
+   alineado a la derecha; se alinean los dos al principio de la línea. */
+.auth-form label,
+.auth-modal label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--pcl-ice);
+}
+
+.auth-form input[type='checkbox'],
+.auth-modal input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  margin: 2px 0 0;
+  flex: 0 0 auto;
+  accent-color: var(--pcl-cyan);
+}
+
+.auth-form button[type='submit'] {
+  background: var(--pcl-cyan);
+  color: var(--pcl-navy-900);
+  border: 0;
+  border-radius: 6px;
+  padding: 13px 18px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.auth-form button[type='submit']:hover {
+  background: var(--pcl-cyan-100);
+}
+
+.auth-close-btn {
+  border: 0;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--pcl-ice);
+  border-radius: 999px;
+  width: 30px;
+  height: 30px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.auth-close-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--pcl-white);
+}

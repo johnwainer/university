@@ -4592,3 +4592,75 @@
   .public-footer { margin-inline: -10px; }
   .footer-links { grid-template-columns: 1fr; }
 }
+
+/* =========================================================================
+   Hero: sin línea inferior y con fundido entre diapositivas
+   =========================================================================
+   La franja clara que se veía bajo las imágenes era el `border` de la tarjeta
+   original: al quitarle los lados y la parte superior quedó vivo el inferior,
+   y con el hero ya a sangre se leía como una raya a lo ancho de la pantalla.
+
+   El cambio de diapositiva era un corte seco porque la imagen era el fondo de
+   la sección. Ahora cada una es su propia capa y se encadenan por opacidad; el
+   degradado del pie de la imagen la funde con la banda de abajo en vez de
+   terminarla con un canto.
+   ========================================================================= */
+.hero-netflix {
+  border: 0;
+  background-image: none;
+  isolation: isolate;
+}
+
+.hero-layer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 900ms ease;
+  /* Un acercamiento muy lento da sensación de vídeo sin distraer. */
+  transform: scale(1.02);
+  will-change: opacity;
+}
+
+.hero-layer.active {
+  opacity: 1;
+}
+
+/* El velo de lectura ya existía; se le añade un remate inferior que apaga la
+   imagen contra el color de la banda siguiente. */
+.hero-backdrop::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 42%;
+  background: linear-gradient(180deg, rgba(11, 32, 58, 0) 0%, var(--pcl-navy-800) 100%);
+  pointer-events: none;
+}
+
+/* Los puntos del carrusel, más discretos: barras finas en vez de círculos. */
+.hero-dots button {
+  width: 26px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.32);
+  transition: background 0.25s ease, width 0.25s ease;
+}
+
+.hero-dots button.active {
+  width: 44px;
+  background: var(--pcl-cyan);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-layer {
+    transition: none;
+    transform: none;
+  }
+
+  .hero-dots button {
+    transition: none;
+  }
+}

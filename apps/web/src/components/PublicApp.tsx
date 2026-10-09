@@ -26,6 +26,8 @@ import { AdmissionsForm } from './public/AdmissionsForm';
 import './public.css';
 // Después de public.css a propósito: añade y afina sobre esas piezas.
 import './catalog-system.css';
+// Capa de rediseño de las vistas internas; va la última a propósito.
+import './internas.css';
 
 type ViewState =
   | { type: 'home' }
@@ -2022,8 +2024,20 @@ export function PublicApp() {
             <section
               className="hero hero-netflix"
               data-accent={categoryAccentKey(getCourseCategoryLabel(activeHero))}
-              style={{ backgroundImage: `url(${activeHero.heroImage})` }}
             >
+              {/* Una capa por diapositiva, encadenadas por opacidad.
+                  Antes la imagen era el fondo de la propia sección y cambiarla
+                  era un corte seco; así se funden. Las capas inactivas quedan
+                  montadas, de modo que la imagen ya está descargada cuando le
+                  toca el turno y no aparece en blanco. */}
+              {heroItems.map((item, index) => (
+                <div
+                  key={item.id}
+                  className={`hero-layer ${index === heroIndex ? 'active' : ''}`}
+                  style={{ backgroundImage: `url(${item.heroImage})` }}
+                  aria-hidden="true"
+                />
+              ))}
               <div className="hero-backdrop" />
               <div className="hero-content">
                 <div className="hero-meta-row">
@@ -2429,10 +2443,14 @@ export function PublicApp() {
                   : 0;
 
               return (
+                // `data-enrolled` expone el estado de matrícula al estilo, que
+                // así puede ocultar la barra de progreso de quien no está
+                // matriculado en vez de pintarle un 0%.
                 <button
                   key={item.id}
                   className="content-tile catalog-tile"
                   data-accent={categoryAccentKey(getCourseCategoryLabel(item))}
+                  data-enrolled={item.kind === 'course' ? String(isEnrolled) : undefined}
                   onClick={() => openItem(item)}
                 >
                   <img src={item.heroImage} alt={item.title} loading="lazy" />
