@@ -208,6 +208,24 @@ const PAGE_PATH_BY_SLUG: Record<string, string> = {
   accessibility: '/accesibilidad'
 };
 
+/**
+ * Vistas propias del SPA —no páginas editables— que también tienen URL.
+ *
+ * El catálogo y el contacto se alcanzaban sólo haciendo clic: escribir
+ * /programas o /contact en la barra de direcciones caía en la portada, porque
+ * sólo las páginas institucionales resolvían su ruta. Los alias ya existen en
+ * el CDN (SPA_FALLBACK_ROUTES), así que faltaba únicamente el mapa.
+ */
+const VIEW_PATHS: Record<'catalog' | 'contact', string> = {
+  catalog: '/programas',
+  contact: '/contact'
+};
+
+const VIEW_BY_PATH: Record<string, 'catalog' | 'contact'> = {
+  '/programas': 'catalog',
+  '/contact': 'contact'
+};
+
 const PAGE_SLUG_BY_PATH: Record<string, string> = {
   '/about': 'about',
   '/quienes-somos': 'about',
@@ -721,9 +739,15 @@ export function PublicApp() {
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
 
   useEffect(() => {
-    const slug = PAGE_SLUG_BY_PATH[window.location.pathname];
+    const path = window.location.pathname;
+    const slug = PAGE_SLUG_BY_PATH[path];
     if (slug) {
       setView({ type: 'page', slug });
+      return;
+    }
+    const viewType = VIEW_BY_PATH[path];
+    if (viewType) {
+      setView({ type: viewType });
     }
   }, []);
 
@@ -762,7 +786,11 @@ export function PublicApp() {
         window.history.replaceState(null, '', PAGE_PATH_BY_SLUG[view.slug] ?? `/${view.slug}`);
         return;
       }
-      if (PAGE_SLUG_BY_PATH[window.location.pathname]) {
+      if (view.type === 'catalog' || view.type === 'contact') {
+        window.history.replaceState(null, '', VIEW_PATHS[view.type]);
+        return;
+      }
+      if (PAGE_SLUG_BY_PATH[window.location.pathname] || VIEW_BY_PATH[window.location.pathname]) {
         window.history.replaceState(null, '', '/');
       }
     };

@@ -59,6 +59,69 @@ type PanelSection =
   | 'credentials'
   | 'routes';
 
+// La navegación del panel es datos, no dieciséis botones escritos a mano: el
+// armazón recorre esta tabla para pintar la barra lateral y para resolver el
+// título de la vista activa, así que añadir una sección es añadir una fila.
+type NavItem = { id: PanelSection; label: string; hint: string };
+type NavGroup = { label: string; items: NavItem[] };
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Operación',
+    items: [
+      { id: 'overview', label: 'Resumen', hint: 'Estado de la plataforma' },
+      { id: 'users', label: 'Usuarios', hint: 'Cuentas y matrículas' },
+      { id: 'courses', label: 'Cursos', hint: 'Catálogo y sincronización' },
+      { id: 'enterprise', label: 'Departamentos', hint: 'Empresas y programas B2B' },
+    ],
+  },
+  {
+    label: 'Académico',
+    items: [
+      { id: 'sis', label: 'SIS / Académico', hint: 'Expedientes y periodos' },
+      { id: 'calendar', label: 'Calendario y aulas', hint: 'Cadencia semanal y aulas listas' },
+      { id: 'compliance', label: 'Sílabos y cumplimiento', hint: 'Master Syllabus de 24 secciones' },
+    ],
+  },
+  {
+    label: 'Admisiones',
+    items: [{ id: 'crm', label: 'CRM / Admisión', hint: 'Prospectos y postulaciones' }],
+  },
+  {
+    label: 'Acreditación',
+    items: [
+      { id: 'cie', label: 'Checklist CIE', hint: 'Evidencia documental por programa' },
+      { id: 'credentials', label: 'Credenciales', hint: 'Insignias y certificados' },
+    ],
+  },
+  {
+    label: 'Contenido',
+    items: [
+      { id: 'webinars', label: 'Seminarios', hint: 'Sesiones en vivo' },
+      { id: 'podcasts', label: 'Podcasts', hint: 'Audio y video' },
+    ],
+  },
+  {
+    label: 'Sistema',
+    items: [
+      { id: 'connections', label: 'Conexiones', hint: 'Moodle y base de datos' },
+      { id: 'integrations', label: 'Integraciones', hint: 'Servicios externos' },
+      { id: 'backoffice', label: 'Back-office', hint: 'Nómina y contabilidad' },
+      { id: 'routes', label: 'Rutas API', hint: 'Endpoints registrados' },
+    ],
+  },
+];
+
+const NAV_INDEX: Record<PanelSection, NavItem> = NAV_GROUPS.reduce(
+  (acc, group) => {
+    group.items.forEach((item) => {
+      acc[item.id] = item;
+    });
+    return acc;
+  },
+  {} as Record<PanelSection, NavItem>
+);
+
 type WebinarFormState = {
   slug: string;
   title: string;
@@ -937,90 +1000,76 @@ export function AdminApp() {
     );
   }
 
+  const currentNav = NAV_INDEX[activeSection];
+
   return (
-    <main className="admin-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">UNIVERSITY</p>
-          <h1>Panel Administrativo</h1>
+    <div className="admin-shell admin-layout">
+      <aside className="admin-sidebar">
+        <div className="admin-brand">
+          <span className="admin-brand-mark" aria-hidden="true">
+            TFU
+          </span>
+          <span className="admin-brand-text">
+            <strong>The Floridian University</strong>
+            Panel administrativo
+          </span>
         </div>
-        <div className="topbar-actions">
-          <button
-            className="ghost"
-            onClick={() => void onSyncMoodleAll()}
-            disabled={syncingMoodleAll || syncingMoodleCourses || syncingMoodleCategories || syncingMoodleUsers}
-          >
-            {syncingMoodleAll ? 'Sync completo...' : 'Sync completo'}
-          </button>
-          <button
-            className="ghost"
-            onClick={() => void refreshAll()}
-            disabled={loadingBase || loadingUsers || loadingCourses || loadingWebinars || loadingPodcasts}
-          >
-            {loadingBase || loadingUsers || loadingCourses || loadingWebinars || loadingPodcasts ? 'Actualizando...' : 'Actualizar'}
-          </button>
-          <button className="ghost danger" onClick={onLogout}>
+
+        <nav className="admin-nav" aria-label="Secciones del panel">
+          {NAV_GROUPS.map((group) => (
+            <div className="admin-nav-group" key={group.label}>
+              <p className="admin-nav-group-label">{group.label}</p>
+              {group.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`admin-nav-item${activeSection === item.id ? ' active' : ''}`}
+                  aria-current={activeSection === item.id ? 'page' : undefined}
+                  onClick={() => setActiveSection(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="admin-sidebar-foot">
+          <button type="button" className="admin-nav-item logout" onClick={onLogout}>
             Cerrar sesión
           </button>
         </div>
-      </header>
+      </aside>
 
-      <nav className="section-tabs">
-        <button className={activeSection === 'overview' ? 'active' : ''} onClick={() => setActiveSection('overview')}>
-          Resumen
-        </button>
-        <button
-          className={activeSection === 'connections' ? 'active' : ''}
-          onClick={() => setActiveSection('connections')}
-        >
-          Conexiones
-        </button>
-        <button className={activeSection === 'users' ? 'active' : ''} onClick={() => setActiveSection('users')}>
-          Usuarios
-        </button>
-        <button className={activeSection === 'courses' ? 'active' : ''} onClick={() => setActiveSection('courses')}>
-          Cursos
-        </button>
-        <button
-          className={activeSection === 'enterprise' ? 'active' : ''}
-          onClick={() => setActiveSection('enterprise')}
-        >
-          Departamentos
-        </button>
-        <button className={activeSection === 'webinars' ? 'active' : ''} onClick={() => setActiveSection('webinars')}>
-          Seminarios
-        </button>
-        <button className={activeSection === 'podcasts' ? 'active' : ''} onClick={() => setActiveSection('podcasts')}>
-          Podcasts
-        </button>
-        <button className={activeSection === 'integrations' ? 'active' : ''} onClick={() => setActiveSection('integrations')}>
-          Integraciones
-        </button>
-        <button className={activeSection === 'sis' ? 'active' : ''} onClick={() => setActiveSection('sis')}>
-          SIS / Académico
-        </button>
-        <button className={activeSection === 'crm' ? 'active' : ''} onClick={() => setActiveSection('crm')}>
-          CRM / Admisión
-        </button>
-        <button className={activeSection === 'compliance' ? 'active' : ''} onClick={() => setActiveSection('compliance')}>
-          Cumplimiento
-        </button>
-        <button className={activeSection === 'cie' ? 'active' : ''} onClick={() => setActiveSection('cie')}>
-          Checklist CIE
-        </button>
-        <button className={activeSection === 'calendar' ? 'active' : ''} onClick={() => setActiveSection('calendar')}>
-          Calendario y aulas
-        </button>
-        <button className={activeSection === 'backoffice' ? 'active' : ''} onClick={() => setActiveSection('backoffice')}>
-          Back-office
-        </button>
-        <button className={activeSection === 'credentials' ? 'active' : ''} onClick={() => setActiveSection('credentials')}>
-          Credenciales
-        </button>
-        <button className={activeSection === 'routes' ? 'active' : ''} onClick={() => setActiveSection('routes')}>
-          Rutas API
-        </button>
-      </nav>
+      <div className="admin-main">
+        <header className="admin-topbar">
+          <div className="admin-topbar-title">
+            <h1>{currentNav?.label ?? 'Panel administrativo'}</h1>
+            {currentNav?.hint ? <p>{currentNav.hint}</p> : null}
+          </div>
+          <div className="admin-topbar-actions">
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => void onSyncMoodleAll()}
+              disabled={syncingMoodleAll || syncingMoodleCourses || syncingMoodleCategories || syncingMoodleUsers}
+            >
+              {syncingMoodleAll ? 'Sincronizando…' : 'Sync Moodle'}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => void refreshAll()}
+              disabled={loadingBase || loadingUsers || loadingCourses || loadingWebinars || loadingPodcasts}
+            >
+              {loadingBase || loadingUsers || loadingCourses || loadingWebinars || loadingPodcasts
+                ? 'Actualizando…'
+                : 'Actualizar'}
+            </button>
+          </div>
+        </header>
+
+      <div className="admin-content">
 
       {error ? <p className="error-msg">{error}</p> : null}
       {info ? <p className="info-msg">{info}</p> : null}
@@ -1959,6 +2008,8 @@ export function AdminApp() {
           ) : null}
         </>
       )}
-    </main>
+      </div>
+      </div>
+    </div>
   );
 }
