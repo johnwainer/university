@@ -9,6 +9,35 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/brand/tfu-icono-192.png" />
     <link rel="apple-touch-icon" href="/brand/tfu-icono-180.png" />
     <meta name="theme-color" content="#0b203a" />
+    <!-- Política de contenido.
+         Va en una etiqueta meta porque la distribución de Lightsail no permite
+         añadir cabeceras de respuesta: una CSP en meta cubre todo salvo
+         frame-ancestors y report-uri, que necesitan cabecera de verdad. La
+         lista de orígenes no está escrita de memoria: sale de recorrer las
+         catorce rutas del sitio con un navegador y recoger el host de cada
+         petición por tipo de recurso.
+           · style y font    Google Fonts (Roboto y Source Sans 3 del manual).
+           · img             el propio sitio, la API —que sirve los archivos de
+                             Moodle—, Unsplash y las miniaturas de YouTube.
+           · frame           los vídeos incrustados de YouTube.
+           · connect         la API.
+         'unsafe-inline' en estilos es inevitable mientras React escriba
+         estilos en línea; en scripts NO se concede, que es donde importa. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               base-uri 'self';
+               object-src 'none';
+               form-action 'self';
+               script-src 'self';
+               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+               font-src 'self' data: https://fonts.gstatic.com;
+               img-src 'self' data: blob: https://api.portal.thefloridianuniversity.com https://images.unsplash.com https://i.ytimg.com https://picsum.photos;
+               media-src 'self' blob: https://api.portal.thefloridianuniversity.com;
+               connect-src 'self' https://api.portal.thefloridianuniversity.com;
+               frame-src https://www.youtube.com https://www.youtube-nocookie.com;
+               worker-src 'self' blob:"
+    />
     <title>%VITE_INSTITUTION_NAME%</title>
     <meta name="description" content="Rise Fast. Fly Further. Programas profesionales en línea, en español e inglés." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
