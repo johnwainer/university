@@ -39,6 +39,12 @@ SKIP_BUILD=0
 SKIP_UPLOAD=0
 SKIP_CDN_RESET=0
 PRUNE=0
+# Lightsail only hands out bucket access keys to a caller with
+# lightsail:GetBucketAccessKeys. The instance role attached to the API host has
+# object permissions on the bucket but not that call, so deploying from the
+# instance needs the ambient role for the object operations too.
+AMBIENT_BUCKET_CREDS="${AMBIENT_BUCKET_CREDS:-0}"
+AMBIENT_S3_ENDPOINT="${AMBIENT_S3_ENDPOINT:-0}"
 FORCE="${FORCE:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 
@@ -56,6 +62,11 @@ Options
   --skip-build        Publish the existing ${WEB_DIST_REL} as-is.
   --skip-upload       Build only.
   --skip-cdn-reset    Do not reset the CDN cache.
+  --ambient-creds     Upload objects with the ambient credentials (instance
+                      role / AWS_* in the environment) instead of asking
+                      Lightsail for a bucket access key pair. Use this when
+                      running on a host whose role can write the bucket's
+                      objects but cannot call lightsail:GetBucketAccessKeys.
   --prune             Also delete bucket objects that are no longer in dist/
                       (uses 'aws s3 sync --delete'). DESTRUCTIVE: requires
                       --force. Without it, stale hashed assets simply linger,
@@ -91,6 +102,7 @@ while [[ $# -gt 0 ]]; do
     --skip-build)     SKIP_BUILD=1; shift ;;
     --skip-upload)    SKIP_UPLOAD=1; shift ;;
     --skip-cdn-reset) SKIP_CDN_RESET=1; shift ;;
+    --ambient-creds)  AMBIENT_BUCKET_CREDS=1; shift ;;
     --prune)          PRUNE=1; shift ;;
     --force)          FORCE=1; shift ;;
     --dry-run)        DRY_RUN=1; shift ;;
@@ -155,6 +167,10 @@ will 404 without it." ;;
 # step 2: bucket credentials
 # ---------------------------------------------------------------------------
 resolve_bucket_keys() {
+  if [[ "$AMBIENT_BUCKET_CREDS" == "1" ]]; then
+    log "--ambient-creds: uploading objects with the ambient credentials"
+    return 0
+  fi
   if [[ -n "${BUCKET_ACCESS_KEY_ID:-}" && -n "${BUCKET_SECRET_ACCESS_KEY:-}" ]]; then
     log "using the bucket access keys from the environment"
     return 0
@@ -188,6 +204,13 @@ Create a new pair and export BUCKET_ACCESS_KEY_ID / BUCKET_SECRET_ACCESS_KEY:
 # Every object call goes through here so the bucket keys never leak into the
 # ambient environment used by `aws lightsail`. Named awsb = "aws, as the bucket".
 awsb() {
+  if [[ "$AMBIENT_BUCKET_CREDS" == "1" ]]; then
+    # The ambient role is already scoped to this bucket; Lightsail's
+    # S3-compatible endpoint is reached through the regular s3 endpoint, so no
+    # --endpoint-url override and no credential substitution.
+    run aws --region "$AWS_REGION" "$@"
+    return $?
+  fi
   run env \
     AWS_ACCESS_KEY_ID="$BUCKET_ACCESS_KEY_ID" \
     AWS_SECRET_ACCESS_KEY="$BUCKET_SECRET_ACCESS_KEY" \
