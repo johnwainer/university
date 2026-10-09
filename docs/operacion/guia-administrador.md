@@ -14,7 +14,7 @@ nombres de servicio, rutas y pantallas son los que vas a encontrar.
 |---|---|---|
 | **Portal** | `portal.thefloridianuniversity.com` | Lo que ve el público y el estudiante. |
 | **Panel admin** | `portal.thefloridianuniversity.com/admin` | Donde se administra todo lo del portal. |
-| **Moodle (aula)** | `lms.thefloridianuniversity.com` | Donde ocurre la clase: contenido, entregas, calificaciones. |
+| **Moodle (aula)** | `lms.portal.thefloridianuniversity.com` | Donde ocurre la clase: contenido, entregas, calificaciones. |
 
 La regla que conviene tener clara desde el principio:
 

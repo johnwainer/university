@@ -226,6 +226,24 @@ const VIEW_BY_PATH: Record<string, 'catalog' | 'contact'> = {
   '/contact': 'contact'
 };
 
+/**
+ * Ruta de la ficha de un programa.
+ *
+ * Es /programas/<slug>. El CDN de Lightsail no tiene reescritura comodín —sólo
+ * un objeto por ruta—, así que el despliegue publica un alias por cada programa
+ * del catálogo (PROGRAM_FALLBACK_SLUGS en infra/deploy/00-config.sh). Un slug
+ * nuevo en Moodle necesita su alias allí, o el enlace directo devuelve 403.
+ */
+const PROGRAM_PATH_PREFIX = '/programas/';
+
+function programSlugFromPath(pathname: string): string | null {
+  if (!pathname.startsWith(PROGRAM_PATH_PREFIX)) {
+    return null;
+  }
+  const slug = pathname.slice(PROGRAM_PATH_PREFIX.length).replace(/\/$/, '');
+  return slug.length > 0 ? slug : null;
+}
+
 const PAGE_SLUG_BY_PATH: Record<string, string> = {
   '/about': 'about',
   '/quienes-somos': 'about',
@@ -748,6 +766,11 @@ export function PublicApp() {
     const viewType = VIEW_BY_PATH[path];
     if (viewType) {
       setView({ type: viewType });
+      return;
+    }
+    const programSlug = programSlugFromPath(path);
+    if (programSlug) {
+      setView({ type: 'detail', slug: programSlug });
     }
   }, []);
 
@@ -790,12 +813,23 @@ export function PublicApp() {
         window.history.replaceState(null, '', VIEW_PATHS[view.type]);
         return;
       }
-      if (PAGE_SLUG_BY_PATH[window.location.pathname] || VIEW_BY_PATH[window.location.pathname]) {
+      if (view.type === 'detail') {
+        window.history.replaceState(null, '', `${PROGRAM_PATH_PREFIX}${view.slug}`);
+        return;
+      }
+      if (
+        PAGE_SLUG_BY_PATH[window.location.pathname] ||
+        VIEW_BY_PATH[window.location.pathname] ||
+        programSlugFromPath(window.location.pathname)
+      ) {
         window.history.replaceState(null, '', '/');
       }
     };
     updatePath();
-  }, [view.type]);
+    // El slug entra en las dependencias: entre dos fichas de programa —o entre
+    // dos páginas institucionales— cambia el slug y no el tipo, y sin esto la
+    // barra de direcciones se quedaba en la anterior.
+  }, [view.type, 'slug' in view ? view.slug : null]);
 
   useEffect(() => {
     if (!publicSession?.token) {

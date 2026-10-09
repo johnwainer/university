@@ -23,7 +23,7 @@ en inglés tal como aparecen en el código.
 | PostgreSQL 16 | Lightsail Managed DB `plataforma-estudiantil-postgres` | *(sin acceso público; endpoint no está en el repo)* |
 | Redis 7 | Colocado en la instancia de la API (`127.0.0.1:6379`) | — |
 
-Cuenta AWS `467590374794`, región `us-east-1`, todo etiquetado
+Cuenta AWS `280995443462`, región `us-east-1`, todo etiquetado
 `grupo=plataforma-estudiantil`. El DNS está en **Cloudflare** (zona
 `thefloridianuniversity.com`) y **todos los registros deben quedar en "DNS only"
 (nube gris)**, porque el TLS termina en el origen.

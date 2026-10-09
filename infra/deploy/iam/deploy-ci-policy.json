@@ -38,7 +38,7 @@
         "ssm:GetParametersByPath"
       ],
       "Resource": [
-        "arn:aws:ssm:us-east-1:467590374794:parameter/plataforma-estudiantil/*"
+        "arn:aws:ssm:us-east-1:280995443462:parameter/plataforma-estudiantil/*"
       ]
     },
     {

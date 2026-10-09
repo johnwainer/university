@@ -292,6 +292,30 @@ TYPES
       --cache-control "$CACHE_CONTROL_NO_CACHE"
   done
 
+  # Fichas de programa: /programas/<slug>. Mismo alias, una ruta por programa,
+  # porque la distribución no reescribe por comodín.
+  local -a slugs=()
+  local line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && slugs+=("$line")
+  done < <(catalog_program_slugs)
+  if [[ ${#slugs[@]} -eq 0 ]]; then
+    warn "el catálogo no respondió; usando la lista fija de programas"
+    read -r -a slugs <<<"$PROGRAM_FALLBACK_SLUGS_DEFAULT"
+  fi
+  log "publicando ${#slugs[@]} alias de ficha de programa"
+  local slug
+  for slug in "${slugs[@]}"; do
+    awsb s3 cp "${DIST_DIR}/index.html" "${S3_URI}/programas/${slug}" \
+      --no-progress \
+      --content-type 'text/html; charset=utf-8' \
+      --cache-control "$CACHE_CONTROL_NO_CACHE"
+    awsb s3 cp "${DIST_DIR}/index.html" "${S3_URI}/programas/${slug}/index.html" \
+      --no-progress \
+      --content-type 'text/html; charset=utf-8' \
+      --cache-control "$CACHE_CONTROL_NO_CACHE"
+  done
+
   ok "upload complete"
 }
 

@@ -38,7 +38,7 @@ source "${PAEU_DEPLOY_DIR}/lib/common.sh"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-$AWS_REGION}"
 export AWS_REGION AWS_DEFAULT_REGION
-AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-467590374794}"
+AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-280995443462}"
 RESOURCE_TAG_KEY="${RESOURCE_TAG_KEY:-grupo}"
 RESOURCE_TAG_VALUE="${RESOURCE_TAG_VALUE:-plataforma-estudiantil}"
 
@@ -240,6 +240,34 @@ CACHE_CONTROL_NO_CACHE="${CACHE_CONTROL_NO_CACHE:-no-cache, no-store, must-reval
 # pero omitir una real deja un 403 de S3 en el enlace directo y en el F5.
 # 'contact' y 'programas' quedan por compatibilidad con enlaces ya repartidos.
 SPA_FALLBACK_ROUTES="${SPA_FALLBACK_ROUTES:-admin about quienes-somos admissions admisiones terminos terminos-y-condiciones privacidad politica-de-privacidad ferpa title-ix titulo-ix accesibilidad accessibility contact programas vida-estudiantil campus-life atletismo athletics noticias news-events}"
+
+# Fichas de programa: /programas/<slug>.
+#
+# Una distribución de Lightsail no tiene reescritura comodín, así que cada
+# programa necesita su propio alias del index. La lista se obtiene del propio
+# catálogo en vez de escribirse a mano —un programa nuevo en Moodle aparece
+# solo— y cae a la lista fija de abajo si la API no responde durante el
+# despliegue, para no publicar un sitio con las fichas rotas.
+PROGRAM_FALLBACK_SLUGS_DEFAULT="moodle-pcl-sales-exc-12 moodle-pcl-sales-ops-13 moodle-pcl-cx-success-14 moodle-pcl-cx-comm-15 moodle-pcl-lead-elead-16 moodle-pcl-lead-team-17 moodle-pcl-lead-change-18 moodle-pcl-ai-exec-19 moodle-pcl-ai-work-20 moodle-pcl-ai-network-21 moodle-pcl-edu-assess-22 moodle-pcl-edu-network-23 moodle-pcl-edu-walk-24"
+
+# Devuelve los slugs del catálogo publicado, uno por línea; vacío si falla.
+catalog_program_slugs() {
+  local url="${API_URL}${API_PUBLIC_PREFIX}/v1/catalog"
+  local body
+  body="$(curl -fsS --max-time 20 "$url" 2>/dev/null)" || return 0
+  printf '%s' "$body" | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(0)
+programs = data if isinstance(data, list) else data.get("programs", [])
+for program in programs:
+    slug = (program or {}).get("slug")
+    if isinstance(slug, str) and slug and "/" not in slug:
+        print(slug)
+' 2>/dev/null || return 0
+}
 
 # ---------------------------------------------------------------------------
 # SSM Parameter Store
