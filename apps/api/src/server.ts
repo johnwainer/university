@@ -3714,6 +3714,117 @@ app.post('/admin/users/:userId/enrollments', async (request, reply) => {
   };
 });
 
+/**
+ * Matrícula por PROGRAMA.
+ *
+ * Es la que corresponde al modelo: el estudiante entra a un programa, no a un
+ * curso. Por debajo se le matricula en TODOS los cursos de ese programa, tanto
+ * en Moodle como en la tabla local, porque el aula sigue siendo donde ocurre
+ * el trabajo; lo que desaparece es la idea de elegir curso suelto.
+ *
+ * La ruta de matrícula por curso sigue existiendo, pero ya no la ofrece el
+ * panel: queda para casos de reparación puntual.
+ */
+app.post('/admin/users/:userId/program-enrollments', async (request, reply) => {
+  ensureAdmin(request);
+  const { userId } = request.params as { userId: string };
+  const { programCode } = z.object({ programCode: z.string().min(1) }).parse(request.body);
+
+  const user = await getPlatformUserById(userId);
+  if (!user) return reply.notFound('User not found');
+  if (!user.moodle_user_id) return reply.badRequest('User is missing moodle_user_id');
+
+  const programa = await pool.query<{ id: string; name: string }>(
+    'SELECT id, name FROM degree_programs WHERE code = $1 AND is_active',
+    [programCode]
+  );
+  if (!programa.rowCount) return reply.notFound('Programa no encontrado o inactivo');
+
+  const cursos = await cursosDelPrograma(pool, programCode);
+  // Un programa sin cursos no tiene nada que cursar: matricular ahí dejaría al
+  // estudiante dentro de algo vacío, así que se para y se dice por qué.
+  if (!cursos.length) {
+    return reply.badRequest('Ese programa todavía no tiene ningún curso asignado');
+  }
+
+  const hechos: number[] = [];
+  const fallidos: Array<{ moodleCourseId: number; error: string }> = [];
+
+  for (const moodleCourseId of cursos) {
+    const r = await enrolMoodleUser({ userId: Number(user.moodle_user_id), courseId: moodleCourseId });
+    if (!r.ok) {
+      fallidos.push({ moodleCourseId, error: r.error ?? 'error desconocido' });
+      continue;
+    }
+    await upsertUserCourseEnrollment({ userId, moodleCourseId, status: 'active' });
+    hechos.push(moodleCourseId);
+  }
+
+  // Se informa del parcial en vez de fingir éxito: si un aula falló, alguien
+  // tiene que saber cuál para repararla.
+  return {
+    enrolled: fallidos.length === 0,
+    programCode,
+    programName: programa.rows[0].name,
+    coursesEnrolled: hechos,
+    coursesFailed: fallidos
+  };
+});
+
+/** Los programas en los que un usuario tiene matrícula activa. */
+app.get('/admin/users/:userId/program-enrollments', async (request) => {
+  ensureAdmin(request);
+  const { userId } = request.params as { userId: string };
+  const { rows } = await pool.query(
+    `SELECT dp.code, dp.name,
+            count(*)::int AS cursos_del_programa,
+            count(*) FILTER (WHERE uce.status = 'active')::int AS cursos_activos
+       FROM degree_programs dp
+       JOIN degree_requirements dr
+         ON dr.degree_program_id = dp.id
+        AND dr.requirement_type = 'course'
+        AND dr.moodle_course_id IS NOT NULL
+       LEFT JOIN user_course_enrollments uce
+         ON uce.moodle_course_id = dr.moodle_course_id
+        AND uce.user_id = $1
+      GROUP BY dp.code, dp.name
+     HAVING count(*) FILTER (WHERE uce.status = 'active') > 0
+      ORDER BY dp.code`,
+    [userId]
+  );
+  return {
+    programs: rows.map((r) => ({
+      code: r.code,
+      name: r.name,
+      coursesInProgram: r.cursos_del_programa,
+      coursesActive: r.cursos_activos,
+      // Si no coinciden, al estudiante le falta alguna aula del programa.
+      complete: r.cursos_activos === r.cursos_del_programa
+    }))
+  };
+});
+
+/** Retira a un usuario de un programa: de todos sus cursos a la vez. */
+app.delete('/admin/users/:userId/program-enrollments/:programCode', async (request, reply) => {
+  ensureAdmin(request);
+  const { userId, programCode } = request.params as { userId: string; programCode: string };
+
+  const user = await getPlatformUserById(userId);
+  if (!user) return reply.notFound('User not found');
+  if (!user.moodle_user_id) return reply.badRequest('User is missing moodle_user_id');
+
+  const cursos = await cursosDelPrograma(pool, programCode);
+  if (!cursos.length) return reply.notFound('Ese programa no tiene cursos asignados');
+
+  const fallidos: Array<{ moodleCourseId: number; error: string }> = [];
+  for (const moodleCourseId of cursos) {
+    const r = await unenrolMoodleUser({ userId: Number(user.moodle_user_id), courseId: moodleCourseId });
+    if (!r.ok) fallidos.push({ moodleCourseId, error: r.error ?? 'error desconocido' });
+    await upsertUserCourseEnrollment({ userId, moodleCourseId, status: 'inactive' });
+  }
+  return { unenrolled: fallidos.length === 0, programCode, coursesFailed: fallidos };
+});
+
 app.get('/admin/moodle/config', async (request) => {
   ensureAdmin(request);
   const moodle = getMoodleConfig();

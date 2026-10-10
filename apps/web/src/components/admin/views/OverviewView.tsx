@@ -5,7 +5,8 @@ import {
   type AcademicTermRecord,
   type AdminConfig,
   type AdminStatus,
-  type DegreeProgram
+  type AvailableProgramCourse,
+  type ProgramComposition
 } from '../../../lib/api';
 
 /**
@@ -695,25 +696,38 @@ export function OverviewView({ token, locale }: Props) {
   const [estado, setEstado] = useState<Bloque<AdminStatus>>({ estado: 'cargando' });
   const [config, setConfig] = useState<Bloque<AdminConfig>>({ estado: 'cargando' });
   const [periodos, setPeriodos] = useState<Bloque<AcademicTermRecord[]>>({ estado: 'cargando' });
-  const [programas, setProgramas] = useState<Bloque<DegreeProgram[]>>({ estado: 'cargando' });
+  /**
+   * Programas con su composición, no sólo la ficha del programa.
+   *
+   * El programa es la unidad del modelo, así que el resumen necesita saber
+   * además cuántas aulas tiene cada uno: un programa activo y vacío no se
+   * puede ofrecer, y eso es estado operativo que este tablero sí debe contar.
+   */
+  const [programas, setProgramas] = useState<Bloque<ProgramComposition[]>>({ estado: 'cargando' });
+  /** Aulas de Moodle que no pertenecen a ningún programa: nadie las ve ni las cursa. */
+  const [aulasSueltas, setAulasSueltas] = useState<Bloque<AvailableProgramCourse[]>>({
+    estado: 'cargando'
+  });
   const [recargando, setRecargando] = useState(false);
 
   const cargar = useCallback(async () => {
     setRecargando(true);
-    /* Las cuatro llamadas van en paralelo y cada una se resuelve a su propio
-       Bloque: el panel reparte permisos por sección, así que un rol con acceso
-       al resumen puede no tenerlo a programas o a periodos. Un 403 ahí tiene
+    /* Las llamadas van en paralelo y cada una se resuelve a su propio Bloque:
+       el panel reparte permisos por sección, así que un rol con acceso al
+       resumen puede no tenerlo a programas o a periodos. Un 403 ahí tiene
        que apagar ese bloque, no la pantalla. */
-    const [s, c, p, g] = await Promise.all([
+    const [s, c, p, g, a] = await Promise.all([
       bloqueDe(api.admin.status(token)),
       bloqueDe(api.admin.config(token)),
       bloqueDe(api.admin.terms(token)),
-      bloqueDe(api.admin.degreePrograms(token))
+      bloqueDe(api.admin.programComposition(token).then((r) => r.programs)),
+      bloqueDe(api.admin.programAvailableCourses(token).then((r) => r.courses))
     ]);
     setEstado(s);
     setConfig(c);
     setPeriodos(p);
     setProgramas(g);
+    setAulasSueltas(a);
     setRecargando(false);
   }, [token]);
 
@@ -768,6 +782,20 @@ export function OverviewView({ token, locale }: Props) {
   /** Programas activos: el conteo del contrato es el de oferta vigente, no el histórico. */
   const totalProgramas =
     programas.estado === 'ok' ? programas.datos.filter((p) => p.is_active).length : null;
+
+  /**
+   * Programas activos que no tienen ninguna aula asignada.
+   *
+   * Es el indicador que importa de la oferta: un programa activo y vacío sale
+   * en el catálogo y no se puede cursar ni matricular.
+   */
+  const programasActivosVacios =
+    programas.estado === 'ok'
+      ? programas.datos.filter((p) => p.is_active && p.courses.length === 0).length
+      : null;
+
+  /** Aulas que no pertenecen a ningún programa: existen en Moodle y nadie las cursa. */
+  const totalAulasSinPrograma = aulasSueltas.estado === 'ok' ? aulasSueltas.datos.length : null;
 
   const periodoActivo =
     periodos.estado === 'ok' ? (periodos.datos.find((p) => p.is_active) ?? null) : null;
@@ -841,14 +869,62 @@ export function OverviewView({ token, locale }: Props) {
       detalle: t('admin.overview.real.semaforos.aulasNota')
     });
 
+    /* Aulas huérfanas: salen de `available-courses`, que es exactamente el
+       complemento de lo asignado a un programa. Cero es verde porque significa
+       que todo el LMS cuelga de algún programa; cualquier otra cifra es un
+       aviso, no un error: el aula existe, simplemente nadie la cursa. */
+    if (aulasSueltas.estado === 'ok') {
+      filas.push({
+        clave: 'aulasSinPrograma',
+        etiqueta: totalAulasSinPrograma === 0 ? 'ok' : 'warn',
+        valor: formato.format(totalAulasSinPrograma ?? 0),
+        detalle:
+          totalAulasSinPrograma === 0
+            ? t('admin.overview.real.semaforos.aulasSinProgramaNinguna')
+            : t('admin.overview.real.semaforos.aulasSinProgramaDetalle')
+      });
+    } else {
+      filas.push({ clave: 'aulasSinPrograma', etiqueta: 'off', valor: null, detalle: null });
+    }
+
+    /* Un programa activo sin aulas se ofrece y no se puede cursar: es el otro
+       lado del mismo desajuste entre oferta y LMS. */
+    if (programas.estado === 'ok') {
+      filas.push({
+        clave: 'programasVacios',
+        etiqueta: programasActivosVacios === 0 ? 'ok' : 'warn',
+        valor: formato.format(programasActivosVacios ?? 0),
+        detalle:
+          programasActivosVacios === 0
+            ? t('admin.overview.real.semaforos.programasVaciosNinguno')
+            : t('admin.overview.real.semaforos.programasVaciosDetalle')
+      });
+    } else {
+      filas.push({ clave: 'programasVacios', etiqueta: 'off', valor: null, detalle: null });
+    }
+
     return filas;
-  }, [estado, config, moodle, periodos, periodoActivo, fechaCorta, t]);
+  }, [
+    estado,
+    config,
+    moodle,
+    periodos,
+    periodoActivo,
+    fechaCorta,
+    t,
+    aulasSueltas,
+    programas,
+    totalAulasSinPrograma,
+    programasActivosVacios,
+    formato
+  ]);
 
   const cargando =
     estado.estado === 'cargando' &&
     config.estado === 'cargando' &&
     periodos.estado === 'cargando' &&
-    programas.estado === 'cargando';
+    programas.estado === 'cargando' &&
+    aulasSueltas.estado === 'cargando';
 
   /** Nada que enseñar: la institución está recién montada o la API devolvió vacío. */
   const zonaRealVacia =
@@ -859,15 +935,25 @@ export function OverviewView({ token, locale }: Props) {
     entidades.userEnrollments === 0 &&
     (totalProgramas === null || totalProgramas === 0);
 
+  /**
+   * Indicadores principales.
+   *
+   * El primero es «programas activos» porque el programa es la unidad que se
+   * ofrece y en la que se matricula el estudiante. Las aulas de Moodle bajan a
+   * los secundarios: siguen siendo un objeto operativo real, pero no son lo
+   * que la institución ofrece, y abrir el tablero con ellas contaba el modelo
+   * al revés.
+   */
   const tiles: Array<{ clave: string; valor: number | null }> = [
     { clave: 'programas', valor: totalProgramas },
-    { clave: 'cursos', valor: entidades?.moodleCourses ?? null },
     { clave: 'usuarios', valor: entidades?.users ?? null },
-    { clave: 'matriculas', valor: entidades?.userEnrollments ?? null }
+    { clave: 'matriculas', valor: entidades?.userEnrollments ?? null },
+    { clave: 'empresas', valor: entidades?.companies ?? null }
   ];
 
   const tilesSecundarios: Array<{ clave: string; valor: number | null }> = [
-    { clave: 'empresas', valor: entidades?.companies ?? null },
+    { clave: 'cursos', valor: entidades?.moodleCourses ?? null },
+    { clave: 'aulasSinPrograma', valor: totalAulasSinPrograma },
     { clave: 'categorias', valor: entidades?.moodleCategories ?? null },
     { clave: 'webinars', valor: entidades?.webinars ?? null },
     { clave: 'podcasts', valor: entidades?.podcasts ?? null }
@@ -925,6 +1011,10 @@ export function OverviewView({ token, locale }: Props) {
                 ))}
               </div>
 
+              {/* Los secundarios llevan rótulo propio: aquí viven las aulas de
+                  Moodle y el resto del inventario del LMS, que es apoyo
+                  operativo y no la oferta. */}
+              <h4>{t('admin.overview.real.tilesSecundariosTitulo')}</h4>
               <div className="ad-grid ad-grid-4">
                 {tilesSecundarios.map((tile) => (
                   <div className="ad-stat" key={tile.clave}>
@@ -941,6 +1031,16 @@ export function OverviewView({ token, locale }: Props) {
                   {t(
                     `admin.overview.real.programasNoDisponible.${
                       programas.motivo === 'permiso' ? 'permiso' : 'error'
+                    }`
+                  )}
+                </p>
+              ) : null}
+
+              {aulasSueltas.estado === 'sin-datos' ? (
+                <p className="ad-note">
+                  {t(
+                    `admin.overview.real.aulasSinProgramaNoDisponible.${
+                      aulasSueltas.motivo === 'permiso' ? 'permiso' : 'error'
                     }`
                   )}
                 </p>

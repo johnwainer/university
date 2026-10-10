@@ -27,7 +27,35 @@ export async function migratePrograms(pool: Pool): Promise<void> {
       WHERE requirement_type = 'course' AND moodle_course_id IS NOT NULL;
   `);
 
+  await limpiarVinculosDeDemostracion(pool);
   await sembrarComposicionTfu(pool);
+}
+
+/**
+ * Quita los vínculos programa-curso que dejó la semilla de demostración.
+ *
+ * Seis programas `DEMO-*`, todos desactivados, apuntaban al mismo curso
+ * heredado (`historia-del-arte-occidental`), que ni es de TFU ni es visible.
+ * Con el modelo nuevo eso ensucia la composición: el panel los mostraba como
+ * programas con curso, y rompían la regla de que un curso pertenece a un solo
+ * programa.
+ *
+ * Se borran SÓLO los vínculos, no los programas: siguen desactivados y con sus
+ * claves foráneas intactas, como estaban. Y sólo de programas inactivos con
+ * código de demostración o de QA, para no tocar nada real.
+ */
+async function limpiarVinculosDeDemostracion(pool: Pool): Promise<void> {
+  const { rowCount } = await pool.query(`
+    DELETE FROM degree_requirements dr
+     USING degree_programs dp
+     WHERE dr.degree_program_id = dp.id
+       AND dr.requirement_type = 'course'
+       AND dp.is_active = false
+       AND (dp.code LIKE 'DEMO-%' OR dp.code LIKE 'QA%')
+  `);
+  if (rowCount) {
+    console.log(`[programas] retirados ${rowCount} vínculo(s) de programas de demostración`);
+  }
 }
 
 /**

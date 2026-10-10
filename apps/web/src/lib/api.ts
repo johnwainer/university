@@ -693,6 +693,37 @@ export type ProgramComposition = {
   courses: ProgramCourse[];
 };
 
+/**
+ * Resultado de matricular a alguien en un programa completo.
+ *
+ * `enrolled` sólo es true cuando TODAS las aulas del programa entraron. El
+ * servidor matricula aula por aula y puede quedarse a medias, así que el tipo
+ * obliga a leer `coursesFailed`: presentar un parcial como éxito deja a un
+ * estudiante fuera de aulas que nadie vuelve a revisar.
+ */
+export type ProgramEnrollmentResult = {
+  enrolled: boolean;
+  programCode: string;
+  programName: string;
+  coursesEnrolled: number[];
+  coursesFailed: Array<{ moodleCourseId: number; error: string }>;
+};
+
+/**
+ * Un programa en el que un usuario tiene matrícula activa.
+ *
+ * `complete` es false cuando le faltan aulas del programa: el servidor lista el
+ * programa en cuanto hay una sola aula activa, así que la marca es la única
+ * forma de distinguir una matrícula entera de una a medias.
+ */
+export type UserProgramEnrollment = {
+  code: string;
+  name: string;
+  coursesInProgram: number;
+  coursesActive: number;
+  complete: boolean;
+};
+
 /** Aula de Moodle que todavia no pertenece a ningun programa. */
 export type AvailableProgramCourse = {
   moodle_course_id: number;
@@ -1304,6 +1335,34 @@ export const api = {
           auth: { token },
           body: payload
         }
+      ),
+    /**
+     * Matricula a un usuario en TODAS las aulas de un programa.
+     *
+     * Es la única matrícula que ofrece el panel: el programa es la unidad en la
+     * que se matricula el estudiante. Puede devolver un parcial, así que quien
+     * llame tiene que mirar `coursesFailed` antes de dar el aviso de éxito.
+     */
+    enrollUserInProgram: (token: string, userId: string, payload: { programCode: string }) =>
+      fetchJson<ProgramEnrollmentResult>(
+        `/admin/users/${encodeURIComponent(userId)}/program-enrollments`,
+        { method: 'POST', auth: { token }, body: payload }
+      ),
+    /** Los programas en los que el usuario tiene al menos un aula activa. */
+    userProgramEnrollments: (token: string, userId: string) =>
+      fetchJson<{ programs: UserProgramEnrollment[] }>(
+        `/admin/users/${encodeURIComponent(userId)}/program-enrollments`,
+        { auth: { token } }
+      ),
+    /** Retira al usuario de todas las aulas del programa a la vez. */
+    unenrollUserFromProgram: (token: string, userId: string, programCode: string) =>
+      fetchJson<{
+        unenrolled: boolean;
+        programCode: string;
+        coursesFailed: Array<{ moodleCourseId: number; error: string }>;
+      }>(
+        `/admin/users/${encodeURIComponent(userId)}/program-enrollments/${encodeURIComponent(programCode)}`,
+        { method: 'DELETE', auth: { token } }
       ),
     userCourses: (token: string, userId: string) =>
       fetchJson<UserCoursesResponse>(`/admin/users/${userId}/courses`, { auth: { token } }),

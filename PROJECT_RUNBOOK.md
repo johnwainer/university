@@ -735,6 +735,38 @@ depende la matrícula de quien lo esté cursando; y no se puede desvincular un
 curso con **matrículas activas** dentro de ese programa (400), porque esos
 estudiantes quedarían con una matrícula que no cuelga de nada.
 
+### 20.1 BLOQUEANTE: la matrícula en Moodle no funciona
+
+**Síntoma.** Cualquier intento de matricular devuelve
+`wsusercannotassign`: «No tiene permisos para asignar el rol (5) a este
+usuario (N) en este curso (M)».
+
+**Alcance.** Comprobado en producción: `user_course_enrollments` está **vacía**.
+El alta de estudiantes desde la plataforma no ha funcionado nunca, ni por
+programa ni por curso. No lo introdujo el cambio de modelo; estaba antes y
+quedó a la vista al probar la matrícula por programa de punta a punta.
+
+**Causa.** En Moodle, asignar un rol exige DOS cosas y el aprovisionamiento
+dejó sólo una:
+
+1. La capacidad `moodle/role:assign`. Esa **sí** la concede
+   `paeu-provision-webservice.php` al rol `paeu_ws_client`.
+2. Una autorización explícita por pareja de roles en la tabla
+   `role_allow_assign` («el rol X puede asignar el rol Y»). Sin la fila
+   `paeu_ws_client → student`, la capacidad no basta y Moodle lanza
+   exactamente `wsusercannotassign`.
+
+Es configuración, no código: la API llama bien a `enrol_manual_enrol_users`.
+
+**Arreglo.** `infra/moodle/cli/paeu-permitir-asignar-estudiante.php`, idempotente
+y con `--dry-run`. Necesita shell en la máquina de Moodle, hoy con el puerto 22
+cerrado. **No se puede hacer por servicio web**: de las 21 funciones habilitadas
+ninguna toca roles ni permisos.
+
+**Hasta que se arregle**, el panel NO oculta el fallo: la matrícula por programa
+devuelve `coursesFailed` con el id de cada aula y su error, y la interfaz lo
+muestra como error, no como éxito.
+
 **Moodle.** Hacia fuera ya está cerrado: `/course/view.php` y el buscador
 redirigen a login y no revelan nombres de curso a un visitante anónimo
 (comprobado). Lo que queda abierto es el hueco de dentro —una persona ya

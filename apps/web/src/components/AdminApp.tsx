@@ -13,7 +13,9 @@ import {
   type CompanyUserProgressRecord,
   type PaginatedAdminUsersResponse,
   type MoodleCoursesResponse,
-  type UserCoursesResponse
+  type ProgramComposition,
+  type UserCoursesResponse,
+  type UserProgramEnrollment
 } from '../lib/api';
 import './styles.css';
 // Tema claro del panel; se carga después para poder leerse como una capa.
@@ -103,15 +105,9 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'overview', label: 'admin.nav.overview.label', hint: 'admin.nav.overview.hint' },
       { id: 'reports', label: 'admin.nav.reports.label', hint: 'admin.nav.reports.hint' },
-      { id: 'users', label: 'admin.nav.users.label', hint: 'admin.nav.users.hint' },
-      { id: 'courses', label: 'admin.nav.courses.label', hint: 'admin.nav.courses.hint' },
-      { id: 'enterprise', label: 'admin.nav.enterprise.label', hint: 'admin.nav.enterprise.hint' }
-    ]
-  },
-  {
-    label: 'admin.nav.grupos.academico',
-    items: [
-      { id: 'sis', label: 'admin.nav.sis.label', hint: 'admin.nav.sis.hint' },
+      // El programa va antes que los usuarios y que las aulas porque es la
+      // unidad del modelo: es lo que se ofrece y en lo que se matricula. El
+      // orden del menú es la primera cosa que enseña esa jerarquía.
       {
         id: 'programs',
         label: 'admin.nav.programs.label',
@@ -120,6 +116,18 @@ const NAV_GROUPS: NavGroup[] = [
         // servidor; no existe una sección 'programs' que pedirle.
         permiso: 'sis'
       },
+      { id: 'users', label: 'admin.nav.users.label', hint: 'admin.nav.users.hint' },
+      { id: 'enterprise', label: 'admin.nav.enterprise.label', hint: 'admin.nav.enterprise.hint' },
+      // Las aulas de Moodle van al final: siguen existiendo como objeto
+      // operativo (hay que sincronizarlas y vigilarlas), pero ya no son lo que
+      // se ofrece, así que no abren el menú.
+      { id: 'courses', label: 'admin.nav.courses.label', hint: 'admin.nav.courses.hint' }
+    ]
+  },
+  {
+    label: 'admin.nav.grupos.academico',
+    items: [
+      { id: 'sis', label: 'admin.nav.sis.label', hint: 'admin.nav.sis.hint' },
       { id: 'calendar', label: 'admin.nav.calendar.label', hint: 'admin.nav.calendar.hint' },
       { id: 'compliance', label: 'admin.nav.compliance.label', hint: 'admin.nav.compliance.hint' }
     ]
@@ -260,8 +268,29 @@ export function AdminApp() {
   const [coursesVisibleFilter, setCoursesVisibleFilter] = useState<'all' | 'visible' | 'hidden'>('all');
 
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedUserCourses, setSelectedUserCourses] = useState<UserCoursesResponse | null>(null);
+  /**
+   * Matrícula por programa.
+   *
+   * El programa es la unidad en la que se matricula el estudiante, así que el
+   * desplegable guarda el CÓDIGO del programa y no un id de aula: es lo que
+   * pide el endpoint y es lo que se lee en los avisos.
+   */
+  const [programaAMatricular, setProgramaAMatricular] = useState('');
+  /** Composición de programas: de aquí salen los activos y sus aulas. */
+  const [composicionProgramas, setComposicionProgramas] = useState<ProgramComposition[]>([]);
+  /**
+   * Si la composición no se pudo leer.
+   *
+   * Hace falta distinguirlo de «no hay programas»: una lista vacía por un 403
+   * y una lista vacía porque la institución no tiene programas piden mensajes
+   * distintos, y decir «crea un programa» a quien no tiene permiso para verlos
+   * le manda a arreglar algo que no está roto.
+   */
+  const [composicionNoDisponible, setComposicionNoDisponible] = useState(false);
+  /** Programas en los que ya está el usuario seleccionado. */
+  const [programasDelUsuario, setProgramasDelUsuario] = useState<UserProgramEnrollment[] | null>(null);
+  const [retirandoPrograma, setRetirandoPrograma] = useState<string | null>(null);
   const [newUser, setNewUser] = useState({ fullName: '', email: '', locale: 'es' });
   
   
@@ -363,6 +392,58 @@ export function AdminApp() {
   const allCurrentPageSelected =
     currentUsers.length > 0 && currentUsers.every((user) => selectedUserIds.includes(user.id));
 
+  /**
+   * Programas que se pueden ofrecer para matricular: activos y con aulas.
+   *
+   * Un programa inactivo lo rechaza el servidor, y uno sin aulas devuelve 400.
+   * Se filtran aquí los inactivos y se dejan los vacíos DENTRO de la lista,
+   * pero deshabilitados: esconderlos haría que alguien buscara un programa que
+   * sí existe y no entendiera por qué no aparece.
+   */
+  const programasActivos = useMemo(
+    () => composicionProgramas.filter((programa) => programa.is_active),
+    [composicionProgramas]
+  );
+
+  /** Los activos que de verdad tienen aulas; son los únicos elegibles. */
+  const programasMatriculables = useMemo(
+    () => programasActivos.filter((programa) => programa.courses.length > 0),
+    [programasActivos]
+  );
+
+  /** Códigos de los activos sin aulas, para explicar por qué no se pueden elegir. */
+  const programasActivosSinAulas = useMemo(
+    () => programasActivos.filter((programa) => programa.courses.length === 0),
+    [programasActivos]
+  );
+
+  /**
+   * De aula de Moodle al programa que la contiene.
+   *
+   * Se construye en el cliente con la composición porque el listado de aulas no
+   * trae el programa, y en todas partes donde se muestre un aula hay que poder
+   * decir a qué programa pertenece — o que no pertenece a ninguno, que es
+   * justamente lo que hay que vigilar. Se usan TODOS los programas y no sólo
+   * los activos: un aula dentro de un programa archivado sí tiene programa.
+   */
+  const programaPorAula = useMemo(() => {
+    const mapa = new Map<number, { codigo: string; nombre: string }>();
+    for (const programa of composicionProgramas) {
+      for (const curso of programa.courses) {
+        mapa.set(curso.moodleCourseId, { codigo: programa.code, nombre: programa.name });
+      }
+    }
+    return mapa;
+  }, [composicionProgramas]);
+
+  /** Etiqueta del programa de un aula; el texto de «sin programa» cuando no lo tiene. */
+  const etiquetaProgramaDeAula = (moodleCourseId: number): string => {
+    const programa = programaPorAula.get(moodleCourseId);
+    return programa
+      ? t('admin.shell.aulas.programaDe', { codigo: programa.codigo, nombre: programa.nombre })
+      : t('admin.shell.aulas.sinPrograma');
+  };
+
   const loadBase = async (token: string) => {
     setLoadingBase(true);
     setError(null);
@@ -432,6 +513,37 @@ export function AdminApp() {
   };
 
 
+  /**
+   * Catálogo de programas con sus aulas.
+   *
+   * Se pide la composición y no `degreePrograms` porque el formulario de
+   * matrícula necesita saber cuántas aulas tiene cada programa: un programa
+   * vacío no se puede ofrecer y hay que poder decir por qué.
+   */
+  const cargarComposicionProgramas = async (token: string) => {
+    try {
+      const respuesta = await api.admin.programComposition(token);
+      setComposicionProgramas(respuesta.programs);
+      setComposicionNoDisponible(false);
+    } catch {
+      // Un rol con acceso a usuarios puede no tenerlo a programas académicos.
+      // Si falla, el desplegable sale vacío con su aviso y el resto sigue.
+      setComposicionProgramas([]);
+      setComposicionNoDisponible(true);
+    }
+  };
+
+  /** Programas del usuario seleccionado, para la tabla de matrículas vigentes. */
+  const cargarProgramasDelUsuario = async (token: string, userId: string) => {
+    try {
+      const respuesta = await api.admin.userProgramEnrollments(token, userId);
+      setProgramasDelUsuario(respuesta.programs);
+    } catch (reason) {
+      setProgramasDelUsuario(null);
+      setError(reason instanceof Error ? reason.message : t('admin.shell.matricula.errorProgramasUsuario'));
+    }
+  };
+
   const loadWebinars = async (token: string) => {
     setLoadingWebinars(true);
     try {
@@ -494,6 +606,10 @@ export function AdminApp() {
         siPuede('overview', () => loadBase(sessionToken)),
         siPuede('users', () => loadUsers(sessionToken)),
         siPuede('courses', () => loadCourses(sessionToken)),
+        // La composición alimenta la matrícula por programa de la sección de
+        // usuarios, así que se pide con el permiso de 'sis', que es el que
+        // protege `/admin/degree-programs` en el servidor.
+        siPuede('sis', () => cargarComposicionProgramas(sessionToken)),
         siPuede('webinars', () => loadWebinars(sessionToken)),
         siPuede('podcasts', () => loadPodcasts(sessionToken))
       ]);
@@ -548,7 +664,10 @@ export function AdminApp() {
     setInfo(null);
     setSelectedUserCourses(null);
     setSelectedUserId('');
-    setSelectedCourseId('');
+    setProgramaAMatricular('');
+    setComposicionProgramas([]);
+    setComposicionNoDisponible(false);
+    setProgramasDelUsuario(null);
     setSelectedUserIds([]);
     setActiveSection('overview');
   };
@@ -561,8 +680,10 @@ export function AdminApp() {
       loadBase(sessionToken),
       loadUsers(sessionToken),
       loadCourses(sessionToken),
-
-      
+      // La composición entra en el refresco general porque de ella sale la
+      // columna de programa de la tabla de aulas: refrescar las aulas sin ella
+      // dejaría el programa de una aula recién asignada en «sin programa».
+      cargarComposicionProgramas(sessionToken),
       loadWebinars(sessionToken),
       loadPodcasts(sessionToken)
     ]);
@@ -999,9 +1120,18 @@ export function AdminApp() {
     }
   };
 
-  const onEnrollUser = async (event: React.FormEvent<HTMLFormElement>) => {
+  /**
+   * Matricula al usuario en un programa entero.
+   *
+   * No hay matrícula por aula en el panel: el programa es la unidad que se
+   * ofrece y en la que se matricula el estudiante, y el endpoint se encarga de
+   * meterlo en todas sus aulas. El resultado puede ser parcial, así que el
+   * aviso distingue los tres casos (todo, a medias, nada) en vez de dar un
+   * «matriculado» que esconda aulas sin entrar.
+   */
+  const onMatricularEnPrograma = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!sessionToken || !selectedUserId || !selectedCourseId) {
+    if (!sessionToken || !selectedUserId || !programaAMatricular) {
       return;
     }
 
@@ -1010,17 +1140,85 @@ export function AdminApp() {
     setInfo(null);
 
     try {
-      await api.admin.enrollUserInCourse(sessionToken, selectedUserId, {
-        moodleCourseId: Number(selectedCourseId),
-        roleId: 5
+      const resultado = await api.admin.enrollUserInProgram(sessionToken, selectedUserId, {
+        programCode: programaAMatricular
       });
-      setInfo(t('admin.shell.usuarios.matriculaOk'));
+
+      const fallidas = resultado.coursesFailed;
+      if (fallidas.length === 0) {
+        setInfo(
+          t('admin.shell.matricula.okPrograma', {
+            programa: resultado.programName,
+            aulas: resultado.coursesEnrolled.length
+          })
+        );
+      } else {
+        // Un parcial se cuenta como error y no como aviso: hay aulas que
+        // alguien tiene que reparar, y los ids son lo único que permite
+        // encontrarlas.
+        setError(
+          t('admin.shell.matricula.parcialPrograma', {
+            programa: resultado.programName,
+            aulas: resultado.coursesEnrolled.length,
+            fallidas: fallidas.length,
+            ids: fallidas.map((fallo) => fallo.moodleCourseId).join(', ')
+          })
+        );
+      }
+
       await Promise.all([loadBase(sessionToken), loadUsers(sessionToken)]);
-      await onLoadUserCourses();
+      await Promise.all([
+        onLoadUserCourses(selectedUserId),
+        cargarProgramasDelUsuario(sessionToken, selectedUserId)
+      ]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('admin.shell.usuarios.errorMatricular'));
+      setError(reason instanceof Error ? reason.message : t('admin.shell.matricula.errorPrograma'));
     } finally {
       setEnrollingUser(false);
+    }
+  };
+
+  /**
+   * Retira al usuario de todas las aulas de un programa.
+   *
+   * Se confirma antes porque toca varias aulas de golpe y el estudiante pierde
+   * el acceso a todas ellas: no es una acción que convenga disparar por un
+   * clic mal puesto.
+   */
+  const onRetirarDePrograma = async (codigo: string, nombre: string) => {
+    if (!sessionToken || !selectedUserId) {
+      return;
+    }
+    if (!window.confirm(t('admin.shell.matricula.confirmarRetiro', { programa: nombre }))) {
+      return;
+    }
+
+    setRetirandoPrograma(codigo);
+    setError(null);
+    setInfo(null);
+
+    try {
+      const resultado = await api.admin.unenrollUserFromProgram(sessionToken, selectedUserId, codigo);
+      if (resultado.coursesFailed.length === 0) {
+        setInfo(t('admin.shell.matricula.retiroOk', { programa: nombre }));
+      } else {
+        setError(
+          t('admin.shell.matricula.retiroParcial', {
+            programa: nombre,
+            fallidas: resultado.coursesFailed.length,
+            ids: resultado.coursesFailed.map((fallo) => fallo.moodleCourseId).join(', ')
+          })
+        );
+      }
+      await Promise.all([loadBase(sessionToken), loadUsers(sessionToken)]);
+      await Promise.all([
+        onLoadUserCourses(selectedUserId),
+        cargarProgramasDelUsuario(sessionToken, selectedUserId)
+      ]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : t('admin.shell.matricula.errorRetiro'));
+    } finally {
+      setRetirandoPrograma(null);
     }
   };
 
@@ -1242,8 +1440,20 @@ export function AdminApp() {
 
       <div className="admin-content">
 
-      {error ? <p className="error-msg">{error}</p> : null}
-      {info ? <p className="info-msg">{info}</p> : null}
+      {/* Es el único canal de avisos del armazón: por aquí sale, entre otras
+          cosas, el parcial de una matrícula por programa. Sin `role`, un lector
+          de pantalla no anuncia nada y quien no ve la pantalla se queda
+          creyendo que la acción salió bien. */}
+      {error ? (
+        <p className="error-msg" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {info ? (
+        <p className="info-msg" role="status">
+          {info}
+        </p>
+      ) : null}
 
       {!baseData ? (
         <section className="status-card">{t('admin.shell.comun.cargandoPanel')}</section>
@@ -1376,7 +1586,10 @@ export function AdminApp() {
 
           {activeSection === 'users' ? (
             <>
-              <section className="grid-2">
+              {/* La rejilla pasó a una columna: la matrícula ya no es un
+                  formulario de dos campos al lado del de crear, sino una
+                  tarjeta propia con la tabla de programas vigentes debajo. */}
+              <section className="grid-1">
                 <article className="card">
                   <h2>{t('admin.shell.usuarios.crearTitulo')}</h2>
                   <form className="login-form" onSubmit={onCreateUser}>
@@ -1411,38 +1624,194 @@ export function AdminApp() {
                   </form>
                 </article>
 
-                <article className="card">
-                  <h2>{t('admin.shell.matricula.titulo')}</h2>
-                  <form className="login-form" onSubmit={onEnrollUser}>
-                    <label htmlFor="userSelect">{t('admin.shell.matricula.campoUsuario')}</label>
-                    <select id="userSelect" value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
-                      <option value="">{t('admin.shell.matricula.eligeUsuario')}</option>
-                      {currentUsers
-                        .filter((user) => user.moodle_user_id)
-                        .map((user) => (
-                          <option key={user.id} value={user.id}>
-                            {user.full_name} ({user.email})
-                          </option>
-                        ))}
-                    </select>
-                    <label htmlFor="courseSelect">{t('admin.shell.matricula.campoCurso')}</label>
-                    <select
-                      id="courseSelect"
-                      value={selectedCourseId}
-                      onChange={(event) => setSelectedCourseId(event.target.value)}
-                    >
-                      <option value="">{t('admin.shell.matricula.eligeCurso')}</option>
-                      {(coursesData?.items ?? []).map((course) => (
-                        <option key={course.moodle_course_id} value={String(course.moodle_course_id)}>
-                          {course.full_name}
-                        </option>
-                      ))}
-                    </select>
-                    <button type="submit" disabled={enrollingUser}>
-                      {enrollingUser ? t('admin.shell.matricula.matriculando') : t('admin.shell.matricula.matricular')}
-                    </button>
-                  </form>
-                </article>
+              </section>
+
+              {/* ------------------------------------------------------------ *
+                * Matrícula por PROGRAMA.
+                *
+                * El programa es la unidad: nadie se matricula en un aula suelta.
+                * Este formulario elige persona + programa y el servidor la mete
+                * en todas las aulas que el programa contenga.
+                * ------------------------------------------------------------ */}
+              <section className="grid-1">
+                <div className="ad-card">
+                  <div className="ad-card-head">
+                    <h2>{t('admin.shell.matricula.titulo')}</h2>
+                    <p>{t('admin.shell.matricula.descripcion')}</p>
+                  </div>
+                  <div className="ad-card-body">
+                    <form onSubmit={onMatricularEnPrograma}>
+                      <div className="ad-grid ad-grid-2">
+                        <div className="ad-field">
+                          <label htmlFor="matricula-usuario">{t('admin.shell.matricula.campoUsuario')}</label>
+                          <select
+                            id="matricula-usuario"
+                            className="ad-select"
+                            value={selectedUserId}
+                            onChange={(event) => {
+                              const id = event.target.value;
+                              setSelectedUserId(id);
+                              // Al cambiar de persona lo de la anterior ya no
+                              // vale: se limpia y se vuelve a pedir, para que
+                              // nadie lea las matrículas de otro usuario.
+                              setProgramasDelUsuario(null);
+                              setSelectedUserCourses(null);
+                              if (id) {
+                                void cargarProgramasDelUsuario(sessionToken, id);
+                                void onLoadUserCourses(id);
+                              }
+                            }}
+                          >
+                            <option value="">{t('admin.shell.matricula.eligeUsuario')}</option>
+                            {currentUsers
+                              .filter((user) => user.moodle_user_id)
+                              .map((user) => (
+                                <option key={user.id} value={user.id}>
+                                  {user.full_name} ({user.email})
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div className="ad-field">
+                          <label htmlFor="matricula-programa">{t('admin.shell.matricula.campoPrograma')}</label>
+                          <select
+                            id="matricula-programa"
+                            className="ad-select"
+                            value={programaAMatricular}
+                            onChange={(event) => setProgramaAMatricular(event.target.value)}
+                          >
+                            <option value="">{t('admin.shell.matricula.eligePrograma')}</option>
+                            {programasMatriculables.map((programa) => (
+                              <option key={programa.id} value={programa.code}>
+                                {t('admin.shell.matricula.opcionPrograma', {
+                                  codigo: programa.code,
+                                  nombre: programa.name,
+                                  aulas: programa.courses.length
+                                })}
+                              </option>
+                            ))}
+                            {/* Los activos sin aulas se enseñan pero no se
+                                pueden elegir: el servidor devolvería 400 y el
+                                desplegable explica el porqué sin gastar viaje. */}
+                            {programasActivosSinAulas.map((programa) => (
+                              <option key={programa.id} value={programa.code} disabled>
+                                {t('admin.shell.matricula.opcionProgramaVacio', {
+                                  codigo: programa.code,
+                                  nombre: programa.name
+                                })}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="ad-toolbar">
+                        <button
+                          type="submit"
+                          className="ad-btn ad-btn-primary"
+                          disabled={enrollingUser || !selectedUserId || !programaAMatricular}
+                        >
+                          {enrollingUser
+                            ? t('admin.shell.matricula.matriculando')
+                            : t('admin.shell.matricula.matricular')}
+                        </button>
+                      </div>
+                    </form>
+
+                    {composicionNoDisponible ? (
+                      <p className="ad-note" role="alert">
+                        {t('admin.shell.matricula.programasNoDisponibles')}
+                      </p>
+                    ) : programasActivos.length === 0 ? (
+                      <p className="ad-empty">{t('admin.shell.matricula.sinProgramasActivos')}</p>
+                    ) : null}
+                    {programasActivosSinAulas.length > 0 ? (
+                      <p className="ad-note">
+                        {t('admin.shell.matricula.avisoProgramasVacios', {
+                          count: programasActivosSinAulas.length,
+                          programas: programasActivosSinAulas.map((programa) => programa.code).join(', ')
+                        })}
+                      </p>
+                    ) : null}
+                    <p className="ad-note">{t('admin.shell.matricula.notaUnidad')}</p>
+                  </div>
+                </div>
+              </section>
+
+              {/* Matrículas vigentes del usuario elegido, por programa. */}
+              <section className="grid-1">
+                <div className="ad-card">
+                  <div className="ad-card-head">
+                    <h2>{t('admin.shell.matricula.vigentesTitulo')}</h2>
+                    <p>{t('admin.shell.matricula.vigentesDescripcion')}</p>
+                  </div>
+                  <div className="ad-card-body">
+                    {!selectedUserId ? (
+                      <p className="ad-empty">{t('admin.shell.matricula.vigentesSinSeleccion')}</p>
+                    ) : programasDelUsuario === null ? (
+                      <p className="ad-empty">{t('admin.shell.matricula.vigentesCargando')}</p>
+                    ) : programasDelUsuario.length === 0 ? (
+                      <p className="ad-empty">{t('admin.shell.matricula.vigentesVacio')}</p>
+                    ) : (
+                      <div className="ad-table-wrap">
+                        <table className="ad-table">
+                          <thead>
+                            <tr>
+                              <th scope="col">{t('admin.shell.matricula.colCodigo')}</th>
+                              <th scope="col">{t('admin.shell.matricula.colPrograma')}</th>
+                              <th scope="col">{t('admin.shell.matricula.colAulas')}</th>
+                              <th scope="col">{t('admin.shell.matricula.colCompleta')}</th>
+                              <th scope="col">{t('admin.shell.usuarios.colAcciones')}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {programasDelUsuario.map((programa) => (
+                              <tr key={programa.code}>
+                                <th scope="row">{programa.code}</th>
+                                <td>{programa.name}</td>
+                                <td>
+                                  {t('admin.shell.matricula.aulasDe', {
+                                    activas: programa.coursesActive,
+                                    total: programa.coursesInProgram
+                                  })}
+                                </td>
+                                <td>
+                                  <span
+                                    className={`ad-semaforo ad-semaforo-${programa.complete ? 'ok' : 'warn'}`}
+                                    aria-hidden="true"
+                                  />
+                                  <span className={`ad-badge ad-badge-${programa.complete ? 'ok' : 'warn'}`}>
+                                    {programa.complete
+                                      ? t('admin.shell.matricula.completa')
+                                      : t('admin.shell.matricula.incompleta')}
+                                  </span>
+                                </td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="ad-btn ad-btn-danger"
+                                    disabled={retirandoPrograma !== null}
+                                    onClick={() => void onRetirarDePrograma(programa.code, programa.name)}
+                                  >
+                                    {retirandoPrograma === programa.code
+                                      ? t('admin.shell.matricula.retirando')
+                                      : t('admin.shell.matricula.retirar')}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    {programasDelUsuario?.some((programa) => !programa.complete) ? (
+                      <p className="ad-note" role="alert">
+                        {t('admin.shell.matricula.avisoIncompletas')}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
               </section>
 
               <section className="grid-1">
@@ -1486,23 +1855,27 @@ export function AdminApp() {
                   <table>
                     <thead>
                       <tr>
+                        {/* La de la casilla no rotula ninguna columna de datos,
+                            así que no lleva `scope`: sólo las que de verdad
+                            encabezan una columna. */}
                         <th></th>
-                        <th>{t('admin.shell.usuarios.colNombre')}</th>
-                        <th>{t('admin.shell.usuarios.colEmail')}</th>
-                        <th>{t('admin.shell.usuarios.colEstado')}</th>
-                        <th>{t('admin.shell.usuarios.colMoodleId')}</th>
-                        <th>{t('admin.shell.usuarios.colCursos')}</th>
-                        <th>{t('admin.shell.usuarios.colAcciones')}</th>
+                        <th scope="col">{t('admin.shell.usuarios.colNombre')}</th>
+                        <th scope="col">{t('admin.shell.usuarios.colEmail')}</th>
+                        <th scope="col">{t('admin.shell.usuarios.colEstado')}</th>
+                        <th scope="col">{t('admin.shell.usuarios.colMoodleId')}</th>
+                        <th scope="col">{t('admin.shell.usuarios.colAulas')}</th>
+                        <th scope="col">{t('admin.shell.usuarios.colProgramas')}</th>
+                        <th scope="col">{t('admin.shell.usuarios.colAcciones')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {loadingUsers ? (
                         <tr>
-                          <td colSpan={7}>{t('admin.shell.usuarios.cargando')}</td>
+                          <td colSpan={8}>{t('admin.shell.usuarios.cargando')}</td>
                         </tr>
                       ) : currentUsers.length === 0 ? (
                         <tr>
-                          <td colSpan={7}>{t('admin.shell.usuarios.vacio')}</td>
+                          <td colSpan={8}>{t('admin.shell.usuarios.vacio')}</td>
                         </tr>
                       ) : (
                         currentUsers.map((user) => (
@@ -1519,12 +1892,23 @@ export function AdminApp() {
                             <td>{user.status}</td>
                             <td>{user.moodle_user_id ?? '-'}</td>
                             <td>{user.enrolled_courses}</td>
+                            {/* El número de programas sólo se conoce del usuario
+                                que está seleccionado: la lista paginada no lo
+                                trae y pedir un endpoint por fila sería una
+                                llamada por usuario. Para el resto se deja el
+                                guion en vez de inventar un conteo. */}
+                            <td>
+                              {selectedUserId === user.id && programasDelUsuario !== null
+                                ? programasDelUsuario.length
+                                : '-'}
+                            </td>
                             <td>
                               <button
                                 className="ghost"
                                 onClick={() => {
                                   setSelectedUserId(user.id);
                                   void onLoadUserCourses(user.id);
+                                  void cargarProgramasDelUsuario(sessionToken, user.id);
                                   requestAnimationFrame(() => {
                                     userCoursesSectionRef.current?.scrollIntoView({
                                       behavior: 'smooth',
@@ -1580,27 +1964,32 @@ export function AdminApp() {
               <section className="grid-1" ref={userCoursesSectionRef}>
                 <article className="card scroll-card">
                   <h2>{t('admin.shell.cursosUsuario.titulo')}</h2>
+                  <p>{t('admin.shell.cursosUsuario.descripcion')}</p>
                   {!selectedUserCourses ? (
                     <p>{t('admin.shell.cursosUsuario.sinSeleccion')}</p>
                   ) : (
                     <table>
                       <thead>
                         <tr>
-                          <th>{t('admin.shell.cursosUsuario.colId')}</th>
-                          <th>{t('admin.shell.cursosUsuario.colNombre')}</th>
-                          <th>{t('admin.shell.cursosUsuario.colEstado')}</th>
+                          <th scope="col">{t('admin.shell.cursosUsuario.colId')}</th>
+                          <th scope="col">{t('admin.shell.cursosUsuario.colNombre')}</th>
+                          {/* Un aula se muestra siempre con su programa: es lo
+                              que dice si esa matrícula pertenece a algo. */}
+                          <th scope="col">{t('admin.shell.aulas.colPrograma')}</th>
+                          <th scope="col">{t('admin.shell.cursosUsuario.colEstado')}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedUserCourses.localCourses.length === 0 ? (
                           <tr>
-                            <td colSpan={3}>{t('admin.shell.cursosUsuario.vacio')}</td>
+                            <td colSpan={4}>{t('admin.shell.cursosUsuario.vacio')}</td>
                           </tr>
                         ) : (
                           selectedUserCourses.localCourses.map((course) => (
                             <tr key={`${selectedUserCourses.user.id}-${course.moodle_course_id}`}>
                               <td>{course.moodle_course_id}</td>
                               <td>{course.full_name ?? course.short_name ?? t('admin.shell.comun.sinNombre')}</td>
+                              <td>{etiquetaProgramaDeAula(course.moodle_course_id)}</td>
                               <td>{course.status}</td>
                             </tr>
                           ))
@@ -1643,6 +2032,15 @@ export function AdminApp() {
               </article>
               <article className="card scroll-card">
                 <h2>{t('admin.shell.cursos.titulo')}</h2>
+                <p>{t('admin.shell.cursos.descripcion')}</p>
+                {/* Sin composición cargada la columna de programa saldría
+                    diciendo «sin programa» de todo, que es falso. Se avisa en
+                    vez de dejar que se lea como un dato. */}
+                {composicionNoDisponible ? (
+                  <p className="ad-note" role="alert">
+                    {t('admin.shell.aulas.programaNoDisponible')}
+                  </p>
+                ) : null}
                 <div className="toolbar-grid">
                   <input
                     value={coursesQuery}
@@ -1667,21 +2065,24 @@ export function AdminApp() {
                 <table>
                   <thead>
                     <tr>
-                      <th>{t('admin.shell.cursos.colId')}</th>
-                      <th>{t('admin.shell.cursos.colNombre')}</th>
-                      <th>{t('admin.shell.cursos.colNombreCorto')}</th>
-                      <th>{t('admin.shell.cursos.colVisible')}</th>
-                      <th>{t('admin.shell.cursos.colSincronizado')}</th>
+                      <th scope="col">{t('admin.shell.cursos.colId')}</th>
+                      <th scope="col">{t('admin.shell.cursos.colNombre')}</th>
+                      <th scope="col">{t('admin.shell.cursos.colNombreCorto')}</th>
+                      {/* El programa va antes que lo operativo: es lo que dice
+                          si el aula forma parte de algo que se ofrece. */}
+                      <th scope="col">{t('admin.shell.aulas.colPrograma')}</th>
+                      <th scope="col">{t('admin.shell.cursos.colVisible')}</th>
+                      <th scope="col">{t('admin.shell.cursos.colSincronizado')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loadingCourses ? (
                       <tr>
-                        <td colSpan={5}>{t('admin.shell.cursos.cargando')}</td>
+                        <td colSpan={6}>{t('admin.shell.cursos.cargando')}</td>
                       </tr>
                     ) : (coursesData?.items.length ?? 0) === 0 ? (
                       <tr>
-                        <td colSpan={5}>{t('admin.shell.cursos.vacio')}</td>
+                        <td colSpan={6}>{t('admin.shell.cursos.vacio')}</td>
                       </tr>
                     ) : (
                       (coursesData?.items ?? []).map((course) => (
@@ -1689,6 +2090,17 @@ export function AdminApp() {
                           <td>{course.moodle_course_id}</td>
                           <td>{course.full_name}</td>
                           <td>{course.short_name}</td>
+                          <td>
+                            {programaPorAula.has(course.moodle_course_id) ? (
+                              etiquetaProgramaDeAula(course.moodle_course_id)
+                            ) : (
+                              // Un aula sin programa no la ve ni la cursa
+                              // nadie: se marca para que destaque en la lista.
+                              <span className="ad-badge ad-badge-warn">
+                                {t('admin.shell.aulas.sinPrograma')}
+                              </span>
+                            )}
+                          </td>
                           <td>{course.visible ? t('admin.shell.comun.si') : t('admin.shell.comun.no')}</td>
                           <td>{new Date(course.synced_at).toLocaleString()}</td>
                         </tr>

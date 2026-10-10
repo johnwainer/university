@@ -114,7 +114,8 @@ body:has(.admin-shell) {
 
 .admin-shell h1,
 .admin-shell h2,
-.admin-shell h3 {
+.admin-shell h3,
+.admin-shell h4 {
   color: var(--adm-ink);
   letter-spacing: -0.01em;
   font-weight: 600;
@@ -125,6 +126,18 @@ body:has(.admin-shell) {
 .admin-shell h1 { font-size: 1.22rem; }
 .admin-shell h2 { font-size: 1rem; }
 .admin-shell h3 { font-size: 0.92rem; }
+/* El h4 se quedó fuera de la escala y heredaba el tamaño del navegador, que en
+   una pantalla de trabajo lo deja más pequeño que el texto que encabeza. Lo
+   usan los rótulos de las gráficas y, ahora, el del inventario del LMS dentro
+   del resumen. */
+.admin-shell h4 { font-size: 0.88rem; }
+
+/* El margen se da sólo fuera de las cabeceras de gráfica: `ad-chart-head` es un
+   contenedor flex y ahí el margen del navegador ya está resuelto por su propio
+   `gap`; añadirle uno movería unas gráficas que esta tarea no toca. */
+.admin-shell .ad-card-body > h4 {
+  margin: 0 0 var(--ad-sp-3);
+}
 
 .admin-shell p,
 .admin-shell label,

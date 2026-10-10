@@ -9,6 +9,7 @@ import {
   type DegreeProgram,
   type MoodleCoursesResponse,
   type PodcastRecord,
+  type ProgramComposition,
   type WebinarRecord
 } from '../../../lib/api';
 
@@ -622,7 +623,7 @@ const PESTANAS: Pestana[] = ['academico', 'personas', 'contenido', 'tecnico', 'p
 
 /** Qué reportes hace falta haber cargado para pintar cada pestaña. */
 const DATOS_POR_PESTANA: Record<Pestana, Array<keyof Datos>> = {
-  academico: ['programas', 'cursos'],
+  academico: ['programas', 'composicion', 'cursos'],
   personas: ['usuarios', 'panel', 'roles'],
   contenido: ['webinars', 'podcasts'],
   tecnico: ['rutas'],
@@ -631,6 +632,15 @@ const DATOS_POR_PESTANA: Record<Pestana, Array<keyof Datos>> = {
 
 type Datos = {
   programas: Bloque<DegreeProgram[]>;
+  /**
+   * Composición de programas: de aquí sale el mapa aula → programa.
+   *
+   * No sustituye al reporte de programas, que lleva nivel, créditos y
+   * departamento y la composición no. Se pide aparte porque el inventario de
+   * aulas tiene que poder decir a qué programa pertenece cada una, y eso no
+   * viene en el listado de aulas.
+   */
+  composicion: Bloque<ProgramComposition[]>;
   cursos: Bloque<MoodleCoursesResponse>;
   usuarios: Bloque<AdminUser[]>;
   panel: Bloque<AdminPanelUser[]>;
@@ -642,6 +652,7 @@ type Datos = {
 
 const DATOS_INICIALES: Datos = {
   programas: { estado: 'pendiente' },
+  composicion: { estado: 'pendiente' },
   cursos: { estado: 'pendiente' },
   usuarios: { estado: 'pendiente' },
   panel: { estado: 'pendiente' },
@@ -693,6 +704,13 @@ export function ReportsView({ token, locale, puedeEditar }: Props) {
         case 'programas': {
           const bloque = await bloqueDe(api.admin.degreePrograms(token));
           setDatos((previo) => ({ ...previo, programas: bloque }));
+          break;
+        }
+        case 'composicion': {
+          const bloque = await bloqueDe(
+            api.admin.programComposition(token).then((r) => r.programs)
+          );
+          setDatos((previo) => ({ ...previo, composicion: bloque }));
           break;
         }
         case 'cursos': {
@@ -911,6 +929,40 @@ export function ReportsView({ token, locale, puedeEditar }: Props) {
 
   type FilaCurso = MoodleCoursesResponse['items'][number];
 
+  /**
+   * De aula de Moodle al programa que la contiene.
+   *
+   * El inventario de aulas no trae el programa, así que el mapa se construye
+   * en el cliente con la composición. Se recorren TODOS los programas y no
+   * sólo los activos: un aula dentro de un programa archivado sí pertenece a
+   * un programa, y decir «sin programa» de ella sería falso.
+   */
+  const programaPorAula = useMemo(() => {
+    const mapa = new Map<number, string>();
+    if (datos.composicion.estado !== 'ok') return mapa;
+    for (const programa of datos.composicion.datos) {
+      for (const curso of programa.courses) {
+        mapa.set(curso.moodleCourseId, `${programa.code} — ${programa.name}`);
+      }
+    }
+    return mapa;
+  }, [datos.composicion]);
+
+  /**
+   * Texto de la columna Programa; es también lo que se escribe en el CSV.
+   *
+   * Si la composición no se pudo leer no se dice «sin programa», que afirmaría
+   * algo que no se sabe: se dice que el dato no está disponible, y el reporte
+   * lo repite en su nota al pie.
+   */
+  const textoProgramaDeAula = useCallback(
+    (moodleCourseId: number): string => {
+      if (datos.composicion.estado !== 'ok') return t('admin.reports.cursos.programaNoDisponible');
+      return programaPorAula.get(moodleCourseId) ?? t('admin.reports.cursos.sinPrograma');
+    },
+    [datos.composicion, programaPorAula, t]
+  );
+
   const columnasCursos = useMemo<Array<Columna<FilaCurso>>>(
     () => [
       {
@@ -926,6 +978,22 @@ export function ReportsView({ token, locale, puedeEditar }: Props) {
         texto: (fila) => fila.short_name
       },
       { clave: 'nombre', etiqueta: t('admin.reports.cursos.colNombre'), texto: (fila) => fila.full_name },
+      {
+        /* El programa va antes que lo operativo: es lo que dice si el aula
+           forma parte de algo que se ofrece. Un aula sin programa se marca
+           como aviso porque existe en Moodle y nadie la ve ni la cursa. */
+        clave: 'programa',
+        etiqueta: t('admin.reports.cursos.colPrograma'),
+        texto: (fila) => textoProgramaDeAula(fila.moodle_course_id),
+        render: (fila) =>
+          programaPorAula.has(fila.moodle_course_id) ? (
+            textoProgramaDeAula(fila.moodle_course_id)
+          ) : (
+            <span className="ad-badge ad-badge-warn">
+              {textoProgramaDeAula(fila.moodle_course_id)}
+            </span>
+          )
+      },
       {
         clave: 'visible',
         etiqueta: t('admin.reports.cursos.colVisible'),
@@ -951,7 +1019,7 @@ export function ReportsView({ token, locale, puedeEditar }: Props) {
         orden: (fila) => ordenFecha(fila.synced_at)
       }
     ],
-    [t, si, no, badgeBooleano, fechaCorta, fechaHora, ordenFecha]
+    [t, si, no, badgeBooleano, fechaCorta, fechaHora, ordenFecha, textoProgramaDeAula, programaPorAula]
   );
 
   const filtrosCursos = useMemo<Array<FiltroDef<FilaCurso>>>(
@@ -964,9 +1032,21 @@ export function ReportsView({ token, locale, puedeEditar }: Props) {
           { valor: 'no', etiqueta: no }
         ],
         aplica: (fila, valor) => fila.visible === (valor === 'si')
+      },
+      {
+        /* Poder aislar las aulas huérfanas es la razón de tener la columna:
+           son las que hay que asignar a un programa o esconder. */
+        clave: 'programa',
+        etiqueta: t('admin.reports.cursos.filtroPrograma'),
+        opciones: [
+          { valor: 'con', etiqueta: t('admin.reports.cursos.filtroConPrograma') },
+          { valor: 'sin', etiqueta: t('admin.reports.cursos.filtroSinPrograma') }
+        ],
+        aplica: (fila, valor) =>
+          programaPorAula.has(fila.moodle_course_id) === (valor === 'con')
       }
     ],
-    [t, si, no]
+    [t, si, no, programaPorAula]
   );
 
   /**
@@ -1410,6 +1490,26 @@ export function ReportsView({ token, locale, puedeEditar }: Props) {
   const bloqueCursos: Bloque<FilaCurso[]> =
     datos.cursos.estado === 'ok' ? { estado: 'ok', datos: cursosCargados } : datos.cursos;
 
+  /**
+   * Nota al pie del inventario de aulas.
+   *
+   * Lleva el alcance de la carga y, si la composición no se pudo leer, lo dice
+   * ahí mismo: la columna de programa vacía en un CSV se lee después como «no
+   * pertenece a ningún programa», que es una afirmación distinta.
+   */
+  const notaCursos = [
+    notaAlcance(cursosCargados.length, totales.cursos),
+    datos.composicion.estado === 'sin-datos'
+      ? t(
+          `admin.reports.cursos.notaProgramaNoDisponible.${
+            datos.composicion.motivo === 'permiso' ? 'permiso' : 'error'
+          }`
+        )
+      : null
+  ]
+    .filter((parte): parte is string => parte !== null)
+    .join(' ');
+
   const usuariosCargados = datos.usuarios.estado === 'ok' ? datos.usuarios.datos : [];
 
   return (
@@ -1475,11 +1575,23 @@ export function ReportsView({ token, locale, puedeEditar }: Props) {
             bloque={bloqueCursos}
             columnas={columnasCursos}
             filtros={filtrosCursos}
-            busqueda={(fila) => `${fila.moodle_course_id} ${fila.short_name} ${fila.full_name}`}
+            // El programa entra en la búsqueda: quien busca «MBA» espera
+            // encontrar las aulas de ese programa, no sólo las que lo llevan
+            // en el nombre.
+            busqueda={(fila) =>
+              `${fila.moodle_course_id} ${fila.short_name} ${fila.full_name} ${textoProgramaDeAula(
+                fila.moodle_course_id
+              )}`
+            }
             claveFila={(fila) => String(fila.moodle_course_id)}
             locale={locale}
-            nota={notaAlcance(cursosCargados.length, totales.cursos)}
-            onReintentar={() => void cargarUno('cursos')}
+            nota={notaCursos}
+            onReintentar={() => {
+              void cargarUno('cursos');
+              // La columna de programa sale de la composición, así que
+              // reintentar el inventario sin ella lo dejaría otra vez a medias.
+              void cargarUno('composicion');
+            }}
             acciones={
               puedeEditar ? (
                 <button
