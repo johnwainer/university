@@ -26,6 +26,19 @@ import { migrateCie } from './modules/cie/schema.js';
 import { registerCieRoutes } from './modules/cie/routes.js';
 import { migrateSitePages } from './modules/pages/schema.js';
 import { registerPagesRoutes } from './modules/pages/routes.js';
+import { migrateIam } from './modules/iam/schema.js';
+import { registerIamRoutes } from './modules/iam/routes.js';
+import { sectionForPath, levelForMethod } from './modules/iam/sections.js';
+import {
+  autenticar as iamAutenticar,
+  crearSesion as iamCrearSesion,
+  sesionPorToken as iamSesionPorToken,
+  cerrarSesion as iamCerrarSesion,
+  limpiarSesionesCaducadas as iamLimpiarSesiones,
+  permisosSuperadmin,
+  alcanza,
+  type AdminSession as IamSession
+} from './modules/iam/service.js';
 import { migrateCalendar } from './modules/calendar/schema.js';
 import { migrateShellAlerts } from './modules/calendar/alerts.js';
 import { registerCalendarRoutes } from './modules/calendar/routes.js';
@@ -152,13 +165,12 @@ const app = Fastify({
 const routeRegistry: Array<{ method: string; url: string }> = [];
 const autoSyncIntervalMs = Math.max(30, Number(process.env.AUTO_SYNC_INTERVAL_SEC ?? 180)) * 1000;
 const publicSyncMaxAgeMs = Math.max(30, Number(process.env.PUBLIC_SYNC_MAX_AGE_SEC ?? 120)) * 1000;
-type AdminAuthSession = {
-  token: string;
-  email: string;
-  createdAt: string;
-  expiresAt: string;
-};
-const adminSessions = new Map<string, AdminAuthSession>();
+/**
+ * La sesión del panel la resuelve ahora el módulo iam contra la base, no un
+ * Map en memoria. Se conserva el alias de tipo porque lo usan las rutas de
+ * autenticación más abajo.
+ */
+type AdminAuthSession = IamSession;
 type PublicAuthSession = {
   token: string;
   userId: string;
@@ -214,6 +226,76 @@ await app.register(cors, {
   allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key']
 });
 await app.register(sensible);
+
+/**
+ * Guardián de las rutas del panel.
+ *
+ * Un único punto que resuelve la sesión y aplica el permiso de la sección
+ * correspondiente. Se hace con un hook y no ruta por ruta porque el panel tiene
+ * casi trescientas rutas registradas: anotarlas una a una garantiza que alguna
+ * se quede sin anotar, y una ruta sin anotar es un agujero silencioso.
+ *
+ * Deja la sesión en `request.adminSession` para que `ensureAdmin` siga siendo
+ * síncrona y los módulos no tengan que cambiar.
+ */
+app.addHook('preHandler', async (request, reply) => {
+  const url = request.url.split('?')[0];
+  if (!url.startsWith('/admin/') && url !== '/admin') return;
+
+  // Entrar no puede exigir estar dentro.
+  if (url === '/admin/auth/login') return;
+
+  let sesion: IamSession | null = null;
+
+  // La clave de API es de servicio: no tiene persona ni rol detrás, así que
+  // vale como superadministrador. La usan los temporizadores de systemd.
+  const apiKey = request.headers['x-admin-key'];
+  if (apiKey && secretEquals(String(apiKey), config.admin.apiKey)) {
+    const ahora = new Date();
+    sesion = {
+      userId: null,
+      email: config.admin.email,
+      fullName: 'Clave de API',
+      roleKey: 'superadmin',
+      roleNameEs: 'Superadministrador',
+      roleNameEn: 'Super administrator',
+      locale: 'es',
+      isBootstrap: true,
+      permisos: permisosSuperadmin(),
+      token: 'api-key',
+      createdAt: ahora.toISOString(),
+      expiresAt: new Date(ahora.getTime() + config.admin.sessionTtlMinutes * 60000).toISOString()
+    };
+  } else {
+    const token = getBearerToken(request.headers);
+    if (!token) return reply.unauthorized('Missing admin credentials');
+    sesion = await iamSesionPorToken(pool, token, config.admin.email);
+    if (!sesion) return reply.unauthorized('Invalid or expired admin session');
+  }
+
+  (request as any).adminSession = sesion;
+
+  // Saber quién eres y salir no dependen de ninguna sección.
+  if (url === '/admin/auth/me' || url === '/admin/auth/logout') return;
+
+  const seccion = sectionForPath(url);
+  if (!seccion) {
+    // Ruta no mapeada: se trata como exclusiva del superadministrador en vez
+    // de dejarla abierta. Si aparece una ruta nueva, falla de forma visible y
+    // se añade al mapa, que es mejor que quedar accesible a todos los roles.
+    if (sesion.roleKey !== 'superadmin') {
+      return reply.forbidden(`Ruta sin sección asignada: ${url}`);
+    }
+    return;
+  }
+
+  const necesita = levelForMethod(request.method);
+  if (!alcanza(sesion.permisos[seccion], necesita)) {
+    return reply.forbidden(
+      `Tu rol no tiene permiso de ${necesita === 'edit' ? 'edición' : 'lectura'} en la sección "${seccion}"`
+    );
+  }
+});
 
 /**
  * Manejador global de errores.
@@ -290,6 +372,7 @@ await migrateCredentials(pool);
 await migrateCie(pool);
 await migrateSitePages(pool);
 await migrateCalendar(pool);
+await migrateIam(pool);
 await migrateShellAlerts(pool);
 
 async function loadPersistedMoodleConnection(): Promise<void> {
@@ -307,13 +390,15 @@ async function loadPersistedMoodleConnection(): Promise<void> {
 
 await loadPersistedMoodleConnection();
 
+/**
+ * Las sesiones caducadas se borran en la base. Se lanza sin esperar porque es
+ * mantenimiento: si falla una pasada, la siguiente petición lo reintenta, y
+ * `sesionPorToken` comprueba la caducidad de todas formas antes de aceptar.
+ */
 function cleanExpiredAdminSessions(): void {
-  const now = Date.now();
-  for (const [token, session] of adminSessions.entries()) {
-    if (Date.parse(session.expiresAt) <= now) {
-      adminSessions.delete(token);
-    }
-  }
+  void iamLimpiarSesiones(pool).catch((error) => {
+    app.log.warn({ error }, 'no se pudieron limpiar sesiones admin caducadas');
+  });
 }
 
 function cleanExpiredPublicSessions(): void {
@@ -618,32 +703,22 @@ async function buildMoodleCourseProgress(input: {
   };
 }
 
-function ensureAdmin(request: { headers: Record<string, unknown> }) {
-  cleanExpiredAdminSessions();
-  const apiKey = request.headers['x-admin-key'];
-  if (!apiKey || !secretEquals(String(apiKey), config.admin.apiKey)) {
-    const token = getBearerToken(request.headers);
-    if (!token) {
-      throw app.httpErrors.unauthorized('Missing admin credentials');
-    }
-
-    const session = adminSessions.get(token);
-    if (!session) {
-      throw app.httpErrors.unauthorized('Invalid admin session');
-    }
-
-    if (Date.parse(session.expiresAt) <= Date.now()) {
-      adminSessions.delete(token);
-      throw app.httpErrors.unauthorized('Expired admin session');
-    }
-    return session;
+/**
+ * Devuelve la sesión del panel para la petición en curso.
+ *
+ * El trabajo de verdad —resolver el token contra la base y comprobar permisos—
+ * lo hace el guardián `preHandler` de más abajo, que es asíncrono. Esta función
+ * se queda síncrona a propósito: la llaman unas noventa rutas y todos los
+ * módulos la reciben por parámetro, así que volverla asíncrona habría obligado
+ * a tocar todas esas llamadas. Aquí sólo se lee lo que el guardián ya dejó
+ * puesto en la petición.
+ */
+function ensureAdmin(request: any): AdminAuthSession {
+  const sesion = request?.adminSession as AdminAuthSession | undefined;
+  if (!sesion) {
+    throw app.httpErrors.unauthorized('Missing admin credentials');
   }
-  return {
-    token: 'api-key',
-    email: config.admin.email,
-    createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + config.admin.sessionTtlMinutes * 60000).toISOString()
-  };
+  return sesion;
 }
 
 function loadMoodleCategoriesFromDockerFallback(): NormalizedMoodleCategory[] {
@@ -2248,39 +2323,70 @@ const adminLoginSchema = z.object({
 
 app.post('/admin/auth/login', async (request, reply) => {
   const payload = adminLoginSchema.parse(request.body);
-  if (payload.email !== config.admin.email || payload.password !== config.admin.password) {
+
+  // Primero la tabla de usuarios, que es el caso normal.
+  let identidad = await iamAutenticar(pool, payload.email, payload.password);
+
+  // Y si no cuadra, la cuenta del .env. Se mantiene como puerta de rescate:
+  // si alguien deja la matriz de permisos en un estado que impide volver a
+  // entrar, esta cuenta no depende de la base y permite arreglarlo.
+  if (!identidad) {
+    const emailOk = secretEquals(payload.email, config.admin.email);
+    const claveOk = secretEquals(payload.password, config.admin.password);
+    if (emailOk && claveOk) {
+      identidad = {
+        userId: null,
+        email: config.admin.email,
+        fullName: 'Administrador (.env)',
+        roleKey: 'superadmin',
+        roleNameEs: 'Superadministrador',
+        roleNameEn: 'Super administrator',
+        locale: 'es',
+        isBootstrap: true,
+        permisos: permisosSuperadmin()
+      };
+    }
+  }
+
+  if (!identidad) {
     return reply.unauthorized('Invalid credentials');
   }
 
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + config.admin.sessionTtlMinutes * 60000);
-  const token = randomBytes(32).toString('hex');
-  const session: AdminAuthSession = {
-    token,
-    email: config.admin.email,
-    createdAt: now.toISOString(),
-    expiresAt: expiresAt.toISOString()
-  };
-  adminSessions.set(token, session);
+  const session = await iamCrearSesion(pool, identidad, config.admin.sessionTtlMinutes);
+  if (identidad.userId) {
+    await pool.query('UPDATE admin_users SET last_login_at = now() WHERE id = $1', [identidad.userId]);
+  }
 
   return {
     authenticated: true,
     token: session.token,
-    admin: {
-      email: session.email
-    },
+    admin: datosDeSesion(session),
     createdAt: session.createdAt,
     expiresAt: session.expiresAt
   };
 });
 
+/** Lo que el panel necesita saber de quien ha entrado, incluidos sus permisos. */
+function datosDeSesion(session: AdminAuthSession) {
+  return {
+    email: session.email,
+    fullName: session.fullName,
+    role: {
+      key: session.roleKey,
+      nameEs: session.roleNameEs,
+      nameEn: session.roleNameEn
+    },
+    locale: session.locale,
+    isBootstrap: session.isBootstrap,
+    permisos: session.permisos
+  };
+}
+
 app.get('/admin/auth/me', async (request) => {
   const session = ensureAdmin(request);
   return {
     authenticated: true,
-    admin: {
-      email: session.email
-    },
+    admin: datosDeSesion(session),
     createdAt: session.createdAt,
     expiresAt: session.expiresAt
   };
@@ -2289,7 +2395,7 @@ app.get('/admin/auth/me', async (request) => {
 app.post('/admin/auth/logout', async (request) => {
   const token = getBearerToken(request.headers);
   if (token) {
-    adminSessions.delete(token);
+    await iamCerrarSesion(pool, token);
   }
   return { loggedOut: true };
 });
@@ -3935,6 +4041,7 @@ registerSisRoutes(app, {
   }
 });
 registerCrmRoutes(app, { pool, ensureAdmin });
+registerIamRoutes(app, { pool, ensureAdmin });
 registerSyllabusRoutes(app, {
   pool,
   ensureAdmin,
