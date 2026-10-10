@@ -26,6 +26,12 @@ import { BackofficeView } from './admin/views/BackofficeView';
 import { CredentialsView } from './admin/views/CredentialsView';
 import { CieChecklistView } from './admin/views/CieChecklistView';
 import { CalendarView } from './admin/views/CalendarView';
+import RolesView from './admin/views/RolesView';
+import OverviewView from './admin/views/OverviewView';
+import ReportsView from './admin/views/ReportsView';
+import { useTranslation } from 'react-i18next';
+import { BRAND, BRAND_SHORT } from '../i18n';
+import type { AdminIdentity, PermissionLevel } from '../lib/api';
 
 type AdminDashboardBase = {
   config: AdminConfig;
@@ -57,7 +63,9 @@ type PanelSection =
   | 'calendar'
   | 'backoffice'
   | 'credentials'
-  | 'routes';
+  | 'routes'
+  | 'reports'
+  | 'roles';
 
 // La navegación del panel es datos, no dieciséis botones escritos a mano: el
 // armazón recorre esta tabla para pintar la barra lateral y para resolver el
@@ -65,51 +73,63 @@ type PanelSection =
 type NavItem = { id: PanelSection; label: string; hint: string };
 type NavGroup = { label: string; items: NavItem[] };
 
+/**
+ * La navegación es datos, no botones escritos a mano. Ahora además guarda
+ * CLAVES de traducción en vez de texto: el panel lo usan personas que sólo
+ * hablan inglés y personas que sólo hablan español, así que el rótulo se
+ * resuelve al pintar, no al declarar.
+ *
+ * El `id` de cada entrada es además el identificador de sección que usa el
+ * servidor para los permisos, así que esta tabla y la matriz de roles hablan
+ * del mismo vocabulario sin necesidad de traducirlo entre capas.
+ */
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Operación',
+    label: 'admin.nav.grupos.operacion',
     items: [
-      { id: 'overview', label: 'Resumen', hint: 'Estado de la plataforma' },
-      { id: 'users', label: 'Usuarios', hint: 'Cuentas y matrículas' },
-      { id: 'courses', label: 'Cursos', hint: 'Catálogo y sincronización' },
-      { id: 'enterprise', label: 'Departamentos', hint: 'Empresas y programas B2B' },
-    ],
+      { id: 'overview', label: 'admin.nav.overview.label', hint: 'admin.nav.overview.hint' },
+      { id: 'reports', label: 'admin.nav.reports.label', hint: 'admin.nav.reports.hint' },
+      { id: 'users', label: 'admin.nav.users.label', hint: 'admin.nav.users.hint' },
+      { id: 'courses', label: 'admin.nav.courses.label', hint: 'admin.nav.courses.hint' },
+      { id: 'enterprise', label: 'admin.nav.enterprise.label', hint: 'admin.nav.enterprise.hint' }
+    ]
   },
   {
-    label: 'Académico',
+    label: 'admin.nav.grupos.academico',
     items: [
-      { id: 'sis', label: 'SIS / Académico', hint: 'Expedientes y periodos' },
-      { id: 'calendar', label: 'Calendario y aulas', hint: 'Cadencia semanal y aulas listas' },
-      { id: 'compliance', label: 'Sílabos y cumplimiento', hint: 'Master Syllabus de 24 secciones' },
-    ],
+      { id: 'sis', label: 'admin.nav.sis.label', hint: 'admin.nav.sis.hint' },
+      { id: 'calendar', label: 'admin.nav.calendar.label', hint: 'admin.nav.calendar.hint' },
+      { id: 'compliance', label: 'admin.nav.compliance.label', hint: 'admin.nav.compliance.hint' }
+    ]
   },
   {
-    label: 'Admisiones',
-    items: [{ id: 'crm', label: 'CRM / Admisión', hint: 'Prospectos y postulaciones' }],
+    label: 'admin.nav.grupos.admisiones',
+    items: [{ id: 'crm', label: 'admin.nav.crm.label', hint: 'admin.nav.crm.hint' }]
   },
   {
-    label: 'Acreditación',
+    label: 'admin.nav.grupos.acreditacion',
     items: [
-      { id: 'cie', label: 'Checklist CIE', hint: 'Evidencia documental por programa' },
-      { id: 'credentials', label: 'Credenciales', hint: 'Insignias y certificados' },
-    ],
+      { id: 'cie', label: 'admin.nav.cie.label', hint: 'admin.nav.cie.hint' },
+      { id: 'credentials', label: 'admin.nav.credentials.label', hint: 'admin.nav.credentials.hint' }
+    ]
   },
   {
-    label: 'Contenido',
+    label: 'admin.nav.grupos.contenido',
     items: [
-      { id: 'webinars', label: 'Seminarios', hint: 'Sesiones en vivo' },
-      { id: 'podcasts', label: 'Podcasts', hint: 'Audio y video' },
-    ],
+      { id: 'webinars', label: 'admin.nav.webinars.label', hint: 'admin.nav.webinars.hint' },
+      { id: 'podcasts', label: 'admin.nav.podcasts.label', hint: 'admin.nav.podcasts.hint' }
+    ]
   },
   {
-    label: 'Sistema',
+    label: 'admin.nav.grupos.sistema',
     items: [
-      { id: 'connections', label: 'Conexiones', hint: 'Moodle y base de datos' },
-      { id: 'integrations', label: 'Integraciones', hint: 'Servicios externos' },
-      { id: 'backoffice', label: 'Back-office', hint: 'Nómina y contabilidad' },
-      { id: 'routes', label: 'Rutas API', hint: 'Endpoints registrados' },
-    ],
-  },
+      { id: 'connections', label: 'admin.nav.connections.label', hint: 'admin.nav.connections.hint' },
+      { id: 'integrations', label: 'admin.nav.integrations.label', hint: 'admin.nav.integrations.hint' },
+      { id: 'backoffice', label: 'admin.nav.backoffice.label', hint: 'admin.nav.backoffice.hint' },
+      { id: 'routes', label: 'admin.nav.routes.label', hint: 'admin.nav.routes.hint' },
+      { id: 'roles', label: 'admin.nav.roles.label', hint: 'admin.nav.roles.hint' }
+    ]
+  }
 ];
 
 const NAV_INDEX: Record<PanelSection, NavItem> = NAV_GROUPS.reduce(
@@ -169,6 +189,14 @@ const PAGE_SIZE = 20;
 
 export function AdminApp() {
   const [sessionToken, setSessionToken] = useState<string>(() => localStorage.getItem(ADMIN_SESSION_STORAGE) ?? '');
+  const { t, i18n } = useTranslation();
+  /**
+   * Quién ha entrado y qué puede tocar. Mientras es null el panel no sabe
+   * todavía sus permisos, así que la barra lateral no pinta secciones: es
+   * preferible un instante de menú vacío a enseñar secciones que luego
+   * desaparecen al llegar la respuesta.
+   */
+  const [identidad, setIdentidad] = useState<AdminIdentity | null>(null);
   const [loginEmail, setLoginEmail] = useState('admin@atlas.edu');
   const [loginPassword, setLoginPassword] = useState('');
   const [activeSection, setActiveSection] = useState<PanelSection>('overview');
@@ -270,6 +298,22 @@ export function AdminApp() {
 
   const isLoggedIn = sessionToken.length > 0;
 
+  /** Nivel que tiene la persona en una sección. */
+  const nivelDe = (seccion: string): PermissionLevel => identidad?.permisos?.[seccion] ?? 'none';
+  const puedeVer = (seccion: string) => nivelDe(seccion) !== 'none';
+  const puedeEditar = (seccion: string) => nivelDe(seccion) === 'edit';
+
+  /**
+   * La barra lateral sólo muestra lo que la persona puede abrir, y los grupos
+   * que se quedan sin entradas desaparecen enteros. Esto es presentación: el
+   * servidor vuelve a comprobar cada permiso en cada petición, así que ocultar
+   * aquí es comodidad, no la medida de seguridad.
+   */
+  const gruposVisibles = NAV_GROUPS.map((grupo) => ({
+    ...grupo,
+    items: grupo.items.filter((item) => puedeVer(item.id))
+  })).filter((grupo) => grupo.items.length > 0);
+
   const routeSummary = useMemo(() => {
     if (!baseData) {
       return { get: 0, post: 0, others: 0 };
@@ -312,7 +356,7 @@ export function AdminApp() {
         token: current.token
       }));
     } catch (reason) {
-      const message = reason instanceof Error ? reason.message : 'Error cargando datos del admin';
+      const message = reason instanceof Error ? reason.message : t('admin.shell.errores.cargarBase');
       setError(message);
       if (message.includes('401')) {
         onLogout();
@@ -334,7 +378,7 @@ export function AdminApp() {
       setUsersData(response);
       setSelectedUserIds((current) => current.filter((id) => response.items.some((user) => user.id === id)));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando usuarios');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.errores.cargarUsuarios'));
     } finally {
       setLoadingUsers(false);
     }
@@ -356,7 +400,7 @@ export function AdminApp() {
       });
       setCoursesData(response);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando cursos');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.errores.cargarCursos'));
     } finally {
       setLoadingCourses(false);
     }
@@ -369,7 +413,7 @@ export function AdminApp() {
       const response = await api.admin.webinars(token);
       setWebinarsData(response);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando webinars');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.errores.cargarWebinars'));
     } finally {
       setLoadingWebinars(false);
     }
@@ -381,7 +425,7 @@ export function AdminApp() {
       const response = await api.admin.podcasts(token);
       setPodcastsData(response);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando podcasts');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.errores.cargarPodcasts'));
     } finally {
       setLoadingPodcasts(false);
     }
@@ -394,20 +438,40 @@ export function AdminApp() {
     }
 
     const bootstrap = async () => {
+      // Sólo /admin/auth/me decide si la sesión vale. Antes se cargaban aquí
+      // los datos de media docena de secciones dentro del mismo try, así que
+      // un 403 en CUALQUIERA de ellas cerraba la sesión. Con permisos por rol
+      // eso dejaba fuera a todo el que no fuera superadministrador: la persona
+      // de contenido entraba y salía despedida porque no puede leer usuarios.
+      let sesion;
       try {
-        await api.admin.me(sessionToken);
-        await Promise.all([
-          loadBase(sessionToken),
-          loadUsers(sessionToken),
-          loadCourses(sessionToken),
-
-          
-          loadWebinars(sessionToken),
-          loadPodcasts(sessionToken)
-        ]);
+        sesion = await api.admin.me(sessionToken);
       } catch {
         onLogout();
+        return;
       }
+
+      setIdentidad(sesion.admin);
+      // El panel arranca en el idioma de la persona, no en el del navegador.
+      if (sesion.admin?.locale) {
+        void i18n.changeLanguage(sesion.admin.locale);
+      }
+
+      // Cada carga va por su cuenta y se traga su propio fallo: lo que no se
+      // pueda leer simplemente no se pinta, y la sesión sigue en pie.
+      const permisos = sesion.admin?.permisos ?? {};
+      const siPuede = (seccion: string, fn: () => Promise<unknown>) =>
+        permisos[seccion] && permisos[seccion] !== 'none'
+          ? fn().catch(() => undefined)
+          : Promise.resolve();
+
+      await Promise.all([
+        siPuede('overview', () => loadBase(sessionToken)),
+        siPuede('users', () => loadUsers(sessionToken)),
+        siPuede('courses', () => loadCourses(sessionToken)),
+        siPuede('webinars', () => loadWebinars(sessionToken)),
+        siPuede('podcasts', () => loadPodcasts(sessionToken))
+      ]);
     };
 
     void bootstrap();
@@ -436,10 +500,11 @@ export function AdminApp() {
       const session = await api.admin.login(loginEmail.trim(), loginPassword);
       localStorage.setItem(ADMIN_SESSION_STORAGE, session.token);
       setSessionToken(session.token);
+      setIdentidad(session.admin);
       setLoginPassword('');
-      setInfo(`Sesión iniciada. Expira: ${new Date(session.expiresAt).toLocaleString()}`);
+      setInfo(t('admin.sesion.iniciada', { fecha: new Date(session.expiresAt).toLocaleString() }));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error de inicio de sesión');
+      setError(reason instanceof Error ? reason.message : t('admin.sesion.errorEntrar'));
     }
   };
 
@@ -508,10 +573,10 @@ export function AdminApp() {
       };
       if (editingWebinarId) {
         const updated = await api.admin.updateWebinar(sessionToken, editingWebinarId, payload);
-        setInfo(`Seminario actualizado: ${updated.webinar.title}`);
+        setInfo(t('admin.shell.webinars.actualizado', { titulo: updated.webinar.title }));
       } else {
         const created = await api.admin.createWebinar(sessionToken, payload);
-        setInfo(`Seminario creado: ${created.webinar.title}`);
+        setInfo(t('admin.shell.webinars.creado', { titulo: created.webinar.title }));
       }
       setWebinarForm((current) => ({
         ...current,
@@ -530,7 +595,7 @@ export function AdminApp() {
       setEditingWebinarId(null);
       await Promise.all([loadWebinars(sessionToken), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo guardar el webinar');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.webinars.errorGuardar'));
     } finally {
       setCreatingWebinar(false);
     }
@@ -597,12 +662,15 @@ export function AdminApp() {
     try {
       const response = await api.admin.updateWebinar(sessionToken, webinarId, payload);
       setInfo(
-        `Seminario actualizado: ${response.webinar.title} · activo=${response.webinar.is_active ? 'sí' : 'no'} · landing=${response.webinar.show_on_landing ? 'sí' : 'no'
-        }`
+        t('admin.shell.webinars.flagActualizado', {
+          titulo: response.webinar.title,
+          activo: response.webinar.is_active ? t('admin.shell.comun.si') : t('admin.shell.comun.no'),
+          landing: response.webinar.show_on_landing ? t('admin.shell.comun.si') : t('admin.shell.comun.no')
+        })
       );
       await Promise.all([loadWebinars(sessionToken), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar webinar');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.webinars.errorActualizar'));
     }
   };
 
@@ -614,10 +682,10 @@ export function AdminApp() {
     setInfo(null);
     try {
       await api.admin.deleteWebinar(sessionToken, webinarId);
-      setInfo('Seminario eliminado.');
+      setInfo(t('admin.shell.webinars.eliminado'));
       await Promise.all([loadWebinars(sessionToken), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo eliminar webinar');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.webinars.errorEliminar'));
     }
   };
 
@@ -640,10 +708,10 @@ export function AdminApp() {
       };
       if (editingPodcastId) {
         const updated = await api.admin.updatePodcast(sessionToken, editingPodcastId, payload);
-        setInfo(`Podcast actualizado: ${updated.podcast.title}`);
+        setInfo(t('admin.shell.podcasts.actualizado', { titulo: updated.podcast.title }));
       } else {
         const created = await api.admin.createPodcast(sessionToken, payload);
-        setInfo(`Podcast creado: ${created.podcast.title}`);
+        setInfo(t('admin.shell.podcasts.creado', { titulo: created.podcast.title }));
       }
       setPodcastForm({
         title: '',
@@ -656,7 +724,7 @@ export function AdminApp() {
       setEditingPodcastId(null);
       await Promise.all([loadPodcasts(sessionToken), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo guardar el podcast');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.podcasts.errorGuardar'));
     } finally {
       setCreatingPodcast(false);
     }
@@ -698,12 +766,15 @@ export function AdminApp() {
     try {
       const response = await api.admin.updatePodcast(sessionToken, podcastId, payload);
       setInfo(
-        `Podcast actualizado: ${response.podcast.title} · activo=${response.podcast.is_active ? 'sí' : 'no'} · landing=${response.podcast.show_on_landing ? 'sí' : 'no'
-        }`
+        t('admin.shell.podcasts.flagActualizado', {
+          titulo: response.podcast.title,
+          activo: response.podcast.is_active ? t('admin.shell.comun.si') : t('admin.shell.comun.no'),
+          landing: response.podcast.show_on_landing ? t('admin.shell.comun.si') : t('admin.shell.comun.no')
+        })
       );
       await Promise.all([loadPodcasts(sessionToken), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar podcast');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.podcasts.errorActualizar'));
     }
   };
 
@@ -715,10 +786,10 @@ export function AdminApp() {
     setInfo(null);
     try {
       await api.admin.deletePodcast(sessionToken, podcastId);
-      setInfo('Podcast eliminado.');
+      setInfo(t('admin.shell.podcasts.eliminado'));
       await Promise.all([loadPodcasts(sessionToken), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo eliminar podcast');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.podcasts.errorEliminar'));
     }
   };
 
@@ -734,15 +805,18 @@ export function AdminApp() {
     try {
       const result = await api.admin.moodleSyncCourses(sessionToken);
       if (!result.synced) {
-        setInfo(result.error ?? 'Fallo de sincronización de cursos');
+        setInfo(result.error ?? t('admin.shell.sync.falloCursos'));
       } else {
         setInfo(
-          `Cursos sincronizados: ${result.totalCourses ?? 0}, catálogo actualizado: ${result.upsertedCatalogAssets ?? 0}.`
+          t('admin.shell.sync.cursosOk', {
+            total: result.totalCourses ?? 0,
+            catalogo: result.upsertedCatalogAssets ?? 0
+          })
         );
       }
       await Promise.all([loadBase(sessionToken), loadCourses(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error sync cursos');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.sync.errorCursos'));
     } finally {
       setSyncingMoodleCourses(false);
     }
@@ -754,11 +828,11 @@ export function AdminApp() {
       return;
     }
     if (!moodleConnectionForm.baseUrl.trim()) {
-      setError('Debes indicar la URL base de Moodle.');
+      setError(t('admin.shell.conexiones.faltaUrl'));
       return;
     }
     if (!moodleConnectionForm.token.trim() && !baseData?.config.moodle.tokenSet) {
-      setError('Debes indicar el token de Moodle.');
+      setError(t('admin.shell.conexiones.faltaToken'));
       return;
     }
     setSavingMoodleConfig(true);
@@ -769,11 +843,11 @@ export function AdminApp() {
         baseUrl: moodleConnectionForm.baseUrl.trim(),
         token: moodleConnectionForm.token.trim() || undefined
       });
-      setInfo(`Conexión Moodle actualizada: ${result.baseUrl}`);
+      setInfo(t('admin.shell.conexiones.guardada', { url: result.baseUrl }));
       setMoodleConnectionForm((current) => ({ ...current, token: '' }));
       await Promise.all([loadBase(sessionToken), loadCourses(sessionToken), loadUsers(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar conexión Moodle');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.conexiones.errorGuardar'));
     } finally {
       setSavingMoodleConfig(false);
     }
@@ -789,12 +863,15 @@ export function AdminApp() {
     try {
       const result = await api.admin.moodleSyncCategories(sessionToken);
       setInfo(
-        `Categorías sincronizadas: ${result.totalCategories}, actualizadas: ${result.upsertedCategories}${result.source ? ` (${result.source})` : ''
-        }.`
+        t('admin.shell.sync.categoriasOk', {
+          total: result.totalCategories,
+          actualizadas: result.upsertedCategories,
+          origen: result.source ? ` (${result.source})` : ''
+        })
       );
       await Promise.all([loadBase(sessionToken), loadCourses(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error sync categorías');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.sync.errorCategorias'));
     } finally {
       setSyncingMoodleCategories(false);
     }
@@ -812,11 +889,15 @@ export function AdminApp() {
     try {
       const result = await api.admin.moodleSyncUsers(sessionToken);
       setInfo(
-        `Usuarios sincronizados: ${result.totalUsers}, actualizados: ${result.upsertedUsers}, matrículas: ${result.enrollmentLinks}.`
+        t('admin.shell.sync.usuariosOk', {
+          total: result.totalUsers,
+          actualizados: result.upsertedUsers,
+          matriculas: result.enrollmentLinks
+        })
       );
       await Promise.all([loadBase(sessionToken), loadUsers(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error sync usuarios');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.sync.errorUsuarios'));
     } finally {
       setSyncingMoodleUsers(false);
     }
@@ -832,12 +913,15 @@ export function AdminApp() {
     try {
       const result = await api.admin.moodleSyncAll(sessionToken);
       setInfo(
-        `Sync completo OK. Categorías: ${result.categories.upsertedCategories}, cursos: ${result.courses.upsertedCourses ?? 0
-        }, usuarios: ${result.users.upsertedUsers}.`
+        t('admin.shell.sync.completoOk', {
+          categorias: result.categories.upsertedCategories,
+          cursos: result.courses.upsertedCourses ?? 0,
+          usuarios: result.users.upsertedUsers
+        })
       );
       await Promise.all([loadBase(sessionToken), loadCourses(sessionToken), loadUsers(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error en sync completo');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.sync.errorCompleto'));
     } finally {
       setSyncingMoodleAll(false);
     }
@@ -861,11 +945,16 @@ export function AdminApp() {
         roles: ['learner']
       });
 
-      setInfo(`Usuario creado: ${response.user.full_name}. Clave temporal Moodle: ${response.temporaryPassword}`);
+      setInfo(
+        t('admin.shell.usuarios.creado', {
+          nombre: response.user.full_name,
+          clave: response.temporaryPassword
+        })
+      );
       setNewUser({ fullName: '', email: '', locale: 'es' });
       await Promise.all([loadBase(sessionToken), loadUsers(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear el usuario');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.usuarios.errorCrear'));
     } finally {
       setCreatingUser(false);
     }
@@ -881,7 +970,7 @@ export function AdminApp() {
       const response = await api.admin.userCourses(sessionToken, targetUserId);
       setSelectedUserCourses(response);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudieron cargar cursos del usuario');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.usuarios.errorCursos'));
     }
   };
 
@@ -900,11 +989,11 @@ export function AdminApp() {
         moodleCourseId: Number(selectedCourseId),
         roleId: 5
       });
-      setInfo('Matrícula aplicada correctamente.');
+      setInfo(t('admin.shell.usuarios.matriculaOk'));
       await Promise.all([loadBase(sessionToken), loadUsers(sessionToken)]);
       await onLoadUserCourses();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo matricular el usuario');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.usuarios.errorMatricular'));
     } finally {
       setEnrollingUser(false);
     }
@@ -920,10 +1009,14 @@ export function AdminApp() {
 
     try {
       await api.admin.updateUserStatus(sessionToken, userId, { status, syncMoodle: true });
-      setInfo(`Usuario ${status === 'inactive' ? 'desactivado' : 'activado'} y sincronizado con Moodle.`);
+      setInfo(
+        status === 'inactive'
+          ? t('admin.shell.usuarios.desactivado')
+          : t('admin.shell.usuarios.activado')
+      );
       await Promise.all([loadBase(sessionToken), loadUsers(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar el estado del usuario');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.usuarios.errorEstado'));
     }
   };
 
@@ -942,13 +1035,21 @@ export function AdminApp() {
         syncMoodle: true
       });
       setInfo(
-        `Proceso masivo: ${response.processed}/${response.requested} usuarios ${status === 'inactive' ? 'desactivados' : 'activados'
-        }. Fallos: ${response.failures.length}.`
+        t(
+          status === 'inactive'
+            ? 'admin.shell.usuarios.masivoDesactivados'
+            : 'admin.shell.usuarios.masivoActivados',
+          {
+            procesados: response.processed,
+            solicitados: response.requested,
+            fallos: response.failures.length
+          }
+        )
       );
       setSelectedUserIds([]);
       await Promise.all([loadBase(sessionToken), loadUsers(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar usuarios en bulk');
+      setError(reason instanceof Error ? reason.message : t('admin.shell.usuarios.errorMasivo'));
     }
   };
 
@@ -970,11 +1071,26 @@ export function AdminApp() {
     return (
       <main className="admin-shell">
         <section className="login-card">
-          <p className="eyebrow">UNIVERSITY ADMIN</p>
-          <h1>Iniciar sesión</h1>
-          <p>Panel central del intermediador. Desde aquí se administra usuarios, cursos, rutas y conexiones con Moodle.</p>
+          {/* El selector de idioma va también aquí: si alguien no entiende la
+              pantalla de acceso, no llega nunca al de dentro. */}
+          <div className="admin-idioma" role="group" aria-label={t('admin.idioma.aria')}>
+            {(['es', 'en'] as const).map((lng) => (
+              <button
+                key={lng}
+                type="button"
+                className={`admin-idioma-btn${i18n.language?.startsWith(lng) ? ' active' : ''}`}
+                aria-pressed={i18n.language?.startsWith(lng)}
+                onClick={() => void i18n.changeLanguage(lng)}
+              >
+                {lng.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <p className="eyebrow">{t('admin.sesion.eyebrow')}</p>
+          <h1>{t('admin.sesion.titulo')}</h1>
+          <p>{t('admin.sesion.intro')}</p>
           <form onSubmit={onLogin} className="login-form">
-            <label htmlFor="admin-email">Correo admin</label>
+            <label htmlFor="admin-email">{t('admin.sesion.correo')}</label>
             <input
               id="admin-email"
               type="email"
@@ -983,7 +1099,7 @@ export function AdminApp() {
               placeholder="admin@atlas.edu"
               required
             />
-            <label htmlFor="admin-password">Contraseña</label>
+            <label htmlFor="admin-password">{t('admin.sesion.contrasena')}</label>
             <input
               id="admin-password"
               type="password"
@@ -992,7 +1108,7 @@ export function AdminApp() {
               placeholder="******"
               required
             />
-            <button type="submit">Entrar</button>
+            <button type="submit">{t('admin.sesion.entrar')}</button>
           </form>
           {error ? <p className="error-msg">{error}</p> : null}
         </section>
@@ -1007,18 +1123,18 @@ export function AdminApp() {
       <aside className="admin-sidebar">
         <div className="admin-brand">
           <span className="admin-brand-mark" aria-hidden="true">
-            TFU
+            {BRAND_SHORT}
           </span>
           <span className="admin-brand-text">
-            <strong>The Floridian University</strong>
-            Panel administrativo
+            <strong>{BRAND}</strong>
+            {t('admin.subtitulo')}
           </span>
         </div>
 
-        <nav className="admin-nav" aria-label="Secciones del panel">
-          {NAV_GROUPS.map((group) => (
+        <nav className="admin-nav" aria-label={t('admin.nav.aria')}>
+          {gruposVisibles.map((group) => (
             <div className="admin-nav-group" key={group.label}>
-              <p className="admin-nav-group-label">{group.label}</p>
+              <p className="admin-nav-group-label">{t(group.label)}</p>
               {group.items.map((item) => (
                 <button
                   key={item.id}
@@ -1027,7 +1143,12 @@ export function AdminApp() {
                   aria-current={activeSection === item.id ? 'page' : undefined}
                   onClick={() => setActiveSection(item.id)}
                 >
-                  {item.label}
+                  <span className="admin-nav-item-label">{t(item.label)}</span>
+                  {nivelDe(item.id) === 'view' ? (
+                    <span className="admin-nav-solo-lectura" title={t('admin.nav.soloLecturaTitulo')}>
+                      {t('admin.nav.soloLectura')}
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -1035,8 +1156,16 @@ export function AdminApp() {
         </nav>
 
         <div className="admin-sidebar-foot">
+          {identidad ? (
+            <div className="admin-quien">
+              {/* La cuenta del .env no tiene nombre de persona: el servidor manda
+                  una etiqueta fija, y el rótulo lo pone el panel en su idioma. */}
+              <strong>{identidad.isBootstrap ? t('admin.cuentaArranque') : identidad.fullName}</strong>
+              <span>{i18n.language === 'en' ? identidad.role.nameEn : identidad.role.nameEs}</span>
+            </div>
+          ) : null}
           <button type="button" className="admin-nav-item logout" onClick={onLogout}>
-            Cerrar sesión
+            {t('admin.sesion.salir')}
           </button>
         </div>
       </aside>
@@ -1044,17 +1173,34 @@ export function AdminApp() {
       <div className="admin-main">
         <header className="admin-topbar">
           <div className="admin-topbar-title">
-            <h1>{currentNav?.label ?? 'Panel administrativo'}</h1>
-            {currentNav?.hint ? <p>{currentNav.hint}</p> : null}
+            <h1>{currentNav ? t(currentNav.label) : t('admin.tituloPanel')}</h1>
+            {currentNav?.hint ? <p>{t(currentNav.hint)}</p> : null}
           </div>
           <div className="admin-topbar-actions">
+            {/* El selector es de dos botones y no un desplegable a propósito:
+                con sólo dos idiomas, un desplegable esconde la opción detrás
+                de un clic de más, y quien no entiende la interfaz es
+                justamente quien necesita encontrarlo rápido. */}
+            <div className="admin-idioma" role="group" aria-label={t('admin.idioma.aria')}>
+              {(['es', 'en'] as const).map((lng) => (
+                <button
+                  key={lng}
+                  type="button"
+                  className={`admin-idioma-btn${i18n.language?.startsWith(lng) ? ' active' : ''}`}
+                  aria-pressed={i18n.language?.startsWith(lng)}
+                  onClick={() => void i18n.changeLanguage(lng)}
+                >
+                  {lng.toUpperCase()}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               className="ghost"
               onClick={() => void onSyncMoodleAll()}
               disabled={syncingMoodleAll || syncingMoodleCourses || syncingMoodleCategories || syncingMoodleUsers}
             >
-              {syncingMoodleAll ? 'Sincronizando…' : 'Sync Moodle'}
+              {syncingMoodleAll ? t('admin.shell.topbar.sincronizando') : t('admin.shell.topbar.syncMoodle')}
             </button>
             <button
               type="button"
@@ -1063,8 +1209,8 @@ export function AdminApp() {
               disabled={loadingBase || loadingUsers || loadingCourses || loadingWebinars || loadingPodcasts}
             >
               {loadingBase || loadingUsers || loadingCourses || loadingWebinars || loadingPodcasts
-                ? 'Actualizando…'
-                : 'Actualizar'}
+                ? t('admin.shell.topbar.actualizando')
+                : t('admin.shell.topbar.actualizar')}
             </button>
           </div>
         </header>
@@ -1075,106 +1221,78 @@ export function AdminApp() {
       {info ? <p className="info-msg">{info}</p> : null}
 
       {!baseData ? (
-        <section className="status-card">Cargando panel...</section>
+        <section className="status-card">{t('admin.shell.comun.cargandoPanel')}</section>
       ) : (
         <>
           {activeSection === 'overview' ? (
-            <section className="grid-4">
-              <article className="card metric">
-                <h2>Rutas registradas</h2>
-                <strong>{baseData.status.routes.total}</strong>
-                <span>
-                  GET {routeSummary.get} | POST {routeSummary.post} | OTROS {routeSummary.others}
-                </span>
-              </article>
-              <article className="card metric">
-                <h2>Base de datos</h2>
-                <strong>{baseData.status.db.database ?? 'n/a'}</strong>
-                <span>Sesiones activas: {baseData.status.db.activeSessions}</span>
-              </article>
-              <article className="card metric">
-                <h2>Moodle</h2>
-                <strong>{baseData.status.moodle.connected ? 'Conectado' : 'Sin conexión'}</strong>
-                <span>{baseData.status.moodle.error ?? 'Sin errores reportados'}</span>
-              </article>
-              <article className="card metric">
-                <h2>Usuarios</h2>
-                <strong>{baseData.status.db.entities.users}</strong>
-                <span>Matrículas: {baseData.status.db.entities.userEnrollments}</span>
-              </article>
-              <article className="card metric">
-                <h2>Cursos y categorías</h2>
-                <strong>{baseData.status.db.entities.moodleCourses}</strong>
-                <span>Categorías Moodle: {baseData.status.db.entities.moodleCategories}</span>
-              </article>
-              <article className="card metric">
-                <h2>Seminarios</h2>
-                <strong>{baseData.status.db.entities.webinars}</strong>
-                <span>Configurables desde este panel</span>
-              </article>
-              <article className="card metric">
-                <h2>Clases magistrales</h2>
-                <strong>{baseData.status.db.entities.podcasts}</strong>
-                <span>Videos de YouTube en landing</span>
-              </article>
-              <article className="card metric">
-                <h2>Departamentos</h2>
-                <strong>{baseData.status.db.entities.companies}</strong>
-                <span>Estudiantes activos: {baseData.status.db.entities.companyMembers}</span>
-              </article>
-              <article className="card metric">
-                <h2>Último sync</h2>
-                <strong>
-                  {baseData.status.moodle.lastCoursesSync?.syncedAt
-                    ? new Date(baseData.status.moodle.lastCoursesSync.syncedAt).toLocaleString()
-                    : 'nunca'}
-                </strong>
-                <span>
-                  Cat: {baseData.status.moodle.lastCategoriesSync?.syncedAt
-                    ? new Date(baseData.status.moodle.lastCategoriesSync.syncedAt).toLocaleString()
-                    : 'nunca'}
-                </span>
-              </article>
-            </section>
+            <OverviewView token={sessionToken} locale={i18n.language?.startsWith('en') ? 'en' : 'es'} />
           ) : null}
 
           {activeSection === 'connections' ? (
             <section className="grid-2">
               <article className="card">
-                <h2>Estado de conexiones</h2>
+                <h2>{t('admin.shell.conexiones.estadoTitulo')}</h2>
                 <ul className="clean-list">
-                  <li>DB conectada: {baseData.status.db.connected ? 'sí' : 'no'}</li>
-                  <li>Moodle configurado: {baseData.status.moodle.configured ? 'sí' : 'no'}</li>
-                  <li>Moodle conectado: {baseData.status.moodle.connected ? 'sí' : 'no'}</li>
                   <li>
-                    Último sync cursos:{' '}
-                    {baseData.status.moodle.lastCoursesSync?.syncedAt
-                      ? new Date(baseData.status.moodle.lastCoursesSync.syncedAt).toLocaleString()
-                      : 'nunca'}
+                    {t('admin.shell.conexiones.db', {
+                      valor: baseData.status.db.connected
+                        ? t('admin.shell.comun.si')
+                        : t('admin.shell.comun.no')
+                    })}
                   </li>
                   <li>
-                    Último sync usuarios:{' '}
-                    {baseData.status.moodle.lastUsersSync?.syncedAt
-                      ? new Date(baseData.status.moodle.lastUsersSync.syncedAt).toLocaleString()
-                      : 'nunca'}
+                    {t('admin.shell.conexiones.moodleConfigurado', {
+                      valor: baseData.status.moodle.configured
+                        ? t('admin.shell.comun.si')
+                        : t('admin.shell.comun.no')
+                    })}
                   </li>
                   <li>
-                    Último sync categorías:{' '}
-                    {baseData.status.moodle.lastCategoriesSync?.syncedAt
-                      ? new Date(baseData.status.moodle.lastCategoriesSync.syncedAt).toLocaleString()
-                      : 'nunca'}
+                    {t('admin.shell.conexiones.moodleConectado', {
+                      valor: baseData.status.moodle.connected
+                        ? t('admin.shell.comun.si')
+                        : t('admin.shell.comun.no')
+                    })}
                   </li>
                   <li>
-                    API: {baseData.config.server.host}:{baseData.config.server.port}
+                    {t('admin.shell.conexiones.ultimoSyncCursos', {
+                      fecha: baseData.status.moodle.lastCoursesSync?.syncedAt
+                        ? new Date(baseData.status.moodle.lastCoursesSync.syncedAt).toLocaleString()
+                        : t('admin.shell.comun.nunca')
+                    })}
                   </li>
-                  <li>Moodle URL: {baseData.config.moodle.baseUrl ?? 'no configurado'}</li>
+                  <li>
+                    {t('admin.shell.conexiones.ultimoSyncUsuarios', {
+                      fecha: baseData.status.moodle.lastUsersSync?.syncedAt
+                        ? new Date(baseData.status.moodle.lastUsersSync.syncedAt).toLocaleString()
+                        : t('admin.shell.comun.nunca')
+                    })}
+                  </li>
+                  <li>
+                    {t('admin.shell.conexiones.ultimoSyncCategorias', {
+                      fecha: baseData.status.moodle.lastCategoriesSync?.syncedAt
+                        ? new Date(baseData.status.moodle.lastCategoriesSync.syncedAt).toLocaleString()
+                        : t('admin.shell.comun.nunca')
+                    })}
+                  </li>
+                  <li>
+                    {t('admin.shell.conexiones.api', {
+                      host: baseData.config.server.host,
+                      puerto: baseData.config.server.port
+                    })}
+                  </li>
+                  <li>
+                    {t('admin.shell.conexiones.moodleUrl', {
+                      url: baseData.config.moodle.baseUrl ?? t('admin.shell.comun.noConfigurado')
+                    })}
+                  </li>
                 </ul>
               </article>
 
               <article className="card">
-                <h2>Configuración de Moodle</h2>
+                <h2>{t('admin.shell.conexiones.configTitulo')}</h2>
                 <form className="login-form" onSubmit={onSaveMoodleConnection}>
-                  <label htmlFor="moodle-base-url">URL base Moodle</label>
+                  <label htmlFor="moodle-base-url">{t('admin.shell.conexiones.campoUrl')}</label>
                   <input
                     id="moodle-base-url"
                     value={moodleConnectionForm.baseUrl}
@@ -1184,7 +1302,7 @@ export function AdminApp() {
                     placeholder="http://localhost:8081"
                     required
                   />
-                  <label htmlFor="moodle-token">Token Moodle</label>
+                  <label htmlFor="moodle-token">{t('admin.shell.conexiones.campoToken')}</label>
                   <input
                     id="moodle-token"
                     type="password"
@@ -1192,24 +1310,28 @@ export function AdminApp() {
                     onChange={(event) =>
                       setMoodleConnectionForm((current) => ({ ...current, token: event.target.value }))
                     }
-                    placeholder={baseData.config.moodle.tokenSet ? '•••••••• (dejar vacío para mantener actual)' : 'token webservice'}
+                    placeholder={
+                      baseData.config.moodle.tokenSet
+                        ? t('admin.shell.conexiones.tokenGuardado')
+                        : t('admin.shell.conexiones.tokenPlaceholder')
+                    }
                     required={!baseData.config.moodle.tokenSet}
                   />
                   <button type="submit" disabled={savingMoodleConfig}>
-                    {savingMoodleConfig ? 'Guardando...' : 'Guardar conexión'}
+                    {savingMoodleConfig ? t('admin.shell.comun.guardando') : t('admin.shell.conexiones.guardar')}
                   </button>
                 </form>
               </article>
 
               <article className="card scroll-card">
-                <h2>Tenants activos</h2>
+                <h2>{t('admin.shell.tenants.titulo')}</h2>
                 <table>
                   <thead>
                     <tr>
-                      <th>Nombre</th>
-                      <th>Slug</th>
-                      <th>Locales</th>
-                      <th>Moneda</th>
+                      <th>{t('admin.shell.tenants.colNombre')}</th>
+                      <th>{t('admin.shell.tenants.colSlug')}</th>
+                      <th>{t('admin.shell.tenants.colLocales')}</th>
+                      <th>{t('admin.shell.tenants.colMoneda')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1231,17 +1353,17 @@ export function AdminApp() {
             <>
               <section className="grid-2">
                 <article className="card">
-                  <h2>Crear usuario</h2>
+                  <h2>{t('admin.shell.usuarios.crearTitulo')}</h2>
                   <form className="login-form" onSubmit={onCreateUser}>
-                    <label htmlFor="fullName">Nombre completo</label>
+                    <label htmlFor="fullName">{t('admin.shell.usuarios.campoNombre')}</label>
                     <input
                       id="fullName"
                       value={newUser.fullName}
                       onChange={(event) => setNewUser((current) => ({ ...current, fullName: event.target.value }))}
-                      placeholder="Ana Pérez"
+                      placeholder={t('admin.shell.usuarios.campoNombrePlaceholder')}
                       required
                     />
-                    <label htmlFor="email">Email</label>
+                    <label htmlFor="email">{t('admin.shell.usuarios.campoEmail')}</label>
                     <input
                       id="email"
                       type="email"
@@ -1250,7 +1372,7 @@ export function AdminApp() {
                       placeholder="ana@university.edu"
                       required
                     />
-                    <label htmlFor="locale">Idioma</label>
+                    <label htmlFor="locale">{t('admin.shell.usuarios.campoIdioma')}</label>
                     <input
                       id="locale"
                       value={newUser.locale}
@@ -1259,17 +1381,17 @@ export function AdminApp() {
                       required
                     />
                     <button type="submit" disabled={creatingUser}>
-                      {creatingUser ? 'Creando...' : 'Crear usuario'}
+                      {creatingUser ? t('admin.shell.usuarios.creando') : t('admin.shell.usuarios.crear')}
                     </button>
                   </form>
                 </article>
 
                 <article className="card">
-                  <h2>Matrícula de usuario</h2>
+                  <h2>{t('admin.shell.matricula.titulo')}</h2>
                   <form className="login-form" onSubmit={onEnrollUser}>
-                    <label htmlFor="userSelect">Usuario</label>
+                    <label htmlFor="userSelect">{t('admin.shell.matricula.campoUsuario')}</label>
                     <select id="userSelect" value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
-                      <option value="">Selecciona usuario</option>
+                      <option value="">{t('admin.shell.matricula.eligeUsuario')}</option>
                       {currentUsers
                         .filter((user) => user.moodle_user_id)
                         .map((user) => (
@@ -1278,13 +1400,13 @@ export function AdminApp() {
                           </option>
                         ))}
                     </select>
-                    <label htmlFor="courseSelect">Curso</label>
+                    <label htmlFor="courseSelect">{t('admin.shell.matricula.campoCurso')}</label>
                     <select
                       id="courseSelect"
                       value={selectedCourseId}
                       onChange={(event) => setSelectedCourseId(event.target.value)}
                     >
-                      <option value="">Selecciona curso</option>
+                      <option value="">{t('admin.shell.matricula.eligeCurso')}</option>
                       {(coursesData?.items ?? []).map((course) => (
                         <option key={course.moodle_course_id} value={String(course.moodle_course_id)}>
                           {course.full_name}
@@ -1292,7 +1414,7 @@ export function AdminApp() {
                       ))}
                     </select>
                     <button type="submit" disabled={enrollingUser}>
-                      {enrollingUser ? 'Matriculando...' : 'Matricular'}
+                      {enrollingUser ? t('admin.shell.matricula.matriculando') : t('admin.shell.matricula.matricular')}
                     </button>
                   </form>
                 </article>
@@ -1300,12 +1422,12 @@ export function AdminApp() {
 
               <section className="grid-1">
                 <article className="card">
-                  <h2>Listado de usuarios</h2>
+                  <h2>{t('admin.shell.usuarios.listaTitulo')}</h2>
                   <div className="toolbar-grid">
                     <input
                       value={usersQuery}
                       onChange={(event) => setUsersQuery(event.target.value)}
-                      placeholder="Buscar por nombre o email"
+                      placeholder={t('admin.shell.usuarios.buscarPlaceholder')}
                     />
                     <select
                       value={usersStatusFilter}
@@ -1314,23 +1436,25 @@ export function AdminApp() {
                         setUsersPage(1);
                       }}
                     >
-                      <option value="all">Todos</option>
-                      <option value="active">Activos</option>
-                      <option value="inactive">Inactivos</option>
+                      <option value="all">{t('admin.shell.comun.todos')}</option>
+                      <option value="active">{t('admin.shell.usuarios.filtroActivos')}</option>
+                      <option value="inactive">{t('admin.shell.usuarios.filtroInactivos')}</option>
                     </select>
                     <button className="ghost" onClick={() => { setUsersPage(1); void loadUsers(sessionToken); }}>
-                      Buscar
+                      {t('admin.shell.comun.buscar')}
                     </button>
                   </div>
                   <div className="inline-actions">
                     <button className="ghost" onClick={toggleSelectCurrentPage}>
-                      {allCurrentPageSelected ? 'Deseleccionar página' : 'Seleccionar página'}
+                      {allCurrentPageSelected
+                        ? t('admin.shell.usuarios.deseleccionarPagina')
+                        : t('admin.shell.usuarios.seleccionarPagina')}
                     </button>
                     <button className="danger" disabled={selectedUserIds.length === 0} onClick={() => void updateBulkUsersStatus('inactive')}>
-                      Desactivar seleccionados
+                      {t('admin.shell.usuarios.desactivarSeleccionados')}
                     </button>
                     <button className="ghost" disabled={selectedUserIds.length === 0} onClick={() => void updateBulkUsersStatus('active')}>
-                      Activar seleccionados
+                      {t('admin.shell.usuarios.activarSeleccionados')}
                     </button>
                   </div>
 
@@ -1338,22 +1462,22 @@ export function AdminApp() {
                     <thead>
                       <tr>
                         <th></th>
-                        <th>Nombre</th>
-                        <th>Email</th>
-                        <th>Estado</th>
-                        <th>Moodle ID</th>
-                        <th>Cursos</th>
-                        <th>Acciones</th>
+                        <th>{t('admin.shell.usuarios.colNombre')}</th>
+                        <th>{t('admin.shell.usuarios.colEmail')}</th>
+                        <th>{t('admin.shell.usuarios.colEstado')}</th>
+                        <th>{t('admin.shell.usuarios.colMoodleId')}</th>
+                        <th>{t('admin.shell.usuarios.colCursos')}</th>
+                        <th>{t('admin.shell.usuarios.colAcciones')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {loadingUsers ? (
                         <tr>
-                          <td colSpan={7}>Cargando usuarios...</td>
+                          <td colSpan={7}>{t('admin.shell.usuarios.cargando')}</td>
                         </tr>
                       ) : currentUsers.length === 0 ? (
                         <tr>
-                          <td colSpan={7}>No hay usuarios para este filtro.</td>
+                          <td colSpan={7}>{t('admin.shell.usuarios.vacio')}</td>
                         </tr>
                       ) : (
                         currentUsers.map((user) => (
@@ -1384,15 +1508,15 @@ export function AdminApp() {
                                   });
                                 }}
                               >
-                                Ir a cursos
+                                {t('admin.shell.usuarios.irACursos')}
                               </button>
                               {user.status === 'active' ? (
                                 <button className="danger" onClick={() => void updateSingleUserStatus(user.id, 'inactive')}>
-                                  Desactivar
+                                  {t('admin.shell.comun.desactivar')}
                                 </button>
                               ) : (
                                 <button className="ghost" onClick={() => void updateSingleUserStatus(user.id, 'active')}>
-                                  Activar
+                                  {t('admin.shell.comun.activar')}
                                 </button>
                               )}
                             </td>
@@ -1408,18 +1532,21 @@ export function AdminApp() {
                       onClick={() => setUsersPage((page) => Math.max(1, page - 1))}
                       disabled={(usersData?.pagination.page ?? 1) <= 1}
                     >
-                      Anterior
+                      {t('admin.shell.comun.anterior')}
                     </button>
                     <span>
-                      Página {usersData?.pagination.page ?? 1} / {usersData?.pagination.totalPages ?? 1} | Total:{' '}
-                      {usersData?.pagination.total ?? 0}
+                      {t('admin.shell.comun.paginacion', {
+                        pagina: usersData?.pagination.page ?? 1,
+                        paginas: usersData?.pagination.totalPages ?? 1,
+                        total: usersData?.pagination.total ?? 0
+                      })}
                     </span>
                     <button
                       className="ghost"
                       onClick={() => setUsersPage((page) => page + 1)}
                       disabled={(usersData?.pagination.page ?? 1) >= (usersData?.pagination.totalPages ?? 1)}
                     >
-                      Siguiente
+                      {t('admin.shell.comun.siguiente')}
                     </button>
                   </div>
                 </article>
@@ -1427,28 +1554,28 @@ export function AdminApp() {
 
               <section className="grid-1" ref={userCoursesSectionRef}>
                 <article className="card scroll-card">
-                  <h2>Cursos por usuario</h2>
+                  <h2>{t('admin.shell.cursosUsuario.titulo')}</h2>
                   {!selectedUserCourses ? (
-                    <p>Selecciona un usuario para ver sus cursos.</p>
+                    <p>{t('admin.shell.cursosUsuario.sinSeleccion')}</p>
                   ) : (
                     <table>
                       <thead>
                         <tr>
-                          <th>ID curso</th>
-                          <th>Nombre</th>
-                          <th>Estado</th>
+                          <th>{t('admin.shell.cursosUsuario.colId')}</th>
+                          <th>{t('admin.shell.cursosUsuario.colNombre')}</th>
+                          <th>{t('admin.shell.cursosUsuario.colEstado')}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedUserCourses.localCourses.length === 0 ? (
                           <tr>
-                            <td colSpan={3}>Sin matrículas locales aún.</td>
+                            <td colSpan={3}>{t('admin.shell.cursosUsuario.vacio')}</td>
                           </tr>
                         ) : (
                           selectedUserCourses.localCourses.map((course) => (
                             <tr key={`${selectedUserCourses.user.id}-${course.moodle_course_id}`}>
                               <td>{course.moodle_course_id}</td>
-                              <td>{course.full_name ?? course.short_name ?? 'Sin nombre'}</td>
+                              <td>{course.full_name ?? course.short_name ?? t('admin.shell.comun.sinNombre')}</td>
                               <td>{course.status}</td>
                             </tr>
                           ))
@@ -1464,36 +1591,38 @@ export function AdminApp() {
           {activeSection === 'courses' ? (
             <section className="grid-1">
               <article className="card">
-                <h2>Sincronización Moodle</h2>
+                <h2>{t('admin.shell.sync.titulo')}</h2>
                 <div className="inline-actions">
                   <button
                     onClick={() => void onSyncMoodleAll()}
                     disabled={syncingMoodleAll || loadingCourses || loadingUsers}
                   >
-                    {syncingMoodleAll ? 'Sincronizando todo...' : 'Sync completo'}
+                    {syncingMoodleAll ? t('admin.shell.sync.sincronizandoTodo') : t('admin.shell.sync.botonCompleto')}
                   </button>
                   <button
                     onClick={() => void onSyncMoodleCategories()}
                     disabled={syncingMoodleCategories || loadingCourses}
                   >
-                    {syncingMoodleCategories ? 'Sincronizando categorías...' : 'Sync categorías'}
+                    {syncingMoodleCategories
+                      ? t('admin.shell.sync.sincronizandoCategorias')
+                      : t('admin.shell.sync.botonCategorias')}
                   </button>
                   <button onClick={() => void onSyncMoodleCourses()} disabled={syncingMoodleCourses || loadingCourses}>
-                    {syncingMoodleCourses ? 'Sincronizando cursos...' : 'Sync cursos'}
+                    {syncingMoodleCourses ? t('admin.shell.sync.sincronizandoCursos') : t('admin.shell.sync.botonCursos')}
                   </button>
                   <button onClick={() => void onSyncMoodleUsers()} disabled={syncingMoodleUsers || loadingUsers}>
-                    {syncingMoodleUsers ? 'Sincronizando usuarios...' : 'Sync usuarios'}
+                    {syncingMoodleUsers ? t('admin.shell.sync.sincronizandoUsuarios') : t('admin.shell.sync.botonUsuarios')}
                   </button>
                   
                 </div>
               </article>
               <article className="card scroll-card">
-                <h2>Cursos sincronizados desde Moodle</h2>
+                <h2>{t('admin.shell.cursos.titulo')}</h2>
                 <div className="toolbar-grid">
                   <input
                     value={coursesQuery}
                     onChange={(event) => setCoursesQuery(event.target.value)}
-                    placeholder="Buscar curso"
+                    placeholder={t('admin.shell.cursos.buscarPlaceholder')}
                   />
                   <select
                     value={coursesVisibleFilter}
@@ -1502,32 +1631,32 @@ export function AdminApp() {
                       setCoursesPage(1);
                     }}
                   >
-                    <option value="all">Todos</option>
-                    <option value="visible">Visibles</option>
-                    <option value="hidden">Ocultos</option>
+                    <option value="all">{t('admin.shell.comun.todos')}</option>
+                    <option value="visible">{t('admin.shell.cursos.filtroVisibles')}</option>
+                    <option value="hidden">{t('admin.shell.cursos.filtroOcultos')}</option>
                   </select>
                   <button className="ghost" onClick={() => { setCoursesPage(1); void loadCourses(sessionToken); }}>
-                    Buscar
+                    {t('admin.shell.comun.buscar')}
                   </button>
                 </div>
                 <table>
                   <thead>
                     <tr>
-                      <th>ID</th>
-                      <th>Nombre</th>
-                      <th>Nombre corto</th>
-                      <th>Visible</th>
-                      <th>Sincronizado</th>
+                      <th>{t('admin.shell.cursos.colId')}</th>
+                      <th>{t('admin.shell.cursos.colNombre')}</th>
+                      <th>{t('admin.shell.cursos.colNombreCorto')}</th>
+                      <th>{t('admin.shell.cursos.colVisible')}</th>
+                      <th>{t('admin.shell.cursos.colSincronizado')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loadingCourses ? (
                       <tr>
-                        <td colSpan={5}>Cargando cursos...</td>
+                        <td colSpan={5}>{t('admin.shell.cursos.cargando')}</td>
                       </tr>
                     ) : (coursesData?.items.length ?? 0) === 0 ? (
                       <tr>
-                        <td colSpan={5}>Sin cursos para este filtro.</td>
+                        <td colSpan={5}>{t('admin.shell.cursos.vacio')}</td>
                       </tr>
                     ) : (
                       (coursesData?.items ?? []).map((course) => (
@@ -1535,7 +1664,7 @@ export function AdminApp() {
                           <td>{course.moodle_course_id}</td>
                           <td>{course.full_name}</td>
                           <td>{course.short_name}</td>
-                          <td>{course.visible ? 'sí' : 'no'}</td>
+                          <td>{course.visible ? t('admin.shell.comun.si') : t('admin.shell.comun.no')}</td>
                           <td>{new Date(course.synced_at).toLocaleString()}</td>
                         </tr>
                       ))
@@ -1549,18 +1678,21 @@ export function AdminApp() {
                     onClick={() => setCoursesPage((page) => Math.max(1, page - 1))}
                     disabled={(coursesData?.pagination.page ?? 1) <= 1}
                   >
-                    Anterior
+                    {t('admin.shell.comun.anterior')}
                   </button>
                   <span>
-                    Página {coursesData?.pagination.page ?? 1} / {coursesData?.pagination.totalPages ?? 1} | Total:{' '}
-                    {coursesData?.pagination.total ?? 0}
+                    {t('admin.shell.comun.paginacion', {
+                      pagina: coursesData?.pagination.page ?? 1,
+                      paginas: coursesData?.pagination.totalPages ?? 1,
+                      total: coursesData?.pagination.total ?? 0
+                    })}
                   </span>
                   <button
                     className="ghost"
                     onClick={() => setCoursesPage((page) => page + 1)}
                     disabled={(coursesData?.pagination.page ?? 1) >= (coursesData?.pagination.totalPages ?? 1)}
                   >
-                    Siguiente
+                    {t('admin.shell.comun.siguiente')}
                   </button>
                 </div>
               </article>
@@ -1575,6 +1707,22 @@ export function AdminApp() {
               currentUsers={usersData?.items || []} 
               loadUsers={loadUsers} 
               loadBase={loadBase} 
+            />
+          ) : null}
+
+          {activeSection === 'roles' ? (
+            <RolesView
+              token={sessionToken}
+              puedeEditar={puedeEditar('roles')}
+              locale={i18n.language?.startsWith('en') ? 'en' : 'es'}
+            />
+          ) : null}
+
+          {activeSection === 'reports' ? (
+            <ReportsView
+              token={sessionToken}
+              locale={i18n.language?.startsWith('en') ? 'en' : 'es'}
+              puedeEditar={puedeEditar('reports')}
             />
           ) : null}
 
@@ -1609,18 +1757,22 @@ export function AdminApp() {
           {activeSection === 'routes' ? (
             <section className="grid-1">
               <article className="card metric">
-                <h2>Rutas registradas en el intermediador</h2>
+                <h2>{t('admin.shell.rutas.titulo')}</h2>
                 <span>
-                  Total: {baseData.routes.count}. GET: {routeSummary.get}. POST: {routeSummary.post}. Otros:{' '}
-                  {routeSummary.others}.
+                  {t('admin.shell.rutas.resumen', {
+                    total: baseData.routes.count,
+                    get: routeSummary.get,
+                    post: routeSummary.post,
+                    otros: routeSummary.others
+                  })}
                 </span>
               </article>
               <article className="card scroll-card">
                 <table>
                   <thead>
                     <tr>
-                      <th>Método</th>
-                      <th>URL</th>
+                      <th>{t('admin.shell.rutas.colMetodo')}</th>
+                      <th>{t('admin.shell.rutas.colUrl')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1639,42 +1791,42 @@ export function AdminApp() {
           {activeSection === 'webinars' ? (
             <section className="grid-2">
               <article className="card">
-                <h2>{editingWebinarId ? 'Editar seminario' : 'Crear seminario'}</h2>
+                <h2>{editingWebinarId ? t('admin.shell.webinars.editarTitulo') : t('admin.shell.webinars.crearTitulo')}</h2>
                 <form className="login-form" onSubmit={onSubmitWebinar}>
-                  <label>Slug</label>
+                  <label>{t('admin.shell.webinars.campoSlug')}</label>
                   <input
                     value={webinarForm.slug}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, slug: event.target.value }))}
-                    placeholder="seminario-investigacion-marzo"
+                    placeholder={t('admin.shell.webinars.campoSlugPlaceholder')}
                     required
                   />
-                  <label>Título</label>
+                  <label>{t('admin.shell.webinars.campoTitulo')}</label>
                   <input
                     value={webinarForm.title}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, title: event.target.value }))}
-                    placeholder="Seminario en Vivo: Introducción a la Investigación"
+                    placeholder={t('admin.shell.webinars.campoTituloPlaceholder')}
                     required
                   />
-                  <label>Subtítulo</label>
+                  <label>{t('admin.shell.webinars.campoSubtitulo')}</label>
                   <input
                     value={webinarForm.subtitle}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, subtitle: event.target.value }))}
-                    placeholder="Masterclass mensual"
+                    placeholder={t('admin.shell.webinars.campoSubtituloPlaceholder')}
                   />
-                  <label>Descripción</label>
+                  <label>{t('admin.shell.webinars.campoDescripcion')}</label>
                   <input
                     value={webinarForm.description}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, description: event.target.value }))}
-                    placeholder="Resumen del evento"
+                    placeholder={t('admin.shell.webinars.campoDescripcionPlaceholder')}
                   />
-                  <label>Hero image URL</label>
+                  <label>{t('admin.shell.webinars.campoHero')}</label>
                   <input
                     value={webinarForm.heroImage}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, heroImage: event.target.value }))}
                     placeholder="https://..."
                     required
                   />
-                  <label>Fuente</label>
+                  <label>{t('admin.shell.webinars.campoFuente')}</label>
                   <select
                     value={webinarForm.sourceType}
                     onChange={(event) =>
@@ -1688,32 +1840,32 @@ export function AdminApp() {
                     <option value="zoom">Zoom</option>
                     <option value="vimeo">Vimeo</option>
                     <option value="hls">HLS</option>
-                    <option value="external">URL externa</option>
+                    <option value="external">{t('admin.shell.webinars.fuenteExterna')}</option>
                   </select>
-                  <label>URL live</label>
+                  <label>{t('admin.shell.webinars.campoUrlLive')}</label>
                   <input
                     value={webinarForm.sourceUrl}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, sourceUrl: event.target.value }))}
                     placeholder="https://..."
                     required
                   />
-                  <label>Reserva Free (opcional)</label>
+                  <label>{t('admin.shell.webinars.campoReservaFree')}</label>
                   <input
                     value={webinarForm.freeReservationUrl}
                     onChange={(event) =>
                       setWebinarForm((current) => ({ ...current, freeReservationUrl: event.target.value }))
                     }
-                    placeholder="https://.../registro-free"
+                    placeholder={t('admin.shell.webinars.campoReservaFreePlaceholder')}
                   />
-                  <label>Reserva VIP (opcional)</label>
+                  <label>{t('admin.shell.webinars.campoReservaVip')}</label>
                   <input
                     value={webinarForm.vipReservationUrl}
                     onChange={(event) =>
                       setWebinarForm((current) => ({ ...current, vipReservationUrl: event.target.value }))
                     }
-                    placeholder="https://.../registro-vip"
+                    placeholder={t('admin.shell.webinars.campoReservaVipPlaceholder')}
                   />
-                  <label>Multiplataforma (selecciona canales y URL por canal)</label>
+                  <label>{t('admin.shell.webinars.campoMultiplataforma')}</label>
                   <div className="webinar-links-builder">
                     {webinarPlatformOptions.map((platform) => {
                       const currentLink = webinarForm.webinarLinks.find((item) => item.platform === platform);
@@ -1757,38 +1909,38 @@ export function AdminApp() {
                                   )
                                 }));
                               }}
-                              placeholder={`URL para ${platform}`}
+                              placeholder={t('admin.shell.webinars.urlPara', { plataforma: platform })}
                             />
                           ) : null}
                         </div>
                       );
                     })}
                   </div>
-                  <label>URL replay (opcional)</label>
+                  <label>{t('admin.shell.webinars.campoReplay')}</label>
                   <input
                     value={webinarForm.replayUrl}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, replayUrl: event.target.value }))}
                     placeholder="https://..."
                   />
-                  <label>Inicio</label>
+                  <label>{t('admin.shell.webinars.campoInicio')}</label>
                   <input
                     type="datetime-local"
                     value={webinarForm.startsAt}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, startsAt: event.target.value }))}
                     required
                   />
-                  <label>Fin</label>
+                  <label>{t('admin.shell.webinars.campoFin')}</label>
                   <input
                     type="datetime-local"
                     value={webinarForm.endsAt}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, endsAt: event.target.value }))}
                   />
-                  <label>Timezone</label>
+                  <label>{t('admin.shell.webinars.campoTimezone')}</label>
                   <input
                     value={webinarForm.timezone}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, timezone: event.target.value }))}
                   />
-                  <label>Texto CTA</label>
+                  <label>{t('admin.shell.webinars.campoCta')}</label>
                   <input
                     value={webinarForm.ctaLabel}
                     onChange={(event) => setWebinarForm((current) => ({ ...current, ctaLabel: event.target.value }))}
@@ -1799,7 +1951,7 @@ export function AdminApp() {
                       checked={webinarForm.isActive}
                       onChange={(event) => setWebinarForm((current) => ({ ...current, isActive: event.target.checked }))}
                     />{' '}
-                    Seminario activo
+                    {t('admin.shell.webinars.activo')}
                   </label>
                   <label>
                     <input
@@ -1809,38 +1961,42 @@ export function AdminApp() {
                         setWebinarForm((current) => ({ ...current, showOnLanding: event.target.checked }))
                       }
                     />{' '}
-                    Mostrar en landing pública
+                    {t('admin.shell.comun.mostrarEnLanding')}
                   </label>
                   <button type="submit" disabled={creatingWebinar}>
-                    {creatingWebinar ? 'Guardando seminario...' : editingWebinarId ? 'Guardar cambios' : 'Crear seminario'}
+                    {creatingWebinar
+                      ? t('admin.shell.webinars.guardando')
+                      : editingWebinarId
+                        ? t('admin.shell.comun.guardarCambios')
+                        : t('admin.shell.webinars.crearTitulo')}
                   </button>
                   {editingWebinarId ? (
                     <button type="button" className="ghost" onClick={onCancelWebinarEdit}>
-                      Cancelar edición
+                      {t('admin.shell.comun.cancelarEdicion')}
                     </button>
                   ) : null}
                 </form>
               </article>
 
               <article className="card scroll-card">
-                <h2>Seminarios configurados</h2>
-                {loadingWebinars ? <p>Cargando seminarios...</p> : null}
+                <h2>{t('admin.shell.webinars.listaTitulo')}</h2>
+                {loadingWebinars ? <p>{t('admin.shell.webinars.cargando')}</p> : null}
                 <table>
                   <thead>
                     <tr>
-                      <th>Título</th>
-                      <th>Inicio</th>
-                      <th>Fuente</th>
-                      <th>Activo</th>
-                      <th>Landing</th>
-                      <th>Canales</th>
-                      <th>Acciones</th>
+                      <th>{t('admin.shell.webinars.colTitulo')}</th>
+                      <th>{t('admin.shell.webinars.colInicio')}</th>
+                      <th>{t('admin.shell.webinars.colFuente')}</th>
+                      <th>{t('admin.shell.comun.colActivo')}</th>
+                      <th>{t('admin.shell.comun.colLanding')}</th>
+                      <th>{t('admin.shell.webinars.colCanales')}</th>
+                      <th>{t('admin.shell.comun.colAcciones')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {webinarsData.length === 0 ? (
                       <tr>
-                        <td colSpan={7}>No hay seminarios creados.</td>
+                        <td colSpan={7}>{t('admin.shell.webinars.vacio')}</td>
                       </tr>
                     ) : (
                       webinarsData.map((webinar) => (
@@ -1848,15 +2004,17 @@ export function AdminApp() {
                           <td>{webinar.title}</td>
                           <td>{new Date(webinar.starts_at).toLocaleString()}</td>
                           <td>{webinar.source_type}</td>
-                          <td>{webinar.is_active ? 'sí' : 'no'}</td>
-                          <td>{webinar.show_on_landing ? 'sí' : 'no'}</td>
+                          <td>{webinar.is_active ? t('admin.shell.comun.si') : t('admin.shell.comun.no')}</td>
+                          <td>
+                            {webinar.show_on_landing ? t('admin.shell.comun.si') : t('admin.shell.comun.no')}
+                          </td>
                           <td>{webinar.webinar_links?.length ?? 0}</td>
                           <td>
                             <button
                               className="ghost"
                               onClick={() => void onToggleWebinarFlag(webinar.id, { isActive: !webinar.is_active })}
                             >
-                              {webinar.is_active ? 'Desactivar' : 'Activar'}
+                              {webinar.is_active ? t('admin.shell.comun.desactivar') : t('admin.shell.comun.activar')}
                             </button>
                             <button
                               className="ghost"
@@ -1866,13 +2024,15 @@ export function AdminApp() {
                                 })
                               }
                             >
-                              {webinar.show_on_landing ? 'Ocultar landing' : 'Mostrar landing'}
+                              {webinar.show_on_landing
+                                ? t('admin.shell.comun.ocultarLanding')
+                                : t('admin.shell.comun.mostrarLanding')}
                             </button>
                             <button className="ghost" onClick={() => onEditWebinar(webinar)}>
-                              Editar
+                              {t('admin.shell.comun.editar')}
                             </button>
                             <button className="danger" onClick={() => void onDeleteWebinar(webinar.id)}>
-                              Eliminar
+                              {t('admin.shell.comun.eliminar')}
                             </button>
                           </td>
                         </tr>
@@ -1887,30 +2047,30 @@ export function AdminApp() {
           {activeSection === 'podcasts' ? (
             <section className="grid-2">
               <article className="card">
-                <h2>{editingPodcastId ? 'Editar podcast' : 'Crear podcast'}</h2>
+                <h2>{editingPodcastId ? t('admin.shell.podcasts.editarTitulo') : t('admin.shell.podcasts.crearTitulo')}</h2>
                 <form className="login-form" onSubmit={onSubmitPodcast}>
-                  <label>Título</label>
+                  <label>{t('admin.shell.podcasts.campoTitulo')}</label>
                   <input
                     value={podcastForm.title}
                     onChange={(event) => setPodcastForm((current) => ({ ...current, title: event.target.value }))}
-                    placeholder="Clase magistral: Introducción a la Economía"
+                    placeholder={t('admin.shell.podcasts.campoTituloPlaceholder')}
                     required
                   />
-                  <label>Video YouTube (URL o código)</label>
+                  <label>{t('admin.shell.podcasts.campoVideo')}</label>
                   <input
                     value={podcastForm.video}
                     onChange={(event) => setPodcastForm((current) => ({ ...current, video: event.target.value }))}
-                    placeholder="https://www.youtube.com/watch?v=... o dQw4w9WgXcQ"
+                    placeholder={t('admin.shell.podcasts.campoVideoPlaceholder')}
                     required
                   />
-                  <label>Fecha</label>
+                  <label>{t('admin.shell.podcasts.campoFecha')}</label>
                   <input
                     type="datetime-local"
                     value={podcastForm.publishedAt}
                     onChange={(event) => setPodcastForm((current) => ({ ...current, publishedAt: event.target.value }))}
                     required
                   />
-                  <label>Orden</label>
+                  <label>{t('admin.shell.podcasts.campoOrden')}</label>
                   <input
                     type="number"
                     min={0}
@@ -1924,7 +2084,7 @@ export function AdminApp() {
                       checked={podcastForm.isActive}
                       onChange={(event) => setPodcastForm((current) => ({ ...current, isActive: event.target.checked }))}
                     />{' '}
-                    Podcast activo
+                    {t('admin.shell.podcasts.activo')}
                   </label>
                   <label>
                     <input
@@ -1934,37 +2094,41 @@ export function AdminApp() {
                         setPodcastForm((current) => ({ ...current, showOnLanding: event.target.checked }))
                       }
                     />{' '}
-                    Mostrar en landing pública
+                    {t('admin.shell.comun.mostrarEnLanding')}
                   </label>
                   <button type="submit" disabled={creatingPodcast}>
-                    {creatingPodcast ? 'Guardando podcast...' : editingPodcastId ? 'Guardar cambios' : 'Crear podcast'}
+                    {creatingPodcast
+                      ? t('admin.shell.podcasts.guardando')
+                      : editingPodcastId
+                        ? t('admin.shell.comun.guardarCambios')
+                        : t('admin.shell.podcasts.crearTitulo')}
                   </button>
                   {editingPodcastId ? (
                     <button type="button" className="ghost" onClick={onCancelPodcastEdit}>
-                      Cancelar edición
+                      {t('admin.shell.comun.cancelarEdicion')}
                     </button>
                   ) : null}
                 </form>
               </article>
 
               <article className="card scroll-card">
-                <h2>Podcasts configurados</h2>
-                {loadingPodcasts ? <p>Cargando podcasts...</p> : null}
+                <h2>{t('admin.shell.podcasts.listaTitulo')}</h2>
+                {loadingPodcasts ? <p>{t('admin.shell.podcasts.cargando')}</p> : null}
                 <table>
                   <thead>
                     <tr>
-                      <th>Título</th>
-                      <th>Fecha</th>
-                      <th>Orden</th>
-                      <th>Activo</th>
-                      <th>Landing</th>
-                      <th>Acciones</th>
+                      <th>{t('admin.shell.podcasts.colTitulo')}</th>
+                      <th>{t('admin.shell.podcasts.colFecha')}</th>
+                      <th>{t('admin.shell.podcasts.colOrden')}</th>
+                      <th>{t('admin.shell.comun.colActivo')}</th>
+                      <th>{t('admin.shell.comun.colLanding')}</th>
+                      <th>{t('admin.shell.comun.colAcciones')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {podcastsData.length === 0 ? (
                       <tr>
-                        <td colSpan={6}>No hay podcasts creados.</td>
+                        <td colSpan={6}>{t('admin.shell.podcasts.vacio')}</td>
                       </tr>
                     ) : (
                       podcastsData.map((podcast) => (
@@ -1972,14 +2136,16 @@ export function AdminApp() {
                           <td>{podcast.title}</td>
                           <td>{new Date(podcast.published_at).toLocaleString()}</td>
                           <td>{podcast.display_order}</td>
-                          <td>{podcast.is_active ? 'sí' : 'no'}</td>
-                          <td>{podcast.show_on_landing ? 'sí' : 'no'}</td>
+                          <td>{podcast.is_active ? t('admin.shell.comun.si') : t('admin.shell.comun.no')}</td>
+                          <td>
+                            {podcast.show_on_landing ? t('admin.shell.comun.si') : t('admin.shell.comun.no')}
+                          </td>
                           <td>
                             <button
                               className="ghost"
                               onClick={() => void onTogglePodcastFlag(podcast.id, { isActive: !podcast.is_active })}
                             >
-                              {podcast.is_active ? 'Desactivar' : 'Activar'}
+                              {podcast.is_active ? t('admin.shell.comun.desactivar') : t('admin.shell.comun.activar')}
                             </button>
                             <button
                               className="ghost"
@@ -1989,13 +2155,15 @@ export function AdminApp() {
                                 })
                               }
                             >
-                              {podcast.show_on_landing ? 'Ocultar landing' : 'Mostrar landing'}
+                              {podcast.show_on_landing
+                                ? t('admin.shell.comun.ocultarLanding')
+                                : t('admin.shell.comun.mostrarLanding')}
                             </button>
                             <button className="ghost" onClick={() => onEditPodcast(podcast)}>
-                              Editar
+                              {t('admin.shell.comun.editar')}
                             </button>
                             <button className="danger" onClick={() => void onDeletePodcast(podcast.id)}>
-                              Eliminar
+                              {t('admin.shell.comun.eliminar')}
                             </button>
                           </td>
                         </tr>

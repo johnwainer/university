@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api';
 
@@ -91,6 +92,7 @@ export function CredentialsView({
   setError: (msg: string | null) => void;
   setInfo: (msg: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('competencies');
 
   const [competencies, setCompetencies] = useState<CompetencyRecord[]>([]);
@@ -129,7 +131,7 @@ export function CredentialsView({
     try {
       setCompetencies(await apiFetch<CompetencyRecord[]>('/admin/competencies', token));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando competencias');
+      setError(reason instanceof Error ? reason.message : t('admin.credentials.errorCargarCompetencias'));
     }
   };
 
@@ -137,7 +139,7 @@ export function CredentialsView({
     try {
       setBadges(await apiFetch<BadgeRecord[]>('/admin/badges', token));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando badges');
+      setError(reason instanceof Error ? reason.message : t('admin.credentials.errorCargarBadges'));
     }
   };
 
@@ -145,7 +147,7 @@ export function CredentialsView({
     try {
       setCertificates(await apiFetch<CertificateRecord[]>('/admin/certificates', token));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando certificados');
+      setError(reason instanceof Error ? reason.message : t('admin.credentials.errorCargarCertificados'));
     }
   };
 
@@ -174,24 +176,24 @@ export function CredentialsView({
           degreeProgramId: competencyForm.degreeProgramId || null
         }
       });
-      setInfo('Competencia creada.');
+      setInfo(t('admin.credentials.competenciaCreada'));
       setCompetencyForm({ name: '', code: '', description: '', moodleCourseId: '', degreeProgramId: '' });
       await loadCompetencies(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear competencia');
+      setError(reason instanceof Error ? reason.message : t('admin.credentials.errorCrearCompetencia'));
     } finally {
       setSavingCompetency(false);
     }
   };
 
   const onDeleteCompetency = async (id: string) => {
-    if (!sessionToken || !confirm('¿Eliminar esta competencia?')) return;
+    if (!sessionToken || !confirm(t('admin.credentials.confirmEliminarCompetencia'))) return;
     try {
       await apiFetch(`/admin/competencies/${id}`, sessionToken, { method: 'DELETE' });
-      setInfo('Competencia eliminada.');
+      setInfo(t('admin.credentials.competenciaEliminada'));
       await loadCompetencies(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo eliminar competencia');
+      setError(reason instanceof Error ? reason.message : t('admin.credentials.errorEliminarCompetencia'));
     }
   };
 
@@ -212,24 +214,24 @@ export function CredentialsView({
           competencyId: badgeForm.competencyId || null
         }
       });
-      setInfo('Badge creado.');
+      setInfo(t('admin.credentials.badgeCreado'));
       setBadgeForm({ name: '', description: '', criteria: '', imageUrl: '', competencyId: '' });
       await loadBadges(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear badge');
+      setError(reason instanceof Error ? reason.message : t('admin.credentials.errorCrearBadge'));
     } finally {
       setSavingBadge(false);
     }
   };
 
   const onDeleteBadge = async (id: string) => {
-    if (!sessionToken || !confirm('¿Eliminar este badge?')) return;
+    if (!sessionToken || !confirm(t('admin.credentials.confirmEliminarBadge'))) return;
     try {
       await apiFetch(`/admin/badges/${id}`, sessionToken, { method: 'DELETE' });
-      setInfo('Badge eliminado.');
+      setInfo(t('admin.credentials.badgeEliminado'));
       await loadBadges(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo eliminar badge');
+      setError(reason instanceof Error ? reason.message : t('admin.credentials.errorEliminarBadge'));
     }
   };
 
@@ -250,11 +252,11 @@ export function CredentialsView({
           degreeProgramId: certificateForm.degreeProgramId || null
         }
       });
-      setInfo('Certificado emitido.');
+      setInfo(t('admin.credentials.certificadoEmitido'));
       setCertificateForm({ studentUserId: '', title: '', kind: 'course', moodleCourseId: '', degreeProgramId: '' });
       await loadCertificates(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo emitir certificado');
+      setError(reason instanceof Error ? reason.message : t('admin.credentials.errorEmitirCertificado'));
     } finally {
       setSavingCertificate(false);
     }
@@ -267,13 +269,13 @@ export function CredentialsView({
       <article className="card">
         <div className="inline-actions" style={{ gap: '8px', marginBottom: '8px' }}>
           <button className={tab === 'competencies' ? '' : 'ghost'} onClick={() => setTab('competencies')}>
-            Competencias
+            {t('admin.credentials.tabCompetencias')}
           </button>
           <button className={tab === 'badges' ? '' : 'ghost'} onClick={() => setTab('badges')}>
-            Badges
+            {t('admin.credentials.tabBadges')}
           </button>
           <button className={tab === 'certificates' ? '' : 'ghost'} onClick={() => setTab('certificates')}>
-            Certificados
+            {t('admin.credentials.tabCertificados')}
           </button>
         </div>
       </article>
@@ -281,63 +283,63 @@ export function CredentialsView({
       {tab === 'competencies' && (
         <section className="grid-2">
           <article className="card">
-            <h2>Crear competencia</h2>
+            <h2>{t('admin.credentials.crearCompetenciaTitulo')}</h2>
             <form className="login-form" onSubmit={onCreateCompetency}>
-              <label>Nombre</label>
+              <label>{t('admin.credentials.campoNombre')}</label>
               <input
                 value={competencyForm.name}
                 onChange={(e) => setCompetencyForm((c) => ({ ...c, name: e.target.value }))}
-                placeholder="Pensamiento crítico"
+                placeholder={t('admin.credentials.placeholderNombreCompetencia')}
                 required
               />
-              <label>Código</label>
+              <label>{t('admin.credentials.campoCodigo')}</label>
               <input
                 value={competencyForm.code}
                 onChange={(e) => setCompetencyForm((c) => ({ ...c, code: e.target.value }))}
-                placeholder="CBE-101"
+                placeholder={t('admin.credentials.placeholderCodigo')}
                 required
               />
-              <label>Descripción</label>
+              <label>{t('admin.credentials.campoDescripcion')}</label>
               <input
                 value={competencyForm.description}
                 onChange={(e) => setCompetencyForm((c) => ({ ...c, description: e.target.value }))}
-                placeholder="Descripción de la competencia"
+                placeholder={t('admin.credentials.placeholderDescripcionCompetencia')}
               />
-              <label>ID Curso Moodle (opcional)</label>
+              <label>{t('admin.credentials.campoIdCursoMoodle')}</label>
               <input
                 type="number"
                 value={competencyForm.moodleCourseId}
                 onChange={(e) => setCompetencyForm((c) => ({ ...c, moodleCourseId: e.target.value }))}
-                placeholder="123"
+                placeholder={t('admin.credentials.placeholderIdCursoMoodle')}
               />
-              <label>ID Programa (opcional)</label>
+              <label>{t('admin.credentials.campoIdPrograma')}</label>
               <input
                 value={competencyForm.degreeProgramId}
                 onChange={(e) => setCompetencyForm((c) => ({ ...c, degreeProgramId: e.target.value }))}
-                placeholder="uuid del degree_program"
+                placeholder={t('admin.credentials.placeholderIdPrograma')}
               />
               <button type="submit" disabled={savingCompetency}>
-                {savingCompetency ? 'Guardando...' : 'Crear competencia'}
+                {savingCompetency ? t('admin.credentials.guardando') : t('admin.credentials.crearCompetencia')}
               </button>
             </form>
           </article>
 
           <article className="card scroll-card">
-            <h2>Competencias ({competencies.length})</h2>
+            <h2>{t('admin.credentials.competenciasTitulo', { total: competencies.length })}</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Nombre</th>
-                  <th>Código</th>
-                  <th>Curso</th>
-                  <th>Programa</th>
-                  <th>Acción</th>
+                  <th>{t('admin.credentials.colNombre')}</th>
+                  <th>{t('admin.credentials.colCodigo')}</th>
+                  <th>{t('admin.credentials.colCurso')}</th>
+                  <th>{t('admin.credentials.colPrograma')}</th>
+                  <th>{t('admin.credentials.colAccion')}</th>
                 </tr>
               </thead>
               <tbody>
                 {competencies.length === 0 ? (
                   <tr>
-                    <td colSpan={5}>No hay competencias.</td>
+                    <td colSpan={5}>{t('admin.credentials.sinCompetencias')}</td>
                   </tr>
                 ) : (
                   competencies.map((comp) => (
@@ -348,7 +350,7 @@ export function CredentialsView({
                       <td>{comp.degree_program_name ?? '-'}</td>
                       <td>
                         <button className="ghost danger" onClick={() => void onDeleteCompetency(comp.id)}>
-                          Borrar
+                          {t('admin.credentials.borrar')}
                         </button>
                       </td>
                     </tr>
@@ -363,39 +365,39 @@ export function CredentialsView({
       {tab === 'badges' && (
         <section className="grid-2">
           <article className="card">
-            <h2>Crear badge</h2>
+            <h2>{t('admin.credentials.crearBadgeTitulo')}</h2>
             <form className="login-form" onSubmit={onCreateBadge}>
-              <label>Nombre</label>
+              <label>{t('admin.credentials.campoNombre')}</label>
               <input
                 value={badgeForm.name}
                 onChange={(e) => setBadgeForm((c) => ({ ...c, name: e.target.value }))}
-                placeholder="Líder colaborativo"
+                placeholder={t('admin.credentials.placeholderNombreBadge')}
                 required
               />
-              <label>Descripción</label>
+              <label>{t('admin.credentials.campoDescripcion')}</label>
               <input
                 value={badgeForm.description}
                 onChange={(e) => setBadgeForm((c) => ({ ...c, description: e.target.value }))}
-                placeholder="Descripción del badge"
+                placeholder={t('admin.credentials.placeholderDescripcionBadge')}
               />
-              <label>Criterios</label>
+              <label>{t('admin.credentials.campoCriterios')}</label>
               <input
                 value={badgeForm.criteria}
                 onChange={(e) => setBadgeForm((c) => ({ ...c, criteria: e.target.value }))}
-                placeholder="Criterios para obtenerlo"
+                placeholder={t('admin.credentials.placeholderCriterios')}
               />
-              <label>URL de imagen (opcional)</label>
+              <label>{t('admin.credentials.campoUrlImagen')}</label>
               <input
                 value={badgeForm.imageUrl}
                 onChange={(e) => setBadgeForm((c) => ({ ...c, imageUrl: e.target.value }))}
                 placeholder="https://..."
               />
-              <label>Competencia asociada (opcional)</label>
+              <label>{t('admin.credentials.campoCompetenciaAsociada')}</label>
               <select
                 value={badgeForm.competencyId}
                 onChange={(e) => setBadgeForm((c) => ({ ...c, competencyId: e.target.value }))}
               >
-                <option value="">Ninguna</option>
+                <option value="">{t('admin.credentials.optionNinguna')}</option>
                 {competencies.map((comp) => (
                   <option key={comp.id} value={comp.id}>
                     {comp.name} ({comp.code})
@@ -403,26 +405,26 @@ export function CredentialsView({
                 ))}
               </select>
               <button type="submit" disabled={savingBadge}>
-                {savingBadge ? 'Guardando...' : 'Crear badge'}
+                {savingBadge ? t('admin.credentials.guardando') : t('admin.credentials.crearBadge')}
               </button>
             </form>
           </article>
 
           <article className="card scroll-card">
-            <h2>Badges ({badges.length})</h2>
+            <h2>{t('admin.credentials.badgesTitulo', { total: badges.length })}</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Nombre</th>
-                  <th>Competencia</th>
-                  <th>Criterios</th>
-                  <th>Acción</th>
+                  <th>{t('admin.credentials.colNombre')}</th>
+                  <th>{t('admin.credentials.colCompetencia')}</th>
+                  <th>{t('admin.credentials.colCriterios')}</th>
+                  <th>{t('admin.credentials.colAccion')}</th>
                 </tr>
               </thead>
               <tbody>
                 {badges.length === 0 ? (
                   <tr>
-                    <td colSpan={4}>No hay badges.</td>
+                    <td colSpan={4}>{t('admin.credentials.sinBadges')}</td>
                   </tr>
                 ) : (
                   badges.map((badge) => (
@@ -432,7 +434,7 @@ export function CredentialsView({
                       <td>{badge.criteria ?? '-'}</td>
                       <td>
                         <button className="ghost danger" onClick={() => void onDeleteBadge(badge.id)}>
-                          Borrar
+                          {t('admin.credentials.borrar')}
                         </button>
                       </td>
                     </tr>
@@ -447,69 +449,69 @@ export function CredentialsView({
       {tab === 'certificates' && (
         <section className="grid-2">
           <article className="card">
-            <h2>Emitir certificado</h2>
+            <h2>{t('admin.credentials.emitirCertificadoTitulo')}</h2>
             <form className="login-form" onSubmit={onIssueCertificate}>
-              <label>ID del estudiante (user_id)</label>
+              <label>{t('admin.credentials.campoIdEstudiante')}</label>
               <input
                 value={certificateForm.studentUserId}
                 onChange={(e) => setCertificateForm((c) => ({ ...c, studentUserId: e.target.value }))}
-                placeholder="user id"
+                placeholder={t('admin.credentials.placeholderIdEstudiante')}
                 required
               />
-              <label>Título</label>
+              <label>{t('admin.credentials.campoTitulo')}</label>
               <input
                 value={certificateForm.title}
                 onChange={(e) => setCertificateForm((c) => ({ ...c, title: e.target.value }))}
-                placeholder="Certificado de finalización"
+                placeholder={t('admin.credentials.placeholderTituloCertificado')}
                 required
               />
-              <label>Tipo</label>
+              <label>{t('admin.credentials.campoTipo')}</label>
               <select
                 value={certificateForm.kind}
                 onChange={(e) =>
                   setCertificateForm((c) => ({ ...c, kind: e.target.value as 'course' | 'program' | 'badge' }))
                 }
               >
-                <option value="course">Curso</option>
-                <option value="program">Programa</option>
-                <option value="badge">Badge</option>
+                <option value="course">{t('admin.credentials.tipoCurso')}</option>
+                <option value="program">{t('admin.credentials.tipoPrograma')}</option>
+                <option value="badge">{t('admin.credentials.tipoBadge')}</option>
               </select>
-              <label>ID Curso Moodle (opcional)</label>
+              <label>{t('admin.credentials.campoIdCursoMoodle')}</label>
               <input
                 type="number"
                 value={certificateForm.moodleCourseId}
                 onChange={(e) => setCertificateForm((c) => ({ ...c, moodleCourseId: e.target.value }))}
-                placeholder="123"
+                placeholder={t('admin.credentials.placeholderIdCursoMoodle')}
               />
-              <label>ID Programa (opcional)</label>
+              <label>{t('admin.credentials.campoIdPrograma')}</label>
               <input
                 value={certificateForm.degreeProgramId}
                 onChange={(e) => setCertificateForm((c) => ({ ...c, degreeProgramId: e.target.value }))}
-                placeholder="uuid del degree_program"
+                placeholder={t('admin.credentials.placeholderIdPrograma')}
               />
               <button type="submit" disabled={savingCertificate}>
-                {savingCertificate ? 'Emitiendo...' : 'Emitir certificado'}
+                {savingCertificate ? t('admin.credentials.emitiendo') : t('admin.credentials.emitirCertificado')}
               </button>
             </form>
           </article>
 
           <article className="card scroll-card">
-            <h2>Certificados emitidos ({certificates.length})</h2>
+            <h2>{t('admin.credentials.certificadosTitulo', { total: certificates.length })}</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Estudiante</th>
-                  <th>Título</th>
-                  <th>Tipo</th>
-                  <th>Serial</th>
-                  <th>Verificación</th>
-                  <th>Emitido</th>
+                  <th>{t('admin.credentials.colEstudiante')}</th>
+                  <th>{t('admin.credentials.colTitulo')}</th>
+                  <th>{t('admin.credentials.colTipo')}</th>
+                  <th>{t('admin.credentials.colSerial')}</th>
+                  <th>{t('admin.credentials.colVerificacion')}</th>
+                  <th>{t('admin.credentials.colEmitido')}</th>
                 </tr>
               </thead>
               <tbody>
                 {certificates.length === 0 ? (
                   <tr>
-                    <td colSpan={6}>No hay certificados emitidos.</td>
+                    <td colSpan={6}>{t('admin.credentials.sinCertificados')}</td>
                   </tr>
                 ) : (
                   certificates.map((cert) => (

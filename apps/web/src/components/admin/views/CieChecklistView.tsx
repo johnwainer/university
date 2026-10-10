@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 /**
  * Etapa I — Checklist CIE: repositorio de evidencia y estado documental.
@@ -157,50 +159,56 @@ type DegreeProgramRow = {
 };
 
 /**
+ * Estos mapas ya no guardan el texto en español sino la CLAVE i18next que lo
+ * resuelve: así un cambio de idioma se refleja al volver a pintar, sin
+ * recargar ni duplicar los mapas por idioma. La clave del propio mapa
+ * (`green`, `draft`, `in_review`...) es el identificador que viene de la API y
+ * nunca se traduce; solo su etiqueta visible pasa por t(...).
+ *
  * Etiquetas de texto del semáforo. El color NUNCA es el único portador del
  * estado: cada señal va acompañada de su etiqueta, para cumplir WCAG 2.1 AA.
  */
-const SIGNAL_LABEL: Record<ChecklistSignal, string> = {
-  green: 'Completo',
-  amber: 'Incompleto',
-  red: 'Sin evidencia'
+const SIGNAL_LABEL_KEY: Record<ChecklistSignal, string> = {
+  green: 'admin.cie.senal.green',
+  amber: 'admin.cie.senal.amber',
+  red: 'admin.cie.senal.red'
 };
 
-const SCOPE_LABEL: Record<DocumentScope, string> = {
-  institutional: 'Institucional',
-  program: 'Por programa',
-  faculty: 'Faculty'
+const SCOPE_LABEL_KEY: Record<DocumentScope, string> = {
+  institutional: 'admin.cie.ambito.institutional',
+  program: 'admin.cie.ambito.program',
+  faculty: 'admin.cie.ambito.faculty'
 };
 
-const DOCUMENT_STATUS_LABEL: Record<DocumentStatus, string> = {
-  draft: 'Borrador',
-  in_review: 'En revisión',
-  approved: 'Aprobado',
-  rejected: 'Rechazado'
+const DOCUMENT_STATUS_LABEL_KEY: Record<DocumentStatus, string> = {
+  draft: 'admin.cie.estadoDocumento.draft',
+  in_review: 'admin.cie.estadoDocumento.inReview',
+  approved: 'admin.cie.estadoDocumento.approved',
+  rejected: 'admin.cie.estadoDocumento.rejected'
 };
 
-const CONTACT_STATUS_LABEL: Record<ContactStatus, string> = {
-  new: 'Nuevo',
-  in_progress: 'En gestión',
-  closed: 'Cerrado',
-  spam: 'Spam'
+const CONTACT_STATUS_LABEL_KEY: Record<ContactStatus, string> = {
+  new: 'admin.cie.estadoContacto.new',
+  in_progress: 'admin.cie.estadoContacto.inProgress',
+  closed: 'admin.cie.estadoContacto.closed',
+  spam: 'admin.cie.estadoContacto.spam'
 };
 
-const DEGREE_LEVEL_LABEL: Record<FacultyDegreeLevel, string> = {
-  bachelor: 'Pregrado',
-  master: 'Maestría',
-  doctoral: 'Doctorado',
-  professional: 'Título profesional',
-  other: 'Otro'
+const DEGREE_LEVEL_LABEL_KEY: Record<FacultyDegreeLevel, string> = {
+  bachelor: 'admin.cie.grado.bachelor',
+  master: 'admin.cie.grado.master',
+  doctoral: 'admin.cie.grado.doctoral',
+  professional: 'admin.cie.grado.professional',
+  other: 'admin.cie.grado.other'
 };
 
-const GAP_STATE_LABEL: Record<string, string> = {
-  missing: 'No cargado',
-  draft: 'Borrador',
-  in_review: 'En revisión',
-  rejected: 'Rechazado',
-  expired: 'Vencido',
-  approved: 'Aprobado'
+const GAP_STATE_LABEL_KEY: Record<string, string> = {
+  missing: 'admin.cie.brecha.missing',
+  draft: 'admin.cie.brecha.draft',
+  in_review: 'admin.cie.brecha.inReview',
+  rejected: 'admin.cie.brecha.rejected',
+  expired: 'admin.cie.brecha.expired',
+  approved: 'admin.cie.brecha.approved'
 };
 
 async function cieFetch<T>(
@@ -239,11 +247,12 @@ async function cieFetch<T>(
   return response.json() as Promise<T>;
 }
 
-function SignalDot({ signal }: { signal: ChecklistSignal }) {
+function SignalDot({ signal, t }: { signal: ChecklistSignal; t: TFunction }) {
+  const label = t(SIGNAL_LABEL_KEY[signal]);
   return (
-    <span className={`cie-signal cie-signal-${signal}`} title={SIGNAL_LABEL[signal]}>
+    <span className={`cie-signal cie-signal-${signal}`} title={label}>
       <span className="cie-signal-dot" aria-hidden="true" />
-      {SIGNAL_LABEL[signal]}
+      {label}
     </span>
   );
 }
@@ -259,6 +268,7 @@ export function CieChecklistView({
   setError: (msg: string | null) => void;
   setInfo: (msg: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('checklist');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -376,7 +386,7 @@ export function CieChecklistView({
         if (tab === 'faculty') await loadFaculty(token);
         if (tab === 'contact') await loadContactMessages(token);
       } catch (error) {
-        if (!cancelled) reportError(error, 'No se pudo cargar el repositorio CIE');
+        if (!cancelled) reportError(error, t('admin.cie.errorCargarRepositorio'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -393,7 +403,8 @@ export function CieChecklistView({
     loadFaculty,
     loadContactMessages,
     reportError,
-    setError
+    setError,
+    t
   ]);
 
   /* -------------------------------- Acciones ------------------------------ */
@@ -401,7 +412,7 @@ export function CieChecklistView({
   const submitFaculty = async () => {
     if (!sessionToken) return;
     if (!facultyForm.fullName.trim() || !facultyForm.email.trim()) {
-      setError('Nombre y correo del docente son obligatorios');
+      setError(t('admin.cie.errorNombreCorreoObligatorios'));
       return;
     }
     setSaving(true);
@@ -417,11 +428,11 @@ export function CieChecklistView({
           degreeLevel: facultyForm.degreeLevel || null
         }
       });
-      setInfo(`Expediente de ${facultyForm.fullName.trim()} creado`);
+      setInfo(t('admin.cie.expedienteCreado', { nombre: facultyForm.fullName.trim() }));
       setFacultyForm({ fullName: '', email: '', programId: '', credentials: '', degreeLevel: '' });
       await loadFaculty(sessionToken);
     } catch (error) {
-      reportError(error, 'No se pudo crear el expediente');
+      reportError(error, t('admin.cie.errorCrearExpediente'));
     } finally {
       setSaving(false);
     }
@@ -430,16 +441,16 @@ export function CieChecklistView({
   const submitDocument = async () => {
     if (!sessionToken) return;
     if (!documentForm.documentTypeId || !documentForm.title.trim()) {
-      setError('Tipo de documento y título son obligatorios');
+      setError(t('admin.cie.errorTipoTituloObligatorios'));
       return;
     }
     const scope = selectedDocumentType?.scope;
     if (scope === 'program' && !documentForm.programId) {
-      setError('Este tipo de documento exige seleccionar un programa');
+      setError(t('admin.cie.errorExigePrograma'));
       return;
     }
     if (scope === 'faculty' && !documentForm.facultyId) {
-      setError('Este tipo de documento exige seleccionar un docente');
+      setError(t('admin.cie.errorExigeDocente'));
       return;
     }
 
@@ -460,7 +471,7 @@ export function CieChecklistView({
           expiresAt: documentForm.expiresAt || null
         }
       });
-      setInfo('Documento registrado en el repositorio');
+      setInfo(t('admin.cie.documentoRegistrado'));
       setDocumentForm({
         documentTypeId: '',
         programId: '',
@@ -474,7 +485,7 @@ export function CieChecklistView({
       });
       await Promise.all([loadDocuments(sessionToken), loadChecklist(sessionToken)]);
     } catch (error) {
-      reportError(error, 'No se pudo registrar el documento');
+      reportError(error, t('admin.cie.errorRegistrarDocumento'));
     } finally {
       setSaving(false);
     }
@@ -489,10 +500,15 @@ export function CieChecklistView({
         method: 'PATCH',
         body: { status }
       });
-      setInfo(`${document.title}: ${DOCUMENT_STATUS_LABEL[status]}`);
+      setInfo(
+        t('admin.cie.documentoEstadoCambiado', {
+          titulo: document.title,
+          estado: t(DOCUMENT_STATUS_LABEL_KEY[status])
+        })
+      );
       await Promise.all([loadDocuments(sessionToken), loadChecklist(sessionToken)]);
     } catch (error) {
-      reportError(error, 'No se pudo actualizar el documento');
+      reportError(error, t('admin.cie.errorActualizarDocumento'));
     } finally {
       setSaving(false);
     }
@@ -506,10 +522,10 @@ export function CieChecklistView({
       await cieFetch(sessionToken, `/admin/cie/documents/${encodeURIComponent(document.id)}`, {
         method: 'DELETE'
       });
-      setInfo('Documento eliminado del repositorio');
+      setInfo(t('admin.cie.documentoEliminado'));
       await Promise.all([loadDocuments(sessionToken), loadChecklist(sessionToken)]);
     } catch (error) {
-      reportError(error, 'No se pudo eliminar el documento');
+      reportError(error, t('admin.cie.errorEliminarDocumento'));
     } finally {
       setSaving(false);
     }
@@ -527,7 +543,7 @@ export function CieChecklistView({
       );
       await loadContactMessages(sessionToken);
     } catch (error) {
-      reportError(error, 'No se pudo actualizar el mensaje');
+      reportError(error, t('admin.cie.errorActualizarMensaje'));
     } finally {
       setSaving(false);
     }
@@ -536,7 +552,7 @@ export function CieChecklistView({
   /* -------------------------------- Render -------------------------------- */
 
   if (!sessionToken) {
-    return <p className="cie-note">Inicia sesión para ver el checklist CIE.</p>;
+    return <p className="cie-note">{t('admin.cie.sinSesion')}</p>;
   }
 
   const renderChecklistItem = (item: ChecklistItem) => {
@@ -549,36 +565,40 @@ export function CieChecklistView({
           onClick={() => setExpandedItem(isExpanded ? null : item.documentTypeId)}
           aria-expanded={isExpanded}
         >
-          <SignalDot signal={item.signal} />
+          <SignalDot signal={item.signal} t={t} />
           <span className="cie-item-name">
             {item.nameEs}
             {item.cieRequired ? <em className="cie-badge">CIE</em> : null}
           </span>
           <span className="cie-item-counts">
-            {item.approved}/{item.expected} aprobados
-            {item.pending > 0 ? ` · ${item.pending} pendientes` : ''}
-            {item.expired > 0 ? ` · ${item.expired} vencidos` : ''}
-            {item.missing > 0 ? ` · ${item.missing} sin cargar` : ''}
+            {t('admin.cie.conteoAprobados', { aprobados: item.approved, esperados: item.expected })}
+            {item.pending > 0 ? t('admin.cie.conteoPendientes', { count: item.pending }) : ''}
+            {item.expired > 0 ? t('admin.cie.conteoVencidos', { count: item.expired }) : ''}
+            {item.missing > 0 ? t('admin.cie.conteoSinCargar', { count: item.missing }) : ''}
           </span>
         </button>
         {isExpanded ? (
           <div className="cie-checklist-detail">
             {item.helpEs ? <p className="cie-help">{item.helpEs}</p> : null}
             {item.gaps.length === 0 ? (
-              <p className="cie-ok">Toda la evidencia exigida está aprobada y vigente.</p>
+              <p className="cie-ok">{t('admin.cie.evidenciaCompletaItem')}</p>
             ) : (
               <table className="cie-gap-table">
                 <thead>
                   <tr>
-                    <th>Unidad</th>
-                    <th>Estado</th>
+                    <th>{t('admin.cie.colUnidad')}</th>
+                    <th>{t('admin.cie.colEstado')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {item.gaps.map((gap, index) => (
                     <tr key={`${item.documentTypeId}-${gap.targetId ?? `gap-${index}`}`}>
                       <td>{gap.targetLabel}</td>
-                      <td>{GAP_STATE_LABEL[gap.state] ?? gap.state}</td>
+                      <td>
+                        {GAP_STATE_LABEL_KEY[gap.state]
+                          ? t(GAP_STATE_LABEL_KEY[gap.state])
+                          : gap.state}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -595,74 +615,71 @@ export function CieChecklistView({
       <nav className="cie-tabs">
         {(
           [
-            ['checklist', 'Checklist'],
-            ['documents', 'Documentos'],
-            ['faculty', 'Faculty'],
-            ['contact', 'Mensajes de contacto']
+            ['checklist', 'admin.cie.tabs.checklist'],
+            ['documents', 'admin.cie.tabs.documentos'],
+            ['faculty', 'admin.cie.tabs.faculty'],
+            ['contact', 'admin.cie.tabs.contacto']
           ] as Array<[Tab, string]>
-        ).map(([value, label]) => (
+        ).map(([value, labelKey]) => (
           <button
             key={value}
             type="button"
             className={tab === value ? 'active' : ''}
             onClick={() => setTab(value)}
           >
-            {label}
+            {t(labelKey)}
           </button>
         ))}
       </nav>
 
-      {loading ? <p className="cie-loading">Cargando…</p> : null}
+      {loading ? <p className="cie-loading">{t('admin.cie.cargando')}</p> : null}
 
       {/* ------------------------------ Checklist ---------------------------- */}
       {tab === 'checklist' && checklist ? (
         <section>
           <div className="cie-summary">
             <div className="cie-summary-main">
-              <SignalDot signal={checklist.summary.signal} />
+              <SignalDot signal={checklist.summary.signal} t={t} />
               <strong className="cie-percent">{checklist.summary.completionPercent}%</strong>
               <span>
-                completitud documental exigida por la CIE ({checklist.summary.totalApproved} de{' '}
-                {checklist.summary.totalRequired} evidencias aprobadas y vigentes)
+                {t('admin.cie.resumenCompletitud', {
+                  aprobadas: checklist.summary.totalApproved,
+                  exigidas: checklist.summary.totalRequired
+                })}
               </span>
             </div>
             <dl className="cie-counters">
               <div>
-                <dt>Sin cargar</dt>
+                <dt>{t('admin.cie.contadorSinCargar')}</dt>
                 <dd>{checklist.summary.totalMissing}</dd>
               </div>
               <div>
-                <dt>En trámite</dt>
+                <dt>{t('admin.cie.contadorEnTramite')}</dt>
                 <dd>{checklist.summary.totalPending}</dd>
               </div>
               <div>
-                <dt>Vencidas</dt>
+                <dt>{t('admin.cie.contadorVencidas')}</dt>
                 <dd>{checklist.summary.totalExpired}</dd>
               </div>
               <div>
-                <dt>Programas activos</dt>
+                <dt>{t('admin.cie.contadorProgramasActivos')}</dt>
                 <dd>{checklist.counters.activePrograms}</dd>
               </div>
               <div>
-                <dt>Expedientes activos</dt>
+                <dt>{t('admin.cie.contadorExpedientesActivos')}</dt>
                 <dd>{checklist.counters.activeFacultyRecords}</dd>
               </div>
               <div>
-                <dt>Vencen en 30 días</dt>
+                <dt>{t('admin.cie.contadorVencen30')}</dt>
                 <dd>{checklist.counters.expiringSoon}</dd>
               </div>
             </dl>
             {checklist.summary.cieReady ? (
-              <p className="cie-ready">
-                Toda la evidencia exigida está completa. El expediente está listo para sustentar la
-                solicitud ante la CIE.
-              </p>
+              <p className="cie-ready">{t('admin.cie.expedienteListo')}</p>
             ) : null}
             {checklist.counters.activePrograms === 0 ? (
               <p className="cie-warning">
-                No hay programas activos en <strong>degree_programs</strong>. La evidencia por
-                programa no se puede exigir hasta que exista al menos uno: créalos en la sección{' '}
-                <strong>SIS / Académico</strong> del panel.
+                {t('admin.cie.avisoSinProgramasActivos')}
               </p>
             ) : null}
           </div>
@@ -670,17 +687,19 @@ export function CieChecklistView({
           {checklist.sections.map((section) => (
             <div key={section.scope} className="cie-section">
               <h3>
-                {section.titleEs} <SignalDot signal={section.signal} />
+                {section.titleEs} <SignalDot signal={section.signal} t={t} />
               </h3>
               {section.items.length === 0 ? (
-                <p className="cie-empty">Sin tipos de documento configurados en este ámbito.</p>
+                <p className="cie-empty">{t('admin.cie.sinTiposDocumento')}</p>
               ) : (
                 <ul className="cie-checklist">{section.items.map(renderChecklistItem)}</ul>
               )}
             </div>
           ))}
           <p className="cie-generated">
-            Generado {new Date(checklist.generatedAt).toLocaleString('es-CO')}
+            {t('admin.cie.generado', {
+              fecha: new Date(checklist.generatedAt).toLocaleString('es-CO')
+            })}
           </p>
         </section>
       ) : null}
@@ -689,10 +708,10 @@ export function CieChecklistView({
       {tab === 'documents' ? (
         <section>
           <div className="cie-form-card">
-            <h3>Registrar evidencia</h3>
+            <h3>{t('admin.cie.registrarEvidenciaTitulo')}</h3>
             <div className="cie-form-grid">
               <label>
-                Tipo de documento
+                {t('admin.cie.campoTipoDocumento')}
                 <select
                   value={documentForm.documentTypeId}
                   onChange={(event) =>
@@ -704,10 +723,10 @@ export function CieChecklistView({
                     }))
                   }
                 >
-                  <option value="">Selecciona…</option>
+                  <option value="">{t('admin.cie.optionSelecciona')}</option>
                   {documentTypes.map((type) => (
                     <option key={type.id} value={type.id}>
-                      [{SCOPE_LABEL[type.scope]}] {type.nameEs}
+                      [{t(SCOPE_LABEL_KEY[type.scope])}] {type.nameEs}
                       {type.cieRequired ? ' · CIE' : ''}
                     </option>
                   ))}
@@ -716,14 +735,14 @@ export function CieChecklistView({
 
               {selectedDocumentType?.scope === 'program' ? (
                 <label>
-                  Programa
+                  {t('admin.cie.campoPrograma')}
                   <select
                     value={documentForm.programId}
                     onChange={(event) =>
                       setDocumentForm((previous) => ({ ...previous, programId: event.target.value }))
                     }
                   >
-                    <option value="">Selecciona…</option>
+                    <option value="">{t('admin.cie.optionSelecciona')}</option>
                     {activePrograms.map((program) => (
                       <option key={program.id} value={program.id}>
                         {program.code} — {program.name}
@@ -735,14 +754,14 @@ export function CieChecklistView({
 
               {selectedDocumentType?.scope === 'faculty' ? (
                 <label>
-                  Docente
+                  {t('admin.cie.campoDocente')}
                   <select
                     value={documentForm.facultyId}
                     onChange={(event) =>
                       setDocumentForm((previous) => ({ ...previous, facultyId: event.target.value }))
                     }
                   >
-                    <option value="">Selecciona…</option>
+                    <option value="">{t('admin.cie.optionSelecciona')}</option>
                     {faculty.map((member) => (
                       <option key={member.id} value={member.id}>
                         {member.fullName}
@@ -753,7 +772,7 @@ export function CieChecklistView({
               ) : null}
 
               <label>
-                Título
+                {t('admin.cie.campoTitulo')}
                 <input
                   type="text"
                   value={documentForm.title}
@@ -763,7 +782,7 @@ export function CieChecklistView({
                 />
               </label>
               <label>
-                URL del archivo
+                {t('admin.cie.campoUrlArchivo')}
                 <input
                   type="url"
                   placeholder="https://…"
@@ -774,7 +793,7 @@ export function CieChecklistView({
                 />
               </label>
               <label>
-                Versión
+                {t('admin.cie.campoVersion')}
                 <input
                   type="text"
                   value={documentForm.version}
@@ -784,7 +803,7 @@ export function CieChecklistView({
                 />
               </label>
               <label>
-                Estado
+                {t('admin.cie.campoEstado')}
                 <select
                   value={documentForm.status}
                   onChange={(event) =>
@@ -794,15 +813,15 @@ export function CieChecklistView({
                     }))
                   }
                 >
-                  {(Object.keys(DOCUMENT_STATUS_LABEL) as DocumentStatus[]).map((status) => (
+                  {(Object.keys(DOCUMENT_STATUS_LABEL_KEY) as DocumentStatus[]).map((status) => (
                     <option key={status} value={status}>
-                      {DOCUMENT_STATUS_LABEL[status]}
+                      {t(DOCUMENT_STATUS_LABEL_KEY[status])}
                     </option>
                   ))}
                 </select>
               </label>
               <label>
-                Vigente desde
+                {t('admin.cie.campoVigenteDesde')}
                 <input
                   type="date"
                   value={documentForm.effectiveDate}
@@ -815,7 +834,7 @@ export function CieChecklistView({
                 />
               </label>
               <label>
-                Vence
+                {t('admin.cie.campoVence')}
                 <input
                   type="date"
                   value={documentForm.expiresAt}
@@ -826,37 +845,37 @@ export function CieChecklistView({
               </label>
             </div>
             <button type="button" className="primary-btn" disabled={saving} onClick={submitDocument}>
-              {saving ? 'Guardando…' : 'Registrar documento'}
+              {saving ? t('admin.cie.guardando') : t('admin.cie.registrarDocumento')}
             </button>
           </div>
 
           <div className="cie-filters">
             <label>
-              Ámbito
+              {t('admin.cie.filtroAmbito')}
               <select
                 value={documentScopeFilter}
                 onChange={(event) => setDocumentScopeFilter(event.target.value as DocumentScope | '')}
               >
-                <option value="">Todos</option>
-                {(Object.keys(SCOPE_LABEL) as DocumentScope[]).map((scope) => (
+                <option value="">{t('admin.cie.optionTodos')}</option>
+                {(Object.keys(SCOPE_LABEL_KEY) as DocumentScope[]).map((scope) => (
                   <option key={scope} value={scope}>
-                    {SCOPE_LABEL[scope]}
+                    {t(SCOPE_LABEL_KEY[scope])}
                   </option>
                 ))}
               </select>
             </label>
             <label>
-              Estado
+              {t('admin.cie.campoEstado')}
               <select
                 value={documentStatusFilter}
                 onChange={(event) =>
                   setDocumentStatusFilter(event.target.value as DocumentStatus | '')
                 }
               >
-                <option value="">Todos</option>
-                {(Object.keys(DOCUMENT_STATUS_LABEL) as DocumentStatus[]).map((status) => (
+                <option value="">{t('admin.cie.optionTodos')}</option>
+                {(Object.keys(DOCUMENT_STATUS_LABEL_KEY) as DocumentStatus[]).map((status) => (
                   <option key={status} value={status}>
-                    {DOCUMENT_STATUS_LABEL[status]}
+                    {t(DOCUMENT_STATUS_LABEL_KEY[status])}
                   </option>
                 ))}
               </select>
@@ -866,19 +885,19 @@ export function CieChecklistView({
           <table className="cie-table">
             <thead>
               <tr>
-                <th>Documento</th>
-                <th>Tipo</th>
-                <th>Unidad</th>
-                <th>Estado</th>
-                <th>Vence</th>
-                <th>Acciones</th>
+                <th>{t('admin.cie.colDocumento')}</th>
+                <th>{t('admin.cie.colTipo')}</th>
+                <th>{t('admin.cie.colUnidad')}</th>
+                <th>{t('admin.cie.colEstado')}</th>
+                <th>{t('admin.cie.colVence')}</th>
+                <th>{t('admin.cie.colAcciones')}</th>
               </tr>
             </thead>
             <tbody>
               {documents.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="cie-empty">
-                    Sin documentos registrados con estos filtros.
+                    {t('admin.cie.sinDocumentosFiltro')}
                   </td>
                 </tr>
               ) : (
@@ -896,11 +915,15 @@ export function CieChecklistView({
                     </td>
                     <td>{document.documentTypeNameEs}</td>
                     <td>
-                      {document.programCode ?? document.facultyFullName ?? 'Institucional'}
+                      {document.programCode ??
+                        document.facultyFullName ??
+                        t('admin.cie.ambito.institutional')}
                     </td>
                     <td>
-                      {DOCUMENT_STATUS_LABEL[document.status]}
-                      {document.isExpired ? <strong className="cie-expired"> vencido</strong> : null}
+                      {t(DOCUMENT_STATUS_LABEL_KEY[document.status])}
+                      {document.isExpired ? (
+                        <strong className="cie-expired"> {t('admin.cie.marcaVencido')}</strong>
+                      ) : null}
                     </td>
                     <td>{document.expiresAt ?? '—'}</td>
                     <td className="cie-actions">
@@ -911,14 +934,14 @@ export function CieChecklistView({
                           changeDocumentStatus(document, event.target.value as DocumentStatus)
                         }
                       >
-                        {(Object.keys(DOCUMENT_STATUS_LABEL) as DocumentStatus[]).map((status) => (
+                        {(Object.keys(DOCUMENT_STATUS_LABEL_KEY) as DocumentStatus[]).map((status) => (
                           <option key={status} value={status}>
-                            {DOCUMENT_STATUS_LABEL[status]}
+                            {t(DOCUMENT_STATUS_LABEL_KEY[status])}
                           </option>
                         ))}
                       </select>
                       <button type="button" disabled={saving} onClick={() => removeDocument(document)}>
-                        Eliminar
+                        {t('admin.cie.eliminar')}
                       </button>
                     </td>
                   </tr>
@@ -933,10 +956,10 @@ export function CieChecklistView({
       {tab === 'faculty' ? (
         <section>
           <div className="cie-form-card">
-            <h3>Nuevo expediente de faculty</h3>
+            <h3>{t('admin.cie.nuevoExpedienteTitulo')}</h3>
             <div className="cie-form-grid">
               <label>
-                Nombre completo
+                {t('admin.cie.campoNombreCompleto')}
                 <input
                   type="text"
                   value={facultyForm.fullName}
@@ -946,7 +969,7 @@ export function CieChecklistView({
                 />
               </label>
               <label>
-                Correo
+                {t('admin.cie.campoCorreo')}
                 <input
                   type="email"
                   value={facultyForm.email}
@@ -956,14 +979,14 @@ export function CieChecklistView({
                 />
               </label>
               <label>
-                Programa
+                {t('admin.cie.campoPrograma')}
                 <select
                   value={facultyForm.programId}
                   onChange={(event) =>
                     setFacultyForm((previous) => ({ ...previous, programId: event.target.value }))
                   }
                 >
-                  <option value="">Sin asignar</option>
+                  <option value="">{t('admin.cie.optionSinAsignar')}</option>
                   {programs.map((program) => (
                     <option key={program.id} value={program.id}>
                       {program.code} — {program.name}
@@ -972,7 +995,7 @@ export function CieChecklistView({
                 </select>
               </label>
               <label>
-                Grado máximo
+                {t('admin.cie.campoGradoMaximo')}
                 <select
                   value={facultyForm.degreeLevel}
                   onChange={(event) =>
@@ -982,19 +1005,19 @@ export function CieChecklistView({
                     }))
                   }
                 >
-                  <option value="">Sin especificar</option>
-                  {(Object.keys(DEGREE_LEVEL_LABEL) as FacultyDegreeLevel[]).map((level) => (
+                  <option value="">{t('admin.cie.optionSinEspecificar')}</option>
+                  {(Object.keys(DEGREE_LEVEL_LABEL_KEY) as FacultyDegreeLevel[]).map((level) => (
                     <option key={level} value={level}>
-                      {DEGREE_LEVEL_LABEL[level]}
+                      {t(DEGREE_LEVEL_LABEL_KEY[level])}
                     </option>
                   ))}
                 </select>
               </label>
               <label>
-                Credenciales
+                {t('admin.cie.campoCredenciales')}
                 <input
                   type="text"
-                  placeholder="Ph.D. Educación, M.Ed."
+                  placeholder={t('admin.cie.placeholderCredenciales')}
                   value={facultyForm.credentials}
                   onChange={(event) =>
                     setFacultyForm((previous) => ({ ...previous, credentials: event.target.value }))
@@ -1003,31 +1026,28 @@ export function CieChecklistView({
               </label>
             </div>
             <button type="button" className="primary-btn" disabled={saving} onClick={submitFaculty}>
-              {saving ? 'Guardando…' : 'Crear expediente'}
+              {saving ? t('admin.cie.guardando') : t('admin.cie.crearExpediente')}
             </button>
             {programs.length === 0 ? (
-              <p className="cie-note">
-                No hay programas registrados. Se pueden crear expedientes sin programa asignado y
-                vincularlos después; los programas se crean en <strong>SIS / Académico</strong>.
-              </p>
+              <p className="cie-note">{t('admin.cie.avisoSinProgramas')}</p>
             ) : null}
           </div>
 
           <table className="cie-table">
             <thead>
               <tr>
-                <th>Docente</th>
-                <th>Programa</th>
-                <th>Grado</th>
-                <th>Cobertura documental</th>
-                <th>Falta</th>
+                <th>{t('admin.cie.colDocente')}</th>
+                <th>{t('admin.cie.colPrograma')}</th>
+                <th>{t('admin.cie.colGrado')}</th>
+                <th>{t('admin.cie.colCobertura')}</th>
+                <th>{t('admin.cie.colFalta')}</th>
               </tr>
             </thead>
             <tbody>
               {faculty.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="cie-empty">
-                    Aún no hay expedientes cargados.
+                    {t('admin.cie.sinExpedientes')}
                   </td>
                 </tr>
               ) : (
@@ -1044,11 +1064,12 @@ export function CieChecklistView({
                       <td>{member.programCode ?? '—'}</td>
                       <td>
                         {member.credentials ??
-                          (member.degreeLevel ? DEGREE_LEVEL_LABEL[member.degreeLevel] : '—')}
+                          (member.degreeLevel ? t(DEGREE_LEVEL_LABEL_KEY[member.degreeLevel]) : '—')}
                       </td>
                       <td>
                         <SignalDot
                           signal={complete ? 'green' : member.approvedDocuments === 0 ? 'red' : 'amber'}
+                          t={t}
                         />
                         <small>
                           {' '}
@@ -1074,37 +1095,37 @@ export function CieChecklistView({
         <section>
           <div className="cie-filters">
             <label>
-              Estado
+              {t('admin.cie.campoEstado')}
               <select
                 value={contactStatusFilter}
                 onChange={(event) => setContactStatusFilter(event.target.value as ContactStatus | '')}
               >
-                <option value="">Todos</option>
-                {(Object.keys(CONTACT_STATUS_LABEL) as ContactStatus[]).map((status) => (
+                <option value="">{t('admin.cie.optionTodos')}</option>
+                {(Object.keys(CONTACT_STATUS_LABEL_KEY) as ContactStatus[]).map((status) => (
                   <option key={status} value={status}>
-                    {CONTACT_STATUS_LABEL[status]}
+                    {t(CONTACT_STATUS_LABEL_KEY[status])}
                   </option>
                 ))}
               </select>
             </label>
-            <span className="cie-note">{contactTotal} mensajes en total</span>
+            <span className="cie-note">{t('admin.cie.totalMensajes', { count: contactTotal })}</span>
           </div>
 
           <table className="cie-table">
             <thead>
               <tr>
-                <th>Recibido</th>
-                <th>Remitente</th>
-                <th>Programa</th>
-                <th>Mensaje</th>
-                <th>Estado</th>
+                <th>{t('admin.cie.colRecibido')}</th>
+                <th>{t('admin.cie.colRemitente')}</th>
+                <th>{t('admin.cie.colPrograma')}</th>
+                <th>{t('admin.cie.colMensaje')}</th>
+                <th>{t('admin.cie.colEstado')}</th>
               </tr>
             </thead>
             <tbody>
               {contactMessages.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="cie-empty">
-                    Sin mensajes con este filtro.
+                    {t('admin.cie.sinMensajesFiltro')}
                   </td>
                 </tr>
               ) : (
@@ -1133,9 +1154,9 @@ export function CieChecklistView({
                           changeContactStatus(message, event.target.value as ContactStatus)
                         }
                       >
-                        {(Object.keys(CONTACT_STATUS_LABEL) as ContactStatus[]).map((status) => (
+                        {(Object.keys(CONTACT_STATUS_LABEL_KEY) as ContactStatus[]).map((status) => (
                           <option key={status} value={status}>
-                            {CONTACT_STATUS_LABEL[status]}
+                            {t(CONTACT_STATUS_LABEL_KEY[status])}
                           </option>
                         ))}
                       </select>

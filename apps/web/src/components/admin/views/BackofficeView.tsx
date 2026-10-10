@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Phase 4 — Back-office (HR + Accounting) admin view.
@@ -110,6 +111,7 @@ export function BackofficeView({
   setError: (msg: string | null) => void;
   setInfo: (msg: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<BackofficeTab>('hr');
   const [loading, setLoading] = useState(false);
 
@@ -140,7 +142,7 @@ export function BackofficeView({
       setProviders(response.providers);
       setStaff(response.staff);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando personal');
+      setError(reason instanceof Error ? reason.message : t('admin.backoffice.errores.personal'));
     } finally {
       setLoading(false);
     }
@@ -152,7 +154,7 @@ export function BackofficeView({
       const response = await boFetch<AccountingStatus>(token, '/admin/accounting/status');
       setAccounting(response);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando contabilidad');
+      setError(reason instanceof Error ? reason.message : t('admin.backoffice.errores.contabilidad'));
     } finally {
       setLoading(false);
     }
@@ -181,11 +183,11 @@ export function BackofficeView({
           country: staffForm.country || undefined
         }
       });
-      setInfo('Miembro de personal agregado.');
+      setInfo(t('admin.backoffice.hr.agregado'));
       setStaffForm({ fullName: '', email: '', role: '', employmentType: 'employee', country: '' });
       await loadStaff(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo agregar personal');
+      setError(reason instanceof Error ? reason.message : t('admin.backoffice.hr.errorAgregar'));
     } finally {
       setSavingStaff(false);
     }
@@ -201,17 +203,21 @@ export function BackofficeView({
         method: 'POST'
       });
       if (result.status === 'not_configured') {
-        setInfo(result.message ?? 'Ningún conector de HR está configurado.');
+        setInfo(result.message ?? t('admin.backoffice.hr.sinConector'));
       } else {
-        const errorSuffix = result.errors?.length ? ` (${result.errors.length} errores)` : '';
-        setInfo(`Sincronización completada: ${result.synced ?? 0} registros${errorSuffix}.`);
+        const errorSuffix = result.errors?.length
+          ? t('admin.backoffice.comun.sufijoErrores', { count: result.errors.length })
+          : '';
+        setInfo(
+          t('admin.backoffice.hr.syncOk', { total: result.synced ?? 0, errores: errorSuffix })
+        );
         if (result.errors?.length) {
           setError(result.errors.join(' | '));
         }
       }
       await loadStaff(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo sincronizar HR');
+      setError(reason instanceof Error ? reason.message : t('admin.backoffice.hr.errorSync'));
     } finally {
       setSyncingHr(false);
     }
@@ -227,24 +233,33 @@ export function BackofficeView({
         method: 'POST'
       });
       if (result.status === 'not_configured') {
-        setInfo(result.message ?? 'QuickBooks no está configurado.');
+        setInfo(result.message ?? t('admin.backoffice.contabilidad.sinQuickbooks'));
       } else {
-        const errorSuffix = result.errors?.length ? ` (${result.errors.length} errores)` : '';
-        setInfo(`Push al GL completado: ${result.pushed ?? 0} entidades${errorSuffix}.`);
+        const errorSuffix = result.errors?.length
+          ? t('admin.backoffice.comun.sufijoErrores', { count: result.errors.length })
+          : '';
+        setInfo(
+          t('admin.backoffice.contabilidad.syncOk', {
+            total: result.pushed ?? 0,
+            errores: errorSuffix
+          })
+        );
         if (result.errors?.length) {
           setError(result.errors.join(' | '));
         }
       }
       await loadAccounting(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo sincronizar contabilidad');
+      setError(
+        reason instanceof Error ? reason.message : t('admin.backoffice.contabilidad.errorSync')
+      );
     } finally {
       setSyncingGl(false);
     }
   };
 
   if (!sessionToken) {
-    return <p>Inicia sesión para gestionar el back-office.</p>;
+    return <p>{t('admin.backoffice.sinSesion')}</p>;
   }
 
   return (
@@ -252,12 +267,14 @@ export function BackofficeView({
       <article className="card">
         <div className="inline-actions" style={{ marginBottom: '8px' }}>
           <button className={tab === 'hr' ? '' : 'ghost'} onClick={() => setTab('hr')}>
-            Personal (HR)
+            {t('admin.backoffice.tabs.hr')}
           </button>
           <button className={tab === 'accounting' ? '' : 'ghost'} onClick={() => setTab('accounting')}>
-            Contabilidad
+            {t('admin.backoffice.tabs.contabilidad')}
           </button>
-          {loading ? <span style={{ color: 'var(--text-muted)' }}>Cargando...</span> : null}
+          {loading ? (
+            <span style={{ color: 'var(--text-muted)' }}>{t('admin.backoffice.comun.cargando')}</span>
+          ) : null}
         </div>
       </article>
 
@@ -265,41 +282,49 @@ export function BackofficeView({
         <>
           <article className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2>Directorio de personal</h2>
+              <h2>{t('admin.backoffice.hr.directorioTitulo')}</h2>
               <button className="ghost" onClick={() => void onSyncHr()} disabled={syncingHr}>
-                {syncingHr ? 'Sincronizando...' : 'Sincronizar Gusto/Deel'}
+                {syncingHr
+                  ? t('admin.backoffice.comun.sincronizando')
+                  : t('admin.backoffice.hr.sincronizar')}
               </button>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              Gusto: {providers.gusto ? 'configurado' : 'no configurado'} · Deel:{' '}
-              {providers.deel ? 'configurado' : 'no configurado'}
+              {t('admin.backoffice.hr.proveedores', {
+                gusto: providers.gusto
+                  ? t('admin.backoffice.comun.configurado')
+                  : t('admin.backoffice.comun.noConfigurado'),
+                deel: providers.deel
+                  ? t('admin.backoffice.comun.configurado')
+                  : t('admin.backoffice.comun.noConfigurado')
+              })}
             </p>
           </article>
 
           <article className="card">
-            <h2>Alta manual</h2>
+            <h2>{t('admin.backoffice.hr.altaTitulo')}</h2>
             <form className="login-form" onSubmit={onCreateStaff}>
-              <label>Nombre completo</label>
+              <label>{t('admin.backoffice.hr.campoNombre')}</label>
               <input
                 value={staffForm.fullName}
                 onChange={(e) => setStaffForm((c) => ({ ...c, fullName: e.target.value }))}
-                placeholder="María López"
+                placeholder={t('admin.backoffice.hr.campoNombrePlaceholder')}
                 required
               />
-              <label>Email</label>
+              <label>{t('admin.backoffice.hr.campoEmail')}</label>
               <input
                 type="email"
                 value={staffForm.email}
                 onChange={(e) => setStaffForm((c) => ({ ...c, email: e.target.value }))}
                 placeholder="maria@atlas.edu"
               />
-              <label>Rol / cargo</label>
+              <label>{t('admin.backoffice.hr.campoRol')}</label>
               <input
                 value={staffForm.role}
                 onChange={(e) => setStaffForm((c) => ({ ...c, role: e.target.value }))}
-                placeholder="Registrar"
+                placeholder={t('admin.backoffice.hr.campoRolPlaceholder')}
               />
-              <label>Tipo de empleo</label>
+              <label>{t('admin.backoffice.hr.campoTipo')}</label>
               <select
                 value={staffForm.employmentType}
                 onChange={(e) =>
@@ -309,40 +334,42 @@ export function BackofficeView({
                   }))
                 }
               >
-                <option value="employee">Empleado</option>
-                <option value="contractor">Contratista</option>
+                <option value="employee">{t('admin.backoffice.hr.tipoEmpleado')}</option>
+                <option value="contractor">{t('admin.backoffice.hr.tipoContratista')}</option>
               </select>
-              <label>País</label>
+              <label>{t('admin.backoffice.hr.campoPais')}</label>
               <input
                 value={staffForm.country}
                 onChange={(e) => setStaffForm((c) => ({ ...c, country: e.target.value }))}
                 placeholder="US"
               />
               <button type="submit" disabled={savingStaff}>
-                {savingStaff ? 'Guardando...' : 'Agregar personal'}
+                {savingStaff
+                  ? t('admin.backoffice.comun.guardando')
+                  : t('admin.backoffice.hr.agregar')}
               </button>
             </form>
           </article>
 
           <article className="card scroll-card">
-            <h2>Personal ({staff.length})</h2>
+            <h2>{t('admin.backoffice.hr.listaTitulo', { total: staff.length })}</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Nombre</th>
-                  <th>Email</th>
-                  <th>Rol</th>
-                  <th>Origen</th>
-                  <th>Tipo</th>
-                  <th>Estado</th>
-                  <th>País</th>
-                  <th>Sincronizado</th>
+                  <th>{t('admin.backoffice.hr.colNombre')}</th>
+                  <th>{t('admin.backoffice.hr.colEmail')}</th>
+                  <th>{t('admin.backoffice.hr.colRol')}</th>
+                  <th>{t('admin.backoffice.hr.colOrigen')}</th>
+                  <th>{t('admin.backoffice.hr.colTipo')}</th>
+                  <th>{t('admin.backoffice.hr.colEstado')}</th>
+                  <th>{t('admin.backoffice.hr.colPais')}</th>
+                  <th>{t('admin.backoffice.hr.colSincronizado')}</th>
                 </tr>
               </thead>
               <tbody>
                 {staff.length === 0 ? (
                   <tr>
-                    <td colSpan={8}>No hay personal registrado.</td>
+                    <td colSpan={8}>{t('admin.backoffice.hr.vacio')}</td>
                   </tr>
                 ) : (
                   staff.map((member) => (
@@ -368,26 +395,38 @@ export function BackofficeView({
         <>
           <article className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2>QuickBooks (libro mayor)</h2>
+              <h2>{t('admin.backoffice.contabilidad.titulo')}</h2>
               <button className="ghost" onClick={() => void onSyncGl()} disabled={syncingGl}>
-                {syncingGl ? 'Sincronizando...' : 'Sincronizar con GL'}
+                {syncingGl
+                  ? t('admin.backoffice.comun.sincronizando')
+                  : t('admin.backoffice.contabilidad.sincronizar')}
               </button>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              QuickBooks: {accounting?.quickbooksConfigured ? 'configurado' : 'no configurado'}
+              {t('admin.backoffice.contabilidad.estado', {
+                estado: accounting?.quickbooksConfigured
+                  ? t('admin.backoffice.comun.configurado')
+                  : t('admin.backoffice.comun.noConfigurado')
+              })}
             </p>
             {accounting && (
               <div className="grid-like-two" style={{ marginTop: '12px' }}>
                 <div style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-                  <small style={{ color: 'var(--text-muted)' }}>Sincronizados</small>
+                  <small style={{ color: 'var(--text-muted)' }}>
+                    {t('admin.backoffice.contabilidad.sincronizados')}
+                  </small>
                   <div style={{ fontSize: '2rem', fontWeight: 800 }}>{accounting.summary.synced}</div>
                 </div>
                 <div style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-                  <small style={{ color: 'var(--text-muted)' }}>Pendientes</small>
+                  <small style={{ color: 'var(--text-muted)' }}>
+                    {t('admin.backoffice.contabilidad.pendientes')}
+                  </small>
                   <div style={{ fontSize: '2rem', fontWeight: 800 }}>{accounting.summary.pending}</div>
                 </div>
                 <div style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-                  <small style={{ color: 'var(--text-muted)' }}>Errores</small>
+                  <small style={{ color: 'var(--text-muted)' }}>
+                    {t('admin.backoffice.contabilidad.errores')}
+                  </small>
                   <div style={{ fontSize: '2rem', fontWeight: 800 }}>{accounting.summary.error}</div>
                 </div>
               </div>
@@ -395,22 +434,22 @@ export function BackofficeView({
           </article>
 
           <article className="card scroll-card">
-            <h2>Log de sincronización GL</h2>
+            <h2>{t('admin.backoffice.contabilidad.logTitulo')}</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Entidad</th>
-                  <th>ID interno</th>
-                  <th>ID externo</th>
-                  <th>Estado</th>
-                  <th>Mensaje</th>
+                  <th>{t('admin.backoffice.contabilidad.colFecha')}</th>
+                  <th>{t('admin.backoffice.contabilidad.colEntidad')}</th>
+                  <th>{t('admin.backoffice.contabilidad.colIdInterno')}</th>
+                  <th>{t('admin.backoffice.contabilidad.colIdExterno')}</th>
+                  <th>{t('admin.backoffice.contabilidad.colEstado')}</th>
+                  <th>{t('admin.backoffice.contabilidad.colMensaje')}</th>
                 </tr>
               </thead>
               <tbody>
                 {!accounting || accounting.log.length === 0 ? (
                   <tr>
-                    <td colSpan={6}>No hay registros de sincronización.</td>
+                    <td colSpan={6}>{t('admin.backoffice.contabilidad.logVacio')}</td>
                   </tr>
                 ) : (
                   accounting.log.map((entry) => (

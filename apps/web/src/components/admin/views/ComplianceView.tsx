@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SyllabusEditor, type EditableSyllabus } from './SyllabusEditor';
 
 /**
@@ -97,19 +98,25 @@ type IpedsReport = {
   };
 };
 
-const AREAS: { value: ComplianceArea; label: string }[] = [
-  { value: 'ferpa', label: 'FERPA' },
-  { value: 'ipeds', label: 'IPEDS' },
-  { value: 'wcag', label: 'WCAG' },
-  { value: 'title_ix', label: 'Title IX' },
-  { value: 'ada', label: 'ADA' },
-  { value: 'accreditation', label: 'Acreditación' }
+/**
+ * Estos mapas guardan CLAVES de i18next, no etiquetas: la vista se traduce en
+ * tiempo de render con t(labelKey), de modo que al cambiar de idioma las
+ * etiquetas cambian sin recargar. El `value` sigue siendo el identificador que
+ * viaja a la API y nunca se traduce.
+ */
+const AREAS: { value: ComplianceArea; labelKey: string }[] = [
+  { value: 'ferpa', labelKey: 'admin.compliance.areas.ferpa' },
+  { value: 'ipeds', labelKey: 'admin.compliance.areas.ipeds' },
+  { value: 'wcag', labelKey: 'admin.compliance.areas.wcag' },
+  { value: 'title_ix', labelKey: 'admin.compliance.areas.titleIx' },
+  { value: 'ada', labelKey: 'admin.compliance.areas.ada' },
+  { value: 'accreditation', labelKey: 'admin.compliance.areas.accreditation' }
 ];
 
-const STATUSES: { value: ComplianceStatus; label: string }[] = [
-  { value: 'compliant', label: 'Cumple' },
-  { value: 'pending', label: 'Pendiente' },
-  { value: 'action_required', label: 'Acción requerida' }
+const STATUSES: { value: ComplianceStatus; labelKey: string }[] = [
+  { value: 'compliant', labelKey: 'admin.compliance.estados.compliant' },
+  { value: 'pending', labelKey: 'admin.compliance.estados.pending' },
+  { value: 'action_required', labelKey: 'admin.compliance.estados.actionRequired' }
 ];
 
 async function complianceFetch<T>(
@@ -159,6 +166,7 @@ export function ComplianceView({
   setError: (msg: string | null) => void;
   setInfo: (msg: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<ComplianceTab>('syllabus');
 
   const [templates, setTemplates] = useState<SyllabusTemplate[]>([]);
@@ -209,7 +217,7 @@ export function ComplianceView({
       setTemplates(tmpl);
       setSyllabi(syl);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando syllabus');
+      setError(reason instanceof Error ? reason.message : t('admin.compliance.errorCargarSyllabus'));
     } finally {
       setLoading(false);
     }
@@ -225,7 +233,7 @@ export function ComplianceView({
       setRecords(recs);
       setFerpaLog(log);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando cumplimiento');
+      setError(reason instanceof Error ? reason.message : t('admin.compliance.errorCargarCumplimiento'));
     } finally {
       setLoading(false);
     }
@@ -237,7 +245,7 @@ export function ComplianceView({
       const data = await complianceFetch<IpedsReport>(token, '/admin/compliance/ipeds-report');
       setReport(data);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando reporte IPEDS');
+      setError(reason instanceof Error ? reason.message : t('admin.compliance.errorCargarReporte'));
     } finally {
       setLoading(false);
     }
@@ -262,7 +270,7 @@ export function ComplianceView({
       try {
         sections = JSON.parse(templateForm.sectionsJson) as TemplateSection[];
       } catch {
-        setError('Las secciones deben ser un JSON válido (array de {key,label,required,defaultContent}).');
+        setError(t('admin.compliance.errorSeccionesJson'));
         setSavingTemplate(false);
         return;
       }
@@ -272,11 +280,11 @@ export function ComplianceView({
         method: 'POST',
         body: { name: templateForm.name, sections }
       });
-      setInfo('Plantilla creada.');
+      setInfo(t('admin.compliance.plantillaCreada'));
       setTemplateForm({ name: '', sectionsJson: '' });
       await loadSyllabusTab(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear la plantilla');
+      setError(reason instanceof Error ? reason.message : t('admin.compliance.errorCrearPlantilla'));
     } finally {
       setSavingTemplate(false);
     }
@@ -289,21 +297,25 @@ export function ComplianceView({
         method: 'PATCH',
         body: { isActive: !template.is_active }
       });
-      setInfo(template.is_active ? 'Plantilla desactivada.' : 'Plantilla activada.');
+      setInfo(
+        template.is_active
+          ? t('admin.compliance.plantillaDesactivada')
+          : t('admin.compliance.plantillaActivada')
+      );
       await loadSyllabusTab(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar la plantilla');
+      setError(reason instanceof Error ? reason.message : t('admin.compliance.errorActualizarPlantilla'));
     }
   };
 
   const onDeleteTemplate = async (id: string) => {
-    if (!sessionToken || !confirm('¿Eliminar esta plantilla?')) return;
+    if (!sessionToken || !confirm(t('admin.compliance.confirmEliminarPlantilla'))) return;
     try {
       await complianceFetch(sessionToken, `/admin/syllabus/templates/${id}`, { method: 'DELETE' });
-      setInfo('Plantilla eliminada.');
+      setInfo(t('admin.compliance.plantillaEliminada'));
       await loadSyllabusTab(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo eliminar la plantilla');
+      setError(reason instanceof Error ? reason.message : t('admin.compliance.errorEliminarPlantilla'));
     }
   };
 
@@ -327,11 +339,11 @@ export function ComplianceView({
           termId: syllabusForm.termId || undefined
         }
       });
-      setInfo('Syllabus creado en borrador.');
+      setInfo(t('admin.compliance.syllabusCreado'));
       setSyllabusForm({ title: '', templateId: '', moodleCourseId: '', degreeProgramId: '', termId: '' });
       await loadSyllabusTab(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear el syllabus');
+      setError(reason instanceof Error ? reason.message : t('admin.compliance.errorCrearSyllabus'));
     } finally {
       setSavingSyllabus(false);
     }
@@ -341,10 +353,10 @@ export function ComplianceView({
     if (!sessionToken) return;
     try {
       await complianceFetch(sessionToken, `/admin/syllabi/${id}/publish`, { method: 'POST' });
-      setInfo('Syllabus publicado (secciones obligatorias autocompletadas).');
+      setInfo(t('admin.compliance.syllabusPublicado'));
       await loadSyllabusTab(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo publicar el syllabus');
+      setError(reason instanceof Error ? reason.message : t('admin.compliance.errorPublicarSyllabus'));
     }
   };
 
@@ -367,11 +379,11 @@ export function ComplianceView({
           period: recordForm.period || undefined
         }
       });
-      setInfo('Registro de cumplimiento creado.');
+      setInfo(t('admin.compliance.registroCreado'));
       setRecordForm({ area: 'ferpa', title: '', status: 'pending', detail: '', evidenceUrl: '', period: '' });
       await loadComplianceTab(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear el registro');
+      setError(reason instanceof Error ? reason.message : t('admin.compliance.errorCrearRegistro'));
     } finally {
       setSavingRecord(false);
     }
@@ -384,10 +396,10 @@ export function ComplianceView({
         method: 'PATCH',
         body: { status }
       });
-      setInfo('Estado actualizado.');
+      setInfo(t('admin.compliance.estadoActualizado'));
       await loadComplianceTab(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar el estado');
+      setError(reason instanceof Error ? reason.message : t('admin.compliance.errorActualizarEstado'));
     }
   };
 
@@ -407,11 +419,11 @@ export function ComplianceView({
           action: ferpaForm.action
         }
       });
-      setInfo('Acceso registrado en el log FERPA.');
+      setInfo(t('admin.compliance.accesoRegistrado'));
       setFerpaForm({ subjectUserId: '', resource: '', action: '' });
       await loadComplianceTab(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo registrar el acceso');
+      setError(reason instanceof Error ? reason.message : t('admin.compliance.errorRegistrarAcceso'));
     } finally {
       setSavingFerpa(false);
     }
@@ -435,7 +447,7 @@ export function ComplianceView({
   }, [records]);
 
   if (!sessionToken) {
-    return <p>Inicia sesión para gestionar el cumplimiento.</p>;
+    return <p>{t('admin.compliance.sinSesion')}</p>;
   }
 
   return (
@@ -443,16 +455,16 @@ export function ComplianceView({
       <article className="card">
         <div className="inline-actions" style={{ marginBottom: '8px' }}>
           <button className={tab === 'syllabus' ? '' : 'ghost'} onClick={() => setTab('syllabus')}>
-            Syllabus
+            {t('admin.compliance.tabs.syllabus')}
           </button>
           <button className={tab === 'compliance' ? '' : 'ghost'} onClick={() => setTab('compliance')}>
-            Cumplimiento
+            {t('admin.compliance.tabs.cumplimiento')}
           </button>
           <button className={tab === 'reports' ? '' : 'ghost'} onClick={() => setTab('reports')}>
-            IPEDS/Reportes
+            {t('admin.compliance.tabs.reportes')}
           </button>
         </div>
-        {loading ? <p>Cargando...</p> : null}
+        {loading ? <p>{t('admin.compliance.cargando')}</p> : null}
       </article>
 
       {/* El editor sustituye al listado mientras está abierto: son 24 secciones
@@ -477,16 +489,16 @@ export function ComplianceView({
       {tab === 'syllabus' && !editing && (
         <>
           <article className="card">
-            <h2>Crear plantilla</h2>
+            <h2>{t('admin.compliance.crearPlantillaTitulo')}</h2>
             <form className="login-form" onSubmit={onCreateTemplate}>
-              <label>Nombre</label>
+              <label>{t('admin.compliance.campoNombre')}</label>
               <input
                 value={templateForm.name}
                 onChange={(e) => setTemplateForm((c) => ({ ...c, name: e.target.value }))}
-                placeholder="Plantilla de cumplimiento"
+                placeholder={t('admin.compliance.placeholderNombrePlantilla')}
                 required
               />
-              <label>Secciones (JSON opcional)</label>
+              <label>{t('admin.compliance.campoSecciones')}</label>
               <textarea
                 value={templateForm.sectionsJson}
                 onChange={(e) => setTemplateForm((c) => ({ ...c, sectionsJson: e.target.value }))}
@@ -494,44 +506,50 @@ export function ComplianceView({
                 rows={4}
               />
               <button type="submit" disabled={savingTemplate}>
-                {savingTemplate ? 'Guardando...' : 'Crear plantilla'}
+                {savingTemplate ? t('admin.compliance.guardando') : t('admin.compliance.crearPlantilla')}
               </button>
             </form>
           </article>
 
           <article className="card scroll-card">
-            <h2>Plantillas ({templates.length})</h2>
+            <h2>{t('admin.compliance.plantillasTitulo', { total: templates.length })}</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Nombre</th>
-                  <th>Secciones</th>
-                  <th>Estado</th>
-                  <th>Acción</th>
+                  <th>{t('admin.compliance.colNombre')}</th>
+                  <th>{t('admin.compliance.colSecciones')}</th>
+                  <th>{t('admin.compliance.colEstado')}</th>
+                  <th>{t('admin.compliance.colAccion')}</th>
                 </tr>
               </thead>
               <tbody>
                 {templates.length === 0 ? (
                   <tr>
-                    <td colSpan={4}>No hay plantillas.</td>
+                    <td colSpan={4}>{t('admin.compliance.sinPlantillas')}</td>
                   </tr>
                 ) : (
-                  templates.map((t) => (
-                    <tr key={t.id}>
-                      <td>{t.name}</td>
+                  templates.map((template) => (
+                    <tr key={template.id}>
+                      <td>{template.name}</td>
                       <td>
-                        {(t.sections ?? [])
+                        {(template.sections ?? [])
                           .map((s) => `${s.label}${s.required ? '*' : ''}`)
                           .join(', ') || '-'}
                       </td>
-                      <td>{t.is_active ? 'activa' : 'inactiva'}</td>
+                      <td>
+                        {template.is_active
+                          ? t('admin.compliance.estadoActiva')
+                          : t('admin.compliance.estadoInactiva')}
+                      </td>
                       <td>
                         <div className="inline-actions">
-                          <button className="ghost" onClick={() => void onToggleTemplate(t)}>
-                            {t.is_active ? 'Desactivar' : 'Activar'}
+                          <button className="ghost" onClick={() => void onToggleTemplate(template)}>
+                            {template.is_active
+                              ? t('admin.compliance.desactivar')
+                              : t('admin.compliance.activar')}
                           </button>
-                          <button className="ghost danger" onClick={() => void onDeleteTemplate(t.id)}>
-                            Eliminar
+                          <button className="ghost danger" onClick={() => void onDeleteTemplate(template.id)}>
+                            {t('admin.compliance.eliminar')}
                           </button>
                         </div>
                       </td>
@@ -543,70 +561,70 @@ export function ComplianceView({
           </article>
 
           <article className="card">
-            <h2>Crear syllabus</h2>
+            <h2>{t('admin.compliance.crearSyllabusTitulo')}</h2>
             <form className="login-form" onSubmit={onCreateSyllabus}>
-              <label>Título</label>
+              <label>{t('admin.compliance.campoTitulo')}</label>
               <input
                 value={syllabusForm.title}
                 onChange={(e) => setSyllabusForm((c) => ({ ...c, title: e.target.value }))}
-                placeholder="Introducción a la Programación — Otoño 2026"
+                placeholder={t('admin.compliance.placeholderTituloSyllabus')}
                 required
               />
-              <label>Plantilla</label>
+              <label>{t('admin.compliance.campoPlantilla')}</label>
               <select
                 value={syllabusForm.templateId}
                 onChange={(e) => setSyllabusForm((c) => ({ ...c, templateId: e.target.value }))}
               >
-                <option value="">Sin plantilla</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
+                <option value="">{t('admin.compliance.optionSinPlantilla')}</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
                   </option>
                 ))}
               </select>
-              <label>ID Curso Moodle (opcional)</label>
+              <label>{t('admin.compliance.campoIdCurso')}</label>
               <input
                 type="number"
                 value={syllabusForm.moodleCourseId}
                 onChange={(e) => setSyllabusForm((c) => ({ ...c, moodleCourseId: e.target.value }))}
                 placeholder="123"
               />
-              <label>ID Programa (opcional)</label>
+              <label>{t('admin.compliance.campoIdPrograma')}</label>
               <input
                 value={syllabusForm.degreeProgramId}
                 onChange={(e) => setSyllabusForm((c) => ({ ...c, degreeProgramId: e.target.value }))}
-                placeholder="uuid del degree program"
+                placeholder={t('admin.compliance.placeholderIdPrograma')}
               />
-              <label>ID Término (opcional)</label>
+              <label>{t('admin.compliance.campoIdTermino')}</label>
               <input
                 value={syllabusForm.termId}
                 onChange={(e) => setSyllabusForm((c) => ({ ...c, termId: e.target.value }))}
-                placeholder="uuid del academic term"
+                placeholder={t('admin.compliance.placeholderIdTermino')}
               />
               <button type="submit" disabled={savingSyllabus}>
-                {savingSyllabus ? 'Guardando...' : 'Crear syllabus'}
+                {savingSyllabus ? t('admin.compliance.guardando') : t('admin.compliance.crearSyllabus')}
               </button>
             </form>
           </article>
 
           <article className="card scroll-card">
-            <h2>Syllabi ({syllabi.length})</h2>
+            <h2>{t('admin.compliance.syllabiTitulo', { total: syllabi.length })}</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Título</th>
-                  <th>Curso</th>
-                  <th>Programa</th>
-                  <th>Término</th>
-                  <th>Versión</th>
-                  <th>Estado</th>
-                  <th>Acción</th>
+                  <th>{t('admin.compliance.colTitulo')}</th>
+                  <th>{t('admin.compliance.colCurso')}</th>
+                  <th>{t('admin.compliance.colPrograma')}</th>
+                  <th>{t('admin.compliance.colTermino')}</th>
+                  <th>{t('admin.compliance.colVersion')}</th>
+                  <th>{t('admin.compliance.colEstado')}</th>
+                  <th>{t('admin.compliance.colAccion')}</th>
                 </tr>
               </thead>
               <tbody>
                 {syllabi.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>No hay syllabi.</td>
+                    <td colSpan={7}>{t('admin.compliance.sinSyllabi')}</td>
                   </tr>
                 ) : (
                   syllabi.map((s) => (
@@ -620,14 +638,14 @@ export function ComplianceView({
                       <td>
                         <div className="inline-actions">
                           <button className="ghost" onClick={() => setEditing(s)}>
-                            Editar las 24 secciones
+                            {t('admin.compliance.editarSecciones')}
                           </button>
                           {s.status !== 'published' ? (
                             <button className="ghost" onClick={() => void onPublishSyllabus(s.id)}>
-                              Publicar
+                              {t('admin.compliance.publicar')}
                             </button>
                           ) : (
-                            <span className="badge">publicado</span>
+                            <span className="badge">{t('admin.compliance.badgePublicado')}</span>
                           )}
                         </div>
                       </td>
@@ -643,7 +661,7 @@ export function ComplianceView({
       {tab === 'compliance' && (
         <>
           <article className="card scroll-card">
-            <h2>Estado por área</h2>
+            <h2>{t('admin.compliance.estadoPorAreaTitulo')}</h2>
             <div className="grid-like-two" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
               {AREAS.map((area) => {
                 const status = statusByArea.get(area.value);
@@ -652,11 +670,14 @@ export function ComplianceView({
                     key={area.value}
                     style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '8px' }}
                   >
-                    <small style={{ color: 'var(--text-muted)' }}>{area.label}</small>
+                    <small style={{ color: 'var(--text-muted)' }}>{t(area.labelKey)}</small>
                     <div style={{ fontWeight: 800 }}>
                       {status
-                        ? STATUSES.find((s) => s.value === status)?.label ?? status
-                        : 'Sin registros'}
+                        ? (() => {
+                            const match = STATUSES.find((s) => s.value === status);
+                            return match ? t(match.labelKey) : status;
+                          })()
+                        : t('admin.compliance.sinRegistrosArea')}
                     </div>
                   </div>
                 );
@@ -665,83 +686,88 @@ export function ComplianceView({
           </article>
 
           <article className="card">
-            <h2>Nuevo registro de cumplimiento</h2>
+            <h2>{t('admin.compliance.nuevoRegistroTitulo')}</h2>
             <form className="login-form" onSubmit={onCreateRecord}>
-              <label>Área</label>
+              <label>{t('admin.compliance.campoArea')}</label>
               <select
                 value={recordForm.area}
                 onChange={(e) => setRecordForm((c) => ({ ...c, area: e.target.value as ComplianceArea }))}
               >
                 {AREAS.map((a) => (
                   <option key={a.value} value={a.value}>
-                    {a.label}
+                    {t(a.labelKey)}
                   </option>
                 ))}
               </select>
-              <label>Título</label>
+              <label>{t('admin.compliance.campoTitulo')}</label>
               <input
                 value={recordForm.title}
                 onChange={(e) => setRecordForm((c) => ({ ...c, title: e.target.value }))}
-                placeholder="Revisión anual FERPA"
+                placeholder={t('admin.compliance.placeholderTituloRegistro')}
                 required
               />
-              <label>Estado</label>
+              <label>{t('admin.compliance.campoEstado')}</label>
               <select
                 value={recordForm.status}
                 onChange={(e) => setRecordForm((c) => ({ ...c, status: e.target.value as ComplianceStatus }))}
               >
                 {STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>
-                    {s.label}
+                    {t(s.labelKey)}
                   </option>
                 ))}
               </select>
-              <label>Detalle</label>
+              <label>{t('admin.compliance.campoDetalle')}</label>
               <input
                 value={recordForm.detail}
                 onChange={(e) => setRecordForm((c) => ({ ...c, detail: e.target.value }))}
-                placeholder="Descripción / notas"
+                placeholder={t('admin.compliance.placeholderDetalle')}
               />
-              <label>URL de evidencia</label>
+              <label>{t('admin.compliance.campoEvidencia')}</label>
               <input
                 value={recordForm.evidenceUrl}
                 onChange={(e) => setRecordForm((c) => ({ ...c, evidenceUrl: e.target.value }))}
                 placeholder="https://..."
               />
-              <label>Periodo</label>
+              <label>{t('admin.compliance.campoPeriodo')}</label>
               <input
                 value={recordForm.period}
                 onChange={(e) => setRecordForm((c) => ({ ...c, period: e.target.value }))}
                 placeholder="2025-2026"
               />
               <button type="submit" disabled={savingRecord}>
-                {savingRecord ? 'Guardando...' : 'Crear registro'}
+                {savingRecord ? t('admin.compliance.guardando') : t('admin.compliance.crearRegistro')}
               </button>
             </form>
           </article>
 
           <article className="card scroll-card">
-            <h2>Registros de cumplimiento ({records.length})</h2>
+            <h2>{t('admin.compliance.registrosTitulo', { total: records.length })}</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Área</th>
-                  <th>Título</th>
-                  <th>Estado</th>
-                  <th>Periodo</th>
-                  <th>Evidencia</th>
-                  <th>Acción</th>
+                  <th>{t('admin.compliance.colArea')}</th>
+                  <th>{t('admin.compliance.colTitulo')}</th>
+                  <th>{t('admin.compliance.colEstado')}</th>
+                  <th>{t('admin.compliance.colPeriodo')}</th>
+                  <th>{t('admin.compliance.colEvidencia')}</th>
+                  <th>{t('admin.compliance.colAccion')}</th>
                 </tr>
               </thead>
               <tbody>
                 {records.length === 0 ? (
                   <tr>
-                    <td colSpan={6}>No hay registros.</td>
+                    <td colSpan={6}>{t('admin.compliance.sinRegistros')}</td>
                   </tr>
                 ) : (
                   records.map((r) => (
                     <tr key={r.id}>
-                      <td>{AREAS.find((a) => a.value === r.area)?.label ?? r.area}</td>
+                      <td>
+                        {(() => {
+                          const match = AREAS.find((a) => a.value === r.area);
+                          return match ? t(match.labelKey) : r.area;
+                        })()}
+                      </td>
                       <td>{r.title}</td>
                       <td>
                         <select
@@ -752,7 +778,7 @@ export function ComplianceView({
                         >
                           {STATUSES.map((s) => (
                             <option key={s.value} value={s.value}>
-                              {s.label}
+                              {t(s.labelKey)}
                             </option>
                           ))}
                         </select>
@@ -761,7 +787,7 @@ export function ComplianceView({
                       <td>
                         {r.evidence_url ? (
                           <a href={r.evidence_url} target="_blank" rel="noreferrer">
-                            ver
+                            {t('admin.compliance.verEvidencia')}
                           </a>
                         ) : (
                           '-'
@@ -776,22 +802,22 @@ export function ComplianceView({
           </article>
 
           <article className="card">
-            <h2>Registrar acceso (FERPA)</h2>
+            <h2>{t('admin.compliance.registrarAccesoTitulo')}</h2>
             <form className="login-form" onSubmit={onCreateFerpaLog}>
-              <label>ID de estudiante (subject)</label>
+              <label>{t('admin.compliance.campoIdEstudiante')}</label>
               <input
                 value={ferpaForm.subjectUserId}
                 onChange={(e) => setFerpaForm((c) => ({ ...c, subjectUserId: e.target.value }))}
-                placeholder="user id"
+                placeholder={t('admin.compliance.placeholderIdEstudiante')}
               />
-              <label>Recurso</label>
+              <label>{t('admin.compliance.campoRecurso')}</label>
               <input
                 value={ferpaForm.resource}
                 onChange={(e) => setFerpaForm((c) => ({ ...c, resource: e.target.value }))}
                 placeholder="transcript / enrollment / ledger"
                 required
               />
-              <label>Acción</label>
+              <label>{t('admin.compliance.campoAccion')}</label>
               <input
                 value={ferpaForm.action}
                 onChange={(e) => setFerpaForm((c) => ({ ...c, action: e.target.value }))}
@@ -799,27 +825,27 @@ export function ComplianceView({
                 required
               />
               <button type="submit" disabled={savingFerpa}>
-                {savingFerpa ? 'Registrando...' : 'Registrar acceso'}
+                {savingFerpa ? t('admin.compliance.registrando') : t('admin.compliance.registrarAcceso')}
               </button>
             </form>
           </article>
 
           <article className="card scroll-card">
-            <h2>Log de acceso FERPA ({ferpaLog.length})</h2>
+            <h2>{t('admin.compliance.logFerpaTitulo', { total: ferpaLog.length })}</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Actor</th>
-                  <th>Estudiante</th>
-                  <th>Recurso</th>
-                  <th>Acción</th>
+                  <th>{t('admin.compliance.colFecha')}</th>
+                  <th>{t('admin.compliance.colActor')}</th>
+                  <th>{t('admin.compliance.colEstudiante')}</th>
+                  <th>{t('admin.compliance.colRecurso')}</th>
+                  <th>{t('admin.compliance.colAccionFerpa')}</th>
                 </tr>
               </thead>
               <tbody>
                 {ferpaLog.length === 0 ? (
                   <tr>
-                    <td colSpan={5}>Sin accesos registrados.</td>
+                    <td colSpan={5}>{t('admin.compliance.sinAccesos')}</td>
                   </tr>
                 ) : (
                   ferpaLog.map((l) => (
@@ -840,19 +866,21 @@ export function ComplianceView({
 
       {tab === 'reports' && (
         <article className="card scroll-card">
-          <h2>Reporte IPEDS / NCES</h2>
+          <h2>{t('admin.compliance.reporteTitulo')}</h2>
           {!report ? (
-            <p>Cargando reporte...</p>
+            <p>{t('admin.compliance.cargandoReporte')}</p>
           ) : (
             <div className="grid-1">
               <p style={{ color: 'var(--text-muted)' }}>
-                Generado: {new Date(report.generatedAt).toLocaleString()}
+                {t('admin.compliance.generado', {
+                  fecha: new Date(report.generatedAt).toLocaleString()
+                })}
               </p>
-              <h3>Institución</h3>
+              <h3>{t('admin.compliance.institucionTitulo')}</h3>
               <table>
                 <tbody>
                   <tr>
-                    <th>Nombre</th>
+                    <th>{t('admin.compliance.colNombre')}</th>
                     <td>{report.institution.name || '-'}</td>
                   </tr>
                   <tr>
@@ -868,13 +896,13 @@ export function ComplianceView({
                     <td>{report.institution.stateAuthorizationId || '-'}</td>
                   </tr>
                   <tr>
-                    <th>Acreditador regional</th>
+                    <th>{t('admin.compliance.acreditadorRegional')}</th>
                     <td>{report.institution.regionalAccreditor || '-'}</td>
                   </tr>
                 </tbody>
               </table>
 
-              <h3>Contactos de cumplimiento</h3>
+              <h3>{t('admin.compliance.contactosTitulo')}</h3>
               <table>
                 <tbody>
                   <tr>
@@ -892,32 +920,32 @@ export function ComplianceView({
                 </tbody>
               </table>
 
-              <h3>Conteos</h3>
+              <h3>{t('admin.compliance.conteosTitulo')}</h3>
               <table>
                 <tbody>
                   <tr>
-                    <th>Usuarios totales</th>
-                    <td>{report.counts.totalUsers ?? 'n/d'}</td>
+                    <th>{t('admin.compliance.usuariosTotales')}</th>
+                    <td>{report.counts.totalUsers ?? t('admin.compliance.sinDato')}</td>
                   </tr>
                   <tr>
-                    <th>Matrículas totales</th>
-                    <td>{report.counts.totalEnrollments ?? 'n/d'}</td>
+                    <th>{t('admin.compliance.matriculasTotales')}</th>
+                    <td>{report.counts.totalEnrollments ?? t('admin.compliance.sinDato')}</td>
                   </tr>
                   <tr>
-                    <th>Matrículas activas</th>
-                    <td>{report.counts.activeEnrollments ?? 'n/d'}</td>
+                    <th>{t('admin.compliance.matriculasActivas')}</th>
+                    <td>{report.counts.activeEnrollments ?? t('admin.compliance.sinDato')}</td>
                   </tr>
                   <tr>
-                    <th>Matrículas completadas</th>
-                    <td>{report.counts.completedEnrollments ?? 'n/d'}</td>
+                    <th>{t('admin.compliance.matriculasCompletadas')}</th>
+                    <td>{report.counts.completedEnrollments ?? t('admin.compliance.sinDato')}</td>
                   </tr>
                   <tr>
-                    <th>Programas de grado</th>
-                    <td>{report.counts.degreePrograms ?? 'n/d'}</td>
+                    <th>{t('admin.compliance.programasGrado')}</th>
+                    <td>{report.counts.degreePrograms ?? t('admin.compliance.sinDato')}</td>
                   </tr>
                   <tr>
-                    <th>Términos activos</th>
-                    <td>{report.counts.activeTerms ?? 'n/d'}</td>
+                    <th>{t('admin.compliance.terminosActivos')}</th>
+                    <td>{report.counts.activeTerms ?? t('admin.compliance.sinDato')}</td>
                   </tr>
                 </tbody>
               </table>

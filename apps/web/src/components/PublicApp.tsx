@@ -3656,7 +3656,7 @@ export function PublicApp() {
                       <tr>
                         <th>{t('enterprise.name')}</th>
                         <th>{t('enterprise.email')}</th>
-                        <th>{t('enterprise.role')}</th>
+                        <th>{t('enterprise.role.columna')}</th>
                         <th>{t('enterprise.status')}</th>
                         {enterpriseIsRepresentative ? <th>{t('enterprise.action')}</th> : null}
                       </tr>

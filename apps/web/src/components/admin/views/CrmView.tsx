@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Phase 2 — CRM de admisión + retención (admin view).
@@ -105,6 +106,7 @@ export function CrmView({
   setError: (msg: string | null) => void;
   setInfo: (msg: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<CrmTab>('pipeline');
 
   const [stages, setStages] = useState<Stage[]>([]);
@@ -161,7 +163,7 @@ export function CrmView({
       setContacts(contactList);
       setAlerts(alertList);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando CRM');
+      setError(reason instanceof Error ? reason.message : t('admin.crm.errorCargarCrm'));
     } finally {
       setLoading(false);
     }
@@ -191,7 +193,7 @@ export function CrmView({
           notes: contactForm.notes || undefined
         }
       });
-      setInfo('Contacto creado.');
+      setInfo(t('admin.crm.contactoCreado'));
       setContactForm({
         fullName: '',
         email: '',
@@ -204,7 +206,7 @@ export function CrmView({
       });
       await loadAll(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear contacto');
+      setError(reason instanceof Error ? reason.message : t('admin.crm.errorCrearContacto'));
     } finally {
       setSavingContact(false);
     }
@@ -220,24 +222,24 @@ export function CrmView({
       });
       await loadAll(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo mover el contacto');
+      setError(reason instanceof Error ? reason.message : t('admin.crm.errorMoverContacto'));
     }
   };
 
   const onDeleteContact = async (contactId: string) => {
-    if (!sessionToken || !confirm('¿Eliminar este contacto?')) return;
+    if (!sessionToken || !confirm(t('admin.crm.confirmEliminarContacto'))) return;
     try {
       await crmFetch(sessionToken, `/admin/crm/contacts/${contactId}`, {
         method: 'DELETE'
       });
-      setInfo('Contacto eliminado.');
+      setInfo(t('admin.crm.contactoEliminado'));
       if (selectedContactId === contactId) {
         setSelectedContactId(null);
         setActivities([]);
       }
       await loadAll(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo eliminar contacto');
+      setError(reason instanceof Error ? reason.message : t('admin.crm.errorEliminarContacto'));
     }
   };
 
@@ -257,7 +259,7 @@ export function CrmView({
       );
       setActivities(list);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo cargar la actividad');
+      setError(reason instanceof Error ? reason.message : t('admin.crm.errorCargarActividad'));
     }
   };
 
@@ -281,9 +283,9 @@ export function CrmView({
         `/admin/crm/contacts/${selectedContactId}/activities`
       );
       setActivities(list);
-      setInfo('Actividad registrada.');
+      setInfo(t('admin.crm.actividadRegistrada'));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo registrar la actividad');
+      setError(reason instanceof Error ? reason.message : t('admin.crm.errorRegistrarActividad'));
     } finally {
       setSavingActivity(false);
     }
@@ -305,11 +307,11 @@ export function CrmView({
           signal: alertForm.signal || undefined
         }
       });
-      setInfo('Alerta temprana creada.');
+      setInfo(t('admin.crm.alertaCreada'));
       setAlertForm({ studentUserId: '', severity: 'low', reason: '', signal: '' });
       await loadAll(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear la alerta');
+      setError(reason instanceof Error ? reason.message : t('admin.crm.errorCrearAlerta'));
     } finally {
       setSavingAlert(false);
     }
@@ -321,10 +323,10 @@ export function CrmView({
       await crmFetch(sessionToken, `/admin/crm/early-alerts/${alertId}/resolve`, {
         method: 'PATCH'
       });
-      setInfo('Alerta resuelta.');
+      setInfo(t('admin.crm.alertaResuelta'));
       await loadAll(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo resolver la alerta');
+      setError(reason instanceof Error ? reason.message : t('admin.crm.errorResolverAlerta'));
     }
   };
 
@@ -345,7 +347,7 @@ export function CrmView({
   }, [contacts]);
 
   if (!sessionToken) {
-    return <p>Inicia sesión para gestionar el CRM.</p>;
+    return <p>{t('admin.crm.sinSesion')}</p>;
   }
 
   return (
@@ -353,21 +355,23 @@ export function CrmView({
       <article className="card">
         <div className="inline-actions" style={{ marginBottom: '8px' }}>
           <button className={tab === 'pipeline' ? '' : 'ghost'} onClick={() => setTab('pipeline')}>
-            Pipeline
+            {t('admin.crm.tabPipeline')}
           </button>
           <button className={tab === 'contacts' ? '' : 'ghost'} onClick={() => setTab('contacts')}>
-            Contactos
+            {t('admin.crm.tabContactos')}
           </button>
           <button className={tab === 'alerts' ? '' : 'ghost'} onClick={() => setTab('alerts')}>
-            Alertas tempranas
+            {t('admin.crm.tabAlertas')}
           </button>
-          {loading ? <span style={{ color: 'var(--text-muted)' }}>Cargando...</span> : null}
+          {loading ? (
+            <span style={{ color: 'var(--text-muted)' }}>{t('admin.crm.cargando')}</span>
+          ) : null}
         </div>
       </article>
 
       {tab === 'pipeline' && (
         <article className="card scroll-card">
-          <h2>Pipeline de admisión</h2>
+          <h2>{t('admin.crm.pipelineTitulo')}</h2>
           <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '8px' }}>
             {orderedStages.map((stage) => {
               const stageContacts = contactsByStage.get(stage.id) ?? [];
@@ -389,7 +393,7 @@ export function CrmView({
                   </div>
                   <div style={{ display: 'grid', gap: '8px' }}>
                     {stageContacts.length === 0 ? (
-                      <small style={{ color: 'var(--text-muted)' }}>Sin contactos.</small>
+                      <small style={{ color: 'var(--text-muted)' }}>{t('admin.crm.sinContactosEtapa')}</small>
                     ) : (
                       stageContacts.map((contact) => (
                         <div
@@ -432,88 +436,88 @@ export function CrmView({
       {tab === 'contacts' && (
         <>
           <article className="card">
-            <h2>Nuevo contacto</h2>
+            <h2>{t('admin.crm.nuevoContacto')}</h2>
             <form className="login-form" onSubmit={onCreateContact}>
-              <label>Nombre completo</label>
+              <label>{t('admin.crm.campoNombreCompleto')}</label>
               <input
                 value={contactForm.fullName}
                 onChange={(e) => setContactForm((c) => ({ ...c, fullName: e.target.value }))}
-                placeholder="María Pérez"
+                placeholder={t('admin.crm.placeholderNombreCompleto')}
                 required
               />
-              <label>Email</label>
+              <label>{t('admin.crm.campoEmail')}</label>
               <input
                 type="email"
                 value={contactForm.email}
                 onChange={(e) => setContactForm((c) => ({ ...c, email: e.target.value }))}
-                placeholder="maria@example.com"
+                placeholder={t('admin.crm.placeholderEmail')}
               />
-              <label>Teléfono</label>
+              <label>{t('admin.crm.campoTelefono')}</label>
               <input
                 value={contactForm.phone}
                 onChange={(e) => setContactForm((c) => ({ ...c, phone: e.target.value }))}
-                placeholder="+57 300 000 0000"
+                placeholder={t('admin.crm.placeholderTelefono')}
               />
-              <label>Origen</label>
+              <label>{t('admin.crm.campoOrigen')}</label>
               <input
                 value={contactForm.source}
                 onChange={(e) => setContactForm((c) => ({ ...c, source: e.target.value }))}
-                placeholder="landing, webinar, referido..."
+                placeholder={t('admin.crm.placeholderOrigen')}
               />
-              <label>Etapa</label>
+              <label>{t('admin.crm.campoEtapa')}</label>
               <select
                 value={contactForm.stageId}
                 onChange={(e) => setContactForm((c) => ({ ...c, stageId: e.target.value }))}
               >
-                <option value="">Selecciona etapa</option>
+                <option value="">{t('admin.crm.optionSeleccionaEtapa')}</option>
                 {orderedStages.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
                 ))}
               </select>
-              <label>Owner (email)</label>
+              <label>{t('admin.crm.campoOwner')}</label>
               <input
                 type="email"
                 value={contactForm.ownerEmail}
                 onChange={(e) => setContactForm((c) => ({ ...c, ownerEmail: e.target.value }))}
-                placeholder="asesor@atlas.edu"
+                placeholder={t('admin.crm.placeholderOwner')}
               />
-              <label>Estado</label>
+              <label>{t('admin.crm.campoEstado')}</label>
               <input
                 value={contactForm.status}
                 onChange={(e) => setContactForm((c) => ({ ...c, status: e.target.value }))}
-                placeholder="activo, en pausa..."
+                placeholder={t('admin.crm.placeholderEstado')}
               />
-              <label>Notas</label>
+              <label>{t('admin.crm.campoNotas')}</label>
               <input
                 value={contactForm.notes}
                 onChange={(e) => setContactForm((c) => ({ ...c, notes: e.target.value }))}
-                placeholder="Notas internas"
+                placeholder={t('admin.crm.placeholderNotas')}
               />
               <button type="submit" disabled={savingContact}>
-                {savingContact ? 'Guardando...' : 'Crear contacto'}
+                {savingContact ? t('admin.crm.guardando') : t('admin.crm.crearContacto')}
               </button>
             </form>
           </article>
 
           <article className="card scroll-card">
-            <h2>Contactos ({contacts.length})</h2>
+            <h2>{t('admin.crm.contactosTitulo', { total: contacts.length })}</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Nombre</th>
-                  <th>Email</th>
-                  <th>Etapa</th>
-                  <th>Origen</th>
-                  <th>Score</th>
-                  <th>Acción</th>
+                  <th>{t('admin.crm.colNombre')}</th>
+                  <th>{t('admin.crm.colEmail')}</th>
+                  <th>{t('admin.crm.colEtapa')}</th>
+                  <th>{t('admin.crm.colOrigen')}</th>
+                  <th>{t('admin.crm.colScore')}</th>
+                  <th>{t('admin.crm.colAccion')}</th>
                 </tr>
               </thead>
               <tbody>
                 {contacts.length === 0 ? (
                   <tr>
-                    <td colSpan={6}>No hay contactos.</td>
+                    <td colSpan={6}>{t('admin.crm.sinContactos')}</td>
                   </tr>
                 ) : (
                   contacts.map((contact) => (
@@ -527,10 +531,12 @@ export function CrmView({
                         <td>
                           <div className="inline-actions">
                             <button className="ghost" onClick={() => void onSelectContact(contact.id)}>
-                              {selectedContactId === contact.id ? 'Cerrar' : 'Actividad'}
+                              {selectedContactId === contact.id
+                                ? t('admin.crm.cerrar')
+                                : t('admin.crm.actividad')}
                             </button>
                             <button className="ghost danger" onClick={() => void onDeleteContact(contact.id)}>
-                              Eliminar
+                              {t('admin.crm.eliminar')}
                             </button>
                           </div>
                         </td>
@@ -547,23 +553,23 @@ export function CrmView({
                                   }
                                   style={{ padding: '6px' }}
                                 >
-                                  <option value="note">Nota</option>
-                                  <option value="email">Email</option>
-                                  <option value="call">Llamada</option>
-                                  <option value="task">Tarea</option>
+                                  <option value="note">{t('admin.crm.actividadNota')}</option>
+                                  <option value="email">{t('admin.crm.actividadEmail')}</option>
+                                  <option value="call">{t('admin.crm.actividadLlamada')}</option>
+                                  <option value="task">{t('admin.crm.actividadTarea')}</option>
                                 </select>
                                 <input
                                   value={activityForm.subject}
                                   onChange={(e) =>
                                     setActivityForm((a) => ({ ...a, subject: e.target.value }))
                                   }
-                                  placeholder="Asunto"
+                                  placeholder={t('admin.crm.placeholderAsunto')}
                                   style={{ padding: '6px' }}
                                 />
                                 <input
                                   value={activityForm.body}
                                   onChange={(e) => setActivityForm((a) => ({ ...a, body: e.target.value }))}
-                                  placeholder="Detalle"
+                                  placeholder={t('admin.crm.placeholderDetalle')}
                                   style={{ padding: '6px', flex: 1 }}
                                 />
                                 <input
@@ -575,11 +581,13 @@ export function CrmView({
                                   style={{ padding: '6px' }}
                                 />
                                 <button type="submit" disabled={savingActivity} className="ghost">
-                                  {savingActivity ? '...' : 'Añadir'}
+                                  {savingActivity ? '...' : t('admin.crm.anadir')}
                                 </button>
                               </form>
                               {activities.length === 0 ? (
-                                <small style={{ color: 'var(--text-muted)' }}>Sin actividad.</small>
+                                <small style={{ color: 'var(--text-muted)' }}>
+                                  {t('admin.crm.sinActividad')}
+                                </small>
                               ) : (
                                 <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.85rem' }}>
                                   {activities.map((act) => (
@@ -609,61 +617,61 @@ export function CrmView({
       {tab === 'alerts' && (
         <>
           <article className="card">
-            <h2>Nueva alerta temprana</h2>
+            <h2>{t('admin.crm.nuevaAlerta')}</h2>
             <form className="login-form" onSubmit={onCreateAlert}>
-              <label>ID de estudiante (user_id)</label>
+              <label>{t('admin.crm.campoIdEstudiante')}</label>
               <input
                 value={alertForm.studentUserId}
                 onChange={(e) => setAlertForm((a) => ({ ...a, studentUserId: e.target.value }))}
-                placeholder="user uuid/id"
+                placeholder={t('admin.crm.placeholderIdEstudiante')}
                 required
               />
-              <label>Severidad</label>
+              <label>{t('admin.crm.campoSeveridad')}</label>
               <select
                 value={alertForm.severity}
                 onChange={(e) =>
                   setAlertForm((a) => ({ ...a, severity: e.target.value as EarlyAlert['severity'] }))
                 }
               >
-                <option value="low">Baja</option>
-                <option value="medium">Media</option>
-                <option value="high">Alta</option>
+                <option value="low">{t('admin.crm.severidadBaja')}</option>
+                <option value="medium">{t('admin.crm.severidadMedia')}</option>
+                <option value="high">{t('admin.crm.severidadAlta')}</option>
               </select>
-              <label>Motivo</label>
+              <label>{t('admin.crm.campoMotivo')}</label>
               <input
                 value={alertForm.reason}
                 onChange={(e) => setAlertForm((a) => ({ ...a, reason: e.target.value }))}
-                placeholder="Progreso bajo en curso X"
+                placeholder={t('admin.crm.placeholderMotivo')}
               />
-              <label>Señal</label>
+              <label>{t('admin.crm.campoSenal')}</label>
               <input
                 value={alertForm.signal}
                 onChange={(e) => setAlertForm((a) => ({ ...a, signal: e.target.value }))}
-                placeholder="progress<20%, sin actividad 14d..."
+                placeholder={t('admin.crm.placeholderSenal')}
               />
               <button type="submit" disabled={savingAlert}>
-                {savingAlert ? 'Guardando...' : 'Crear alerta'}
+                {savingAlert ? t('admin.crm.guardando') : t('admin.crm.crearAlerta')}
               </button>
             </form>
           </article>
 
           <article className="card scroll-card">
-            <h2>Alertas ({alerts.length})</h2>
+            <h2>{t('admin.crm.alertasTitulo', { total: alerts.length })}</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Estudiante</th>
-                  <th>Severidad</th>
-                  <th>Motivo</th>
-                  <th>Señal</th>
-                  <th>Estado</th>
-                  <th>Acción</th>
+                  <th>{t('admin.crm.colEstudiante')}</th>
+                  <th>{t('admin.crm.colSeveridad')}</th>
+                  <th>{t('admin.crm.colMotivo')}</th>
+                  <th>{t('admin.crm.colSenal')}</th>
+                  <th>{t('admin.crm.colEstado')}</th>
+                  <th>{t('admin.crm.colAccion')}</th>
                 </tr>
               </thead>
               <tbody>
                 {alerts.length === 0 ? (
                   <tr>
-                    <td colSpan={6}>No hay alertas.</td>
+                    <td colSpan={6}>{t('admin.crm.sinAlertas')}</td>
                   </tr>
                 ) : (
                   alerts.map((alert) => (
@@ -672,7 +680,9 @@ export function CrmView({
                       <td>{alert.severity}</td>
                       <td>{alert.reason ?? '-'}</td>
                       <td>{alert.signal ?? '-'}</td>
-                      <td>{alert.resolved ? 'resuelta' : 'abierta'}</td>
+                      <td>
+                        {alert.resolved ? t('admin.crm.alertaEstadoResuelta') : t('admin.crm.alertaEstadoAbierta')}
+                      </td>
                       <td>
                         {alert.resolved ? (
                           <span style={{ color: 'var(--text-muted)' }}>
@@ -680,7 +690,7 @@ export function CrmView({
                           </span>
                         ) : (
                           <button className="ghost" onClick={() => void onResolveAlert(alert.id)}>
-                            Resolver
+                            {t('admin.crm.resolver')}
                           </button>
                         )}
                       </td>

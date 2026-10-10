@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Editor del Master Syllabus TFU — las 24 secciones.
@@ -122,17 +123,29 @@ function text(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
-const TREATMENT_LABEL: Record<SectionTreatment, string> = {
-  faculty: 'Redacta la facultad',
-  structured: 'Campo con validación',
-  institutional: 'Heredado de la institución'
+/**
+ * Este mapa guarda CLAVES de i18next, no etiquetas: el tratamiento se traduce
+ * en tiempo de render con t(TREATMENT_LABEL_KEY[...]), de modo que al cambiar
+ * de idioma los encabezados cambian sin recargar. La clave del objeto sigue
+ * siendo el identificador del tratamiento que viene del servidor y nunca se
+ * traduce.
+ */
+const TREATMENT_LABEL_KEY: Record<SectionTreatment, string> = {
+  faculty: 'admin.syllabus.tratamientoFacultad',
+  structured: 'admin.syllabus.tratamientoEstructurado',
+  institutional: 'admin.syllabus.tratamientoInstitucional'
 };
 
-const LEVELS: Array<{ value: string; label: string }> = [
-  { value: 'undergraduate', label: 'Grado' },
-  { value: 'graduate', label: 'Posgrado' },
-  { value: 'transfer_undergraduate', label: 'Grado por transferencia' },
-  { value: 'transfer_graduate', label: 'Posgrado por transferencia' }
+/**
+ * Igual que arriba: `value` es el identificador que viaja en el payload de
+ * `grading.courseLevel` y no se traduce; `labelKey` es la clave que se resuelve
+ * al pintar la opción.
+ */
+const LEVELS: Array<{ value: string; labelKey: string }> = [
+  { value: 'undergraduate', labelKey: 'admin.syllabus.nivelGrado' },
+  { value: 'graduate', labelKey: 'admin.syllabus.nivelPosgrado' },
+  { value: 'transfer_undergraduate', labelKey: 'admin.syllabus.nivelGradoTransferencia' },
+  { value: 'transfer_graduate', labelKey: 'admin.syllabus.nivelPosgradoTransferencia' }
 ];
 
 /* =========================================================== el componente */
@@ -148,6 +161,7 @@ export function SyllabusEditor({
   onClose: () => void;
   onSaved: (updated: EditableSyllabus) => void;
 }) {
+  const { t } = useTranslation();
   const [master, setMaster] = useState<MasterModel | null>(null);
   const [content, setContent] = useState<Record<string, unknown>>(syllabus.content ?? {});
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
@@ -168,12 +182,13 @@ export function SyllabusEditor({
         if (!cancelled) setMaster(model);
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : 'No se pudo cargar el Master Syllabus');
+        if (!cancelled)
+          setError(reason instanceof Error ? reason.message : t('admin.syllabus.errorCargarMaster'));
       });
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, t]);
 
   /* La validación es del servidor. Con rebote, para no mandar una petición por
      tecla, y con un contador de secuencia para que una respuesta lenta no pise
@@ -242,7 +257,7 @@ export function SyllabusEditor({
       setIssues(saved.validation?.issues ?? issues);
       onSaved(saved);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo guardar');
+      setError(reason instanceof Error ? reason.message : t('admin.syllabus.errorGuardar'));
     } finally {
       setSaving(false);
     }
@@ -271,7 +286,7 @@ export function SyllabusEditor({
       if (withBlocking.blocking?.length) {
         setBlocking(withBlocking.blocking);
       } else {
-        setError(reason instanceof Error ? reason.message : 'No se pudo publicar');
+        setError(reason instanceof Error ? reason.message : t('admin.syllabus.errorPublicar'));
       }
     } finally {
       setPublishing(false);
@@ -282,9 +297,9 @@ export function SyllabusEditor({
     return (
       <article className="card">
         <h2>{syllabus.title}</h2>
-        <p className="muted">{error ?? 'Cargando el Master Syllabus…'}</p>
+        <p className="muted">{error ?? t('admin.syllabus.cargandoMaster')}</p>
         <button className="ghost" onClick={onClose}>
-          Volver
+          {t('admin.syllabus.volver')}
         </button>
       </article>
     );
@@ -298,40 +313,44 @@ export function SyllabusEditor({
         <div>
           <h2>{syllabus.title}</h2>
           <p className="muted">
-            v{version} · {status === 'published' ? 'publicado' : status}
-            {dirty ? ' · cambios sin guardar' : ''}
+            v{version} · {status === 'published' ? t('admin.syllabus.estadoPublicado') : status}
+            {dirty ? ` · ${t('admin.syllabus.cambiosSinGuardar')}` : ''}
           </p>
         </div>
         <div className="inline-actions">
           <button onClick={() => void save()} disabled={saving}>
-            {saving ? 'Guardando…' : 'Guardar borrador'}
+            {saving ? t('admin.syllabus.guardando') : t('admin.syllabus.guardarBorrador')}
           </button>
           <button
             onClick={() => void publish()}
             disabled={publishing || blockingCount > 0}
-            title={blockingCount > 0 ? 'Hay problemas que impiden publicar' : 'Publica al catálogo, al aula y al repositorio'}
+            title={
+              blockingCount > 0
+                ? t('admin.syllabus.tituloPublicarBloqueado')
+                : t('admin.syllabus.tituloPublicar')
+            }
           >
-            {publishing ? 'Publicando…' : 'Publicar'}
+            {publishing ? t('admin.syllabus.publicando') : t('admin.syllabus.publicar')}
           </button>
           <button className="ghost" onClick={onClose}>
-            Volver
+            {t('admin.syllabus.volver')}
           </button>
         </div>
       </header>
 
       <p className="syllabus-counters">
         <span className={blockingCount > 0 ? 'badge danger' : 'badge'}>
-          {blockingCount} {blockingCount === 1 ? 'problema que impide publicar' : 'problemas que impiden publicar'}
+          {t('admin.syllabus.contadorBloqueantes', { count: blockingCount })}
         </span>{' '}
-        <span className="badge">{warningCount} {warningCount === 1 ? 'aviso' : 'avisos'}</span>
+        <span className="badge">{t('admin.syllabus.contadorAvisos', { count: warningCount })}</span>
         {status === 'published' ? (
           <>
             {' '}
             <a className="badge" href={`${API_URL}/v1/syllabi/${syllabus.id}/export?format=html`} target="_blank" rel="noreferrer">
-              Ver HTML accesible
+              {t('admin.syllabus.verHtml')}
             </a>{' '}
             <a className="badge" href={`${API_URL}/v1/syllabi/${syllabus.id}/export?format=pdf`} target="_blank" rel="noreferrer">
-              Descargar PDF etiquetado
+              {t('admin.syllabus.descargarPdf')}
             </a>
           </>
         ) : null}
@@ -341,7 +360,7 @@ export function SyllabusEditor({
 
       {blocking ? (
         <div className="syllabus-blocking" role="alert">
-          <strong>No se publicó. Falta resolver:</strong>
+          <strong>{t('admin.syllabus.noSePublico')}</strong>
           <ul>
             {blocking.map((issue) => (
               <li key={`${issue.section}-${issue.code}`}>
@@ -356,27 +375,31 @@ export function SyllabusEditor({
 
       {published ? (
         <div className="syllabus-published" role="status">
-          <strong>Publicado en:</strong>
+          <strong>{t('admin.syllabus.publicadoEn')}</strong>
           <ul>
-            <li>Catálogo público — ok</li>
+            <li>{t('admin.syllabus.destinoCatalogo')}</li>
             <li>
-              Aula de Moodle —{' '}
+              {t('admin.syllabus.destinoMoodle')}{' '}
               {published.destinations?.moodle?.ok
-                ? `ok (${published.destinations.moodle.placed ?? 'course shell'})`
-                : `no llegó: ${published.destinations?.moodle?.error ?? 'sin detalle'}`}
+                ? t('admin.syllabus.destinoMoodleOk', {
+                    placed: published.destinations.moodle.placed ?? t('admin.syllabus.moodleCourseShell')
+                  })
+                : t('admin.syllabus.destinoMoodleFallo', {
+                    detalle: published.destinations?.moodle?.error ?? t('admin.syllabus.sinDetalle')
+                  })}
             </li>
-            <li>Repositorio de cumplimiento — ok</li>
+            <li>{t('admin.syllabus.destinoRepositorio')}</li>
           </ul>
           {published.warnings?.length ? (
             <p className="muted">
-              {published.warnings.length} aviso(s) que no impiden publicar siguen abiertos.
+              {t('admin.syllabus.avisosAbiertos', { count: published.warnings.length })}
             </p>
           ) : null}
         </div>
       ) : null}
 
       <div className="syllabus-layout">
-        <nav className="syllabus-nav" aria-label="Secciones del Master Syllabus">
+        <nav className="syllabus-nav" aria-label={t('admin.syllabus.ariaNavSecciones')}>
           {(['structured', 'faculty', 'institutional'] as SectionTreatment[]).map((treatment) => {
             const group = master.sections.filter((item) => item.treatment === treatment);
             // El Master Syllabus de TFU reparte sus 24 secciones en estructuradas
@@ -386,7 +409,7 @@ export function SyllabusEditor({
             if (group.length === 0) return null;
             return (
             <div key={treatment}>
-              <h3>{TREATMENT_LABEL[treatment]}</h3>
+              <h3>{t(TREATMENT_LABEL_KEY[treatment])}</h3>
               <ul>
                 {group
                   .map((item) => {
@@ -402,11 +425,11 @@ export function SyllabusEditor({
                           <span className="syllabus-nav-number">{item.number}</span>
                           <span>{item.labelEs}</span>
                           {hasBlocking ? (
-                            <span className="syllabus-dot blocking" aria-label="impide publicar">
+                            <span className="syllabus-dot blocking" aria-label={t('admin.syllabus.ariaImpidePublicar')}>
                               ●
                             </span>
                           ) : sectionIssues.length > 0 ? (
-                            <span className="syllabus-dot warning" aria-label="aviso">
+                            <span className="syllabus-dot warning" aria-label={t('admin.syllabus.ariaAviso')}>
                               ●
                             </span>
                           ) : null}
@@ -424,7 +447,7 @@ export function SyllabusEditor({
           <h3>
             {section.number}. {section.labelEs}
           </h3>
-          <p className="muted syllabus-treatment">{TREATMENT_LABEL[section.treatment]}</p>
+          <p className="muted syllabus-treatment">{t(TREATMENT_LABEL_KEY[section.treatment])}</p>
           {section.helpEs ? <p className="syllabus-help">{section.helpEs}</p> : null}
 
           {(issuesBySection.get(section.key) ?? []).map((issue) => (
@@ -464,22 +487,19 @@ function SectionFields({
   update: (key: string, value: unknown) => void;
   updateIn: (key: string, field: string, value: unknown) => void;
 }) {
+  const { t } = useTranslation();
+
   if (section.treatment === 'institutional') {
     const inherited = section.institutionalEs ?? '';
     return (
       <div className="syllabus-inherited">
-        <p className="muted">
-          Este texto lo fija la institución y se publica igual en todos los sílabos vigentes. No se
-          edita desde el curso.
-        </p>
+        <p className="muted">{t('admin.syllabus.textoInstitucionalAviso')}</p>
         {inherited ? (
           // El HTML viene de nuestro propio módulo versionado, no de entrada de
           // usuario: es contenido institucional del repositorio.
           <div className="syllabus-inherited-body" dangerouslySetInnerHTML={{ __html: inherited }} />
         ) : (
-          <p className="syllabus-issue">
-            TFU aún no ha fijado el texto de esta sección. Al publicar saldrá vacía.
-          </p>
+          <p className="syllabus-issue">{t('admin.syllabus.textoInstitucionalVacio')}</p>
         )}
       </div>
     );
@@ -488,16 +508,14 @@ function SectionFields({
   if (section.treatment === 'faculty') {
     return (
       <label className="syllabus-field">
-        <span>Contenido de la sección</span>
+        <span>{t('admin.syllabus.campoContenidoSeccion')}</span>
         <textarea
           rows={12}
           value={text(content[section.key])}
           onChange={(event) => update(section.key, event.target.value)}
-          placeholder="Se admite HTML sencillo: <p>, <ul>, <li>, <strong>, <em>, <a>."
+          placeholder={t('admin.syllabus.placeholderHtmlSencillo')}
         />
-        <small className="muted">
-          Se admite HTML sencillo. El servidor filtra etiquetas y atributos antes de publicar.
-        </small>
+        <small className="muted">{t('admin.syllabus.ayudaHtmlSencillo')}</small>
       </label>
     );
   }
@@ -516,7 +534,7 @@ function SectionFields({
     default:
       return (
         <label className="syllabus-field">
-          <span>Contenido de la sección</span>
+          <span>{t('admin.syllabus.campoContenidoSeccion')}</span>
           <textarea
             rows={10}
             value={text(content[section.key])}
@@ -534,28 +552,36 @@ function InstructorFields({
   content: Record<string, unknown>;
   updateIn: (key: string, field: string, value: unknown) => void;
 }) {
+  const { t } = useTranslation();
   const data = record(content, 'instructor_information');
+  /* Igual que los otros mapas del archivo: `field` es el nombre del campo que
+     viaja a la API y no se traduce; las otras dos posiciones son CLAVES de
+     i18next que se resuelven al pintar cada input. */
   const fields: Array<[string, string, string?]> = [
-    ['name', 'Nombre y credenciales', 'Dra. Ana Ruiz, Ph.D.'],
-    ['email', 'Correo TFU', 'aruiz@thefloridianuniversity.com'],
-    ['office_hours', 'Horario de oficina, con zona horaria', 'Martes 18:00–19:00 ET'],
-    ['booking_url', 'Enlace de reserva', 'https://…'],
-    ['response_time', 'Tiempo típico de respuesta', 'Dentro de 24 horas en días laborables']
+    ['name', 'admin.syllabus.instructorNombre', 'admin.syllabus.instructorNombrePlaceholder'],
+    ['email', 'admin.syllabus.instructorCorreo', 'admin.syllabus.instructorCorreoPlaceholder'],
+    ['office_hours', 'admin.syllabus.instructorHorario', 'admin.syllabus.instructorHorarioPlaceholder'],
+    ['booking_url', 'admin.syllabus.instructorReserva', 'admin.syllabus.instructorReservaPlaceholder'],
+    [
+      'response_time',
+      'admin.syllabus.instructorRespuesta',
+      'admin.syllabus.instructorRespuestaPlaceholder'
+    ]
   ];
   return (
     <>
-      {fields.map(([field, label, placeholder]) => (
+      {fields.map(([field, labelKey, placeholderKey]) => (
         <label className="syllabus-field" key={field}>
-          <span>{label}</span>
+          <span>{t(labelKey)}</span>
           <input
             value={text(data[field])}
             onChange={(event) => updateIn('instructor_information', field, event.target.value)}
-            placeholder={placeholder}
+            placeholder={placeholderKey ? t(placeholderKey) : undefined}
           />
         </label>
       ))}
       <label className="syllabus-field">
-        <span>Biografía</span>
+        <span>{t('admin.syllabus.instructorBiografia')}</span>
         <textarea
           rows={5}
           value={text(data.bio)}
@@ -573,6 +599,7 @@ function OutcomesFields({
   content: Record<string, unknown>;
   update: (key: string, value: unknown) => void;
 }) {
+  const { t } = useTranslation();
   const data = record(content, 'learning_outcomes');
   const outcomes: Outcome[] = Array.isArray(data.outcomes) ? (data.outcomes as Outcome[]) : [];
 
@@ -580,14 +607,12 @@ function OutcomesFields({
 
   return (
     <>
-      <p className="muted">
-        Cada resultado necesita su evaluación principal. Un CLO sin evaluación impide publicar.
-      </p>
+      <p className="muted">{t('admin.syllabus.cloAviso')}</p>
       {outcomes.map((outcome, index) => (
         <fieldset className="syllabus-repeat" key={index}>
           <legend>{outcome.id?.trim() || `CLO ${index + 1}`}</legend>
           <label className="syllabus-field">
-            <span>Identificador</span>
+            <span>{t('admin.syllabus.cloIdentificador')}</span>
             <input
               value={outcome.id ?? ''}
               onChange={(event) =>
@@ -597,28 +622,28 @@ function OutcomesFields({
             />
           </label>
           <label className="syllabus-field">
-            <span>Resultado medible</span>
+            <span>{t('admin.syllabus.cloResultado')}</span>
             <textarea
               rows={2}
               value={outcome.text ?? ''}
               onChange={(event) =>
                 write(outcomes.map((item, i) => (i === index ? { ...item, text: event.target.value } : item)))
               }
-              placeholder="Al terminar el curso, el estudiante podrá…"
+              placeholder={t('admin.syllabus.cloResultadoPlaceholder')}
             />
           </label>
           <label className="syllabus-field">
-            <span>Evaluación que lo mide</span>
+            <span>{t('admin.syllabus.cloEvaluacion')}</span>
             <input
               value={outcome.assessment ?? ''}
               onChange={(event) =>
                 write(outcomes.map((item, i) => (i === index ? { ...item, assessment: event.target.value } : item)))
               }
-              placeholder="Proyecto aplicado, semana 6"
+              placeholder={t('admin.syllabus.cloEvaluacionPlaceholder')}
             />
           </label>
           <button className="ghost danger" onClick={() => write(outcomes.filter((_, i) => i !== index))}>
-            Quitar
+            {t('admin.syllabus.cloQuitar')}
           </button>
         </fieldset>
       ))}
@@ -626,7 +651,7 @@ function OutcomesFields({
         className="ghost"
         onClick={() => write([...outcomes, { id: `CLO${outcomes.length + 1}`, text: '', assessment: '' }])}
       >
-        Añadir resultado
+        {t('admin.syllabus.cloAnadir')}
       </button>
     </>
   );
@@ -641,6 +666,7 @@ function WeightsFields({
   master: MasterModel;
   updateIn: (key: string, field: string, value: unknown) => void;
 }) {
+  const { t } = useTranslation();
   const data = record(content, 'grading');
   const weights = (data.weights && typeof data.weights === 'object' ? data.weights : {}) as Record<string, number>;
   const level = text(data.courseLevel);
@@ -663,32 +689,31 @@ function WeightsFields({
   return (
     <>
       <label className="syllabus-field">
-        <span>Nivel del curso</span>
+        <span>{t('admin.syllabus.nivelCurso')}</span>
         <select value={level} onChange={(event) => updateIn('grading', 'courseLevel', event.target.value)}>
-          <option value="">Sin definir</option>
+          <option value="">{t('admin.syllabus.sinDefinir')}</option>
           {LEVELS.map((item) => (
             <option key={item.value} value={item.value}>
-              {item.label}
+              {t(item.labelKey)}
             </option>
           ))}
         </select>
         <small className="muted">
           {level && master.passingMinimums[level]
-            ? `Mínimo de aprobación que aplicará el sistema: ${master.passingMinimums[level]}.`
-            : 'Determina el mínimo de aprobación. Sin él no se publica.'}
+            ? t('admin.syllabus.minimoAprobacion', { minimo: master.passingMinimums[level] })
+            : t('admin.syllabus.minimoAprobacionSinNivel')}
         </small>
       </label>
 
       <table className="syllabus-weights">
         <caption>
-          Pesos de evaluación. Parten de los institucionales; la suma debe dar 100% y ninguna pieza
-          puede pasar del {master.maxSingleComponentWeight}%.
+          {t('admin.syllabus.captionPesos', { max: master.maxSingleComponentWeight })}
         </caption>
         <thead>
           <tr>
-            <th scope="col">Categoría</th>
-            <th scope="col">Institucional</th>
-            <th scope="col">Este curso</th>
+            <th scope="col">{t('admin.syllabus.colCategoria')}</th>
+            <th scope="col">{t('admin.syllabus.colInstitucional')}</th>
+            <th scope="col">{t('admin.syllabus.colEsteCurso')}</th>
           </tr>
         </thead>
         <tbody>
@@ -703,7 +728,7 @@ function WeightsFields({
                   max={master.maxSingleComponentWeight}
                   value={weights[category.key] ?? ''}
                   onChange={(event) => setWeight(category.key, event.target.value)}
-                  aria-label={`Peso de ${category.labelEs}`}
+                  aria-label={t('admin.syllabus.ariaPesoCategoria', { categoria: category.labelEs })}
                 />
               </td>
             </tr>
@@ -711,7 +736,7 @@ function WeightsFields({
         </tbody>
         <tfoot>
           <tr>
-            <th scope="row">Total</th>
+            <th scope="row">{t('admin.syllabus.colTotal')}</th>
             <td>100%</td>
             <td className={total === 100 ? 'syllabus-total ok' : 'syllabus-total bad'}>{total}%</td>
           </tr>
@@ -728,16 +753,16 @@ function WeightsFields({
           )
         }
       >
-        Usar los pesos institucionales
+        {t('admin.syllabus.usarPesosInstitucionales')}
       </button>
 
       <table className="syllabus-weights">
-        <caption>Escala institucional. No es editable desde el curso.</caption>
+        <caption>{t('admin.syllabus.captionEscala')}</caption>
         <thead>
           <tr>
-            <th scope="col">Letra</th>
-            <th scope="col">Rango</th>
-            <th scope="col">Puntos</th>
+            <th scope="col">{t('admin.syllabus.colLetra')}</th>
+            <th scope="col">{t('admin.syllabus.colRango')}</th>
+            <th scope="col">{t('admin.syllabus.colPuntos')}</th>
           </tr>
         </thead>
         <tbody>
@@ -763,6 +788,7 @@ function ScheduleFields({
   content: Record<string, unknown>;
   update: (key: string, value: unknown) => void;
 }) {
+  const { t } = useTranslation();
   const data = record(content, 'course_schedule');
   const weeks: Week[] = Array.isArray(data.weeks) ? (data.weeks as Week[]) : [];
 
@@ -770,10 +796,7 @@ function ScheduleFields({
 
   return (
     <>
-      <p className="muted">
-        El término de TFU corre ocho semanas. Las fechas las pone el calendario académico a partir
-        del inicio del periodo; aquí se rellena el contenido.
-      </p>
+      <p className="muted">{t('admin.syllabus.cronogramaAviso')}</p>
       {weeks.length === 0 ? (
         <button
           className="ghost"
@@ -781,14 +804,14 @@ function ScheduleFields({
             write(Array.from({ length: 8 }, (_, index) => ({ week: index + 1, topic: '', readings: '', activities: '' })))
           }
         >
-          Crear las ocho semanas
+          {t('admin.syllabus.crearOchoSemanas')}
         </button>
       ) : null}
       {weeks.map((week, index) => (
         <fieldset className="syllabus-repeat" key={index}>
-          <legend>Semana {week.week ?? index + 1}</legend>
+          <legend>{t('admin.syllabus.semana', { numero: week.week ?? index + 1 })}</legend>
           <label className="syllabus-field">
-            <span>Tema</span>
+            <span>{t('admin.syllabus.semanaTema')}</span>
             <input
               value={week.topic ?? ''}
               onChange={(event) =>
@@ -797,7 +820,7 @@ function ScheduleFields({
             />
           </label>
           <label className="syllabus-field">
-            <span>Lecturas</span>
+            <span>{t('admin.syllabus.semanaLecturas')}</span>
             <textarea
               rows={2}
               value={week.readings ?? ''}
@@ -807,7 +830,7 @@ function ScheduleFields({
             />
           </label>
           <label className="syllabus-field">
-            <span>Actividades</span>
+            <span>{t('admin.syllabus.semanaActividades')}</span>
             <textarea
               rows={2}
               value={week.activities ?? ''}
@@ -831,6 +854,7 @@ function AiFields({
   master: MasterModel;
   updateIn: (key: string, field: string, value: unknown) => void;
 }) {
+  const { t } = useTranslation();
   const data = record(content, 'artificial_intelligence');
   // La lista la manda el servidor (§14): cerrada y con su etiqueta. Se acepta
   // también la forma de cadena por si una versión vieja de la API la devuelve así.
@@ -840,27 +864,27 @@ function AiFields({
   return (
     <>
       <label className="syllabus-field">
-        <span>Estándar de IA del curso</span>
+        <span>{t('admin.syllabus.estandarIa')}</span>
         <select
           value={text(data.standard)}
           onChange={(event) => updateIn('artificial_intelligence', 'standard', event.target.value)}
         >
-          <option value="">Sin definir</option>
+          <option value="">{t('admin.syllabus.sinDefinir')}</option>
           {standards.map((item) => (
             <option key={item.value} value={item.value}>
               {item.labelEs ?? item.value}
             </option>
           ))}
         </select>
-        <small className="muted">Lista cerrada. Sin estándar, el sílabo no se publica.</small>
+        <small className="muted">{t('admin.syllabus.estandarIaAyuda')}</small>
       </label>
       <label className="syllabus-field">
-        <span>Indicaciones para el estudiante</span>
+        <span>{t('admin.syllabus.indicacionesEstudiante')}</span>
         <textarea
           rows={6}
           value={text(data.guidance)}
           onChange={(event) => updateIn('artificial_intelligence', 'guidance', event.target.value)}
-          placeholder="Qué se admite, qué hay que declarar y cómo se cita."
+          placeholder={t('admin.syllabus.indicacionesPlaceholder')}
         />
       </label>
     </>

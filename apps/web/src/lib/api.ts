@@ -66,14 +66,59 @@ async function fetchJson<T>(path: string, options?: RequestOptions): Promise<T> 
   return response.json() as Promise<T>;
 }
 
+export type PermissionLevel = 'none' | 'view' | 'edit';
+
+export type AdminIdentity = {
+  email: string;
+  fullName: string;
+  role: { key: string; nameEs: string; nameEn: string };
+  locale: 'es' | 'en';
+  /** true para la cuenta del .env, que no vive en la tabla de usuarios. */
+  isBootstrap: boolean;
+  /** Nivel por sección. Es lo que decide qué ve y qué puede tocar el panel. */
+  permisos: Record<string, PermissionLevel>;
+};
+
 export type AdminSession = {
   token: string;
-  admin: {
-    email: string;
-  };
+  admin: AdminIdentity;
   createdAt: string;
   expiresAt: string;
   authenticated: true;
+};
+
+export type AdminSectionDef = {
+  id: string;
+  group: string;
+  groupEn: string;
+  nameEs: string;
+  nameEn: string;
+};
+
+export type AdminRole = {
+  id: string;
+  key: string;
+  nameEs: string;
+  nameEn: string;
+  descriptionEs: string | null;
+  descriptionEn: string | null;
+  isSystem: boolean;
+  usuarios: number;
+  permisos: Record<string, PermissionLevel>;
+};
+
+export type AdminPanelUser = {
+  id: string;
+  email: string;
+  fullName: string;
+  locale: 'es' | 'en';
+  isActive: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+  roleId: string | null;
+  roleKey: string | null;
+  roleNameEs: string | null;
+  roleNameEn: string | null;
 };
 
 export type MoodleLastSync = {
@@ -1020,6 +1065,53 @@ export const api = {
         method: 'POST',
         auth: { token }
       }),
+    iam: {
+      sections: (token: string) =>
+        fetchJson<{ sections: AdminSectionDef[]; levels: PermissionLevel[] }>('/admin/iam/sections', {
+          auth: { token }
+        }),
+      roles: (token: string) => fetchJson<{ roles: AdminRole[] }>('/admin/iam/roles', { auth: { token } }),
+      createRole: (token: string, body: Record<string, unknown>) =>
+        fetchJson<{ id: string; created: boolean }>('/admin/iam/roles', {
+          method: 'POST',
+          auth: { token },
+          body
+        }),
+      updateRole: (token: string, id: string, body: Record<string, unknown>) =>
+        fetchJson<{ updated: boolean }>(`/admin/iam/roles/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          auth: { token },
+          body
+        }),
+      deleteRole: (token: string, id: string) =>
+        fetchJson<{ deleted: boolean }>(`/admin/iam/roles/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          auth: { token }
+        }),
+      setPermissions: (token: string, id: string, permisos: Record<string, PermissionLevel>) =>
+        fetchJson<{ updated: boolean; permisos: Record<string, PermissionLevel> }>(
+          `/admin/iam/roles/${encodeURIComponent(id)}/permissions`,
+          { method: 'PUT', auth: { token }, body: { permisos } }
+        ),
+      users: (token: string) => fetchJson<{ users: AdminPanelUser[] }>('/admin/iam/users', { auth: { token } }),
+      createUser: (token: string, body: Record<string, unknown>) =>
+        fetchJson<{ id: string; created: boolean }>('/admin/iam/users', {
+          method: 'POST',
+          auth: { token },
+          body
+        }),
+      updateUser: (token: string, id: string, body: Record<string, unknown>) =>
+        fetchJson<{ updated: boolean }>(`/admin/iam/users/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          auth: { token },
+          body
+        }),
+      deleteUser: (token: string, id: string) =>
+        fetchJson<{ deleted: boolean }>(`/admin/iam/users/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          auth: { token }
+        })
+    },
     config: (token: string) => fetchJson<AdminConfig>('/admin/config', { auth: { token } }),
     status: (token: string) => fetchJson<AdminStatus>('/admin/status', { auth: { token } }),
     routes: (token: string) => fetchJson<AdminRouteRegistry>('/admin/routes', { auth: { token } }),

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Calendario académico y punto de control de aulas.
@@ -73,10 +74,15 @@ type Alert = {
   created_at: string;
 };
 
+/**
+ * El estado de entrega se guarda en CLAVES, no en texto: el rótulo se resuelve
+ * al pintar, porque el panel lo leen personas que sólo hablan inglés y
+ * personas que sólo hablan español.
+ */
 const DELIVERY_LABEL: Record<Alert['delivery'], string> = {
-  sent: 'enviado',
-  recorded: 'registrado, sin enviar',
-  failed: 'fallo de envío'
+  sent: 'admin.calendar.entrega.enviado',
+  recorded: 'admin.calendar.entrega.registrado',
+  failed: 'admin.calendar.entrega.fallo'
 };
 
 async function call<T>(token: string, path: string, options?: { method?: string; body?: unknown }): Promise<T> {
@@ -120,6 +126,7 @@ export function CalendarView({
   setError: (message: string | null) => void;
   setInfo: (message: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const [termId, setTermId] = useState('2026-FALL');
   const [startDate, setStartDate] = useState('');
   const [grid, setGrid] = useState<Grid | null>(null);
@@ -136,10 +143,10 @@ export function CalendarView({
         const result = await call<{ holidays: Holiday[] }>(token, '/admin/calendar/holidays');
         setHolidays(result.holidays ?? []);
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'No se pudieron cargar los festivos');
+        setError(reason instanceof Error ? reason.message : t('admin.calendar.errores.cargarFestivos'));
       }
     },
-    [setError]
+    [setError, t]
   );
 
   const loadAlerts = useCallback(
@@ -148,10 +155,10 @@ export function CalendarView({
         const result = await call<{ alerts: Alert[] }>(token, '/admin/calendar/alerts');
         setAlerts(result.alerts ?? []);
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'No se pudieron cargar los avisos');
+        setError(reason instanceof Error ? reason.message : t('admin.calendar.errores.cargarAvisos'));
       }
     },
-    [setError]
+    [setError, t]
   );
 
   useEffect(() => {
@@ -168,7 +175,7 @@ export function CalendarView({
       setGrid(await call<Grid>(sessionToken, `/v1/calendar/terms/${encodeURIComponent(termId)}`));
     } catch (reason) {
       setGrid(null);
-      setError(reason instanceof Error ? reason.message : 'No hay malla para ese periodo');
+      setError(reason instanceof Error ? reason.message : t('admin.calendar.errores.sinMalla'));
     } finally {
       setBusy(null);
     }
@@ -184,9 +191,9 @@ export function CalendarView({
         body: { startDate }
       });
       setGrid(result);
-      setInfo(`Malla de ${termId} generada (revisión ${result.revision}).`);
+      setInfo(t('admin.calendar.info.mallaGenerada', { periodo: termId, revision: result.revision }));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo generar la malla');
+      setError(reason instanceof Error ? reason.message : t('admin.calendar.errores.generarMalla'));
     } finally {
       setBusy(null);
     }
@@ -204,12 +211,10 @@ export function CalendarView({
       });
       setHolidayForm({ date: '', nameEs: '', nameEn: '' });
       await loadHolidays(sessionToken);
-      setInfo(
-        `Festivo añadido. Se regeneraron ${result.regeneratedTerms} malla(s): un festivo desplaza las fechas de todas las secciones activas.`
-      );
+      setInfo(t('admin.calendar.info.festivoAnadido', { count: result.regeneratedTerms }));
       if (grid) void loadGrid();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo añadir el festivo');
+      setError(reason instanceof Error ? reason.message : t('admin.calendar.errores.anadirFestivo'));
     } finally {
       setBusy(null);
     }
@@ -223,9 +228,9 @@ export function CalendarView({
         method: 'DELETE'
       });
       await loadHolidays(sessionToken);
-      setInfo(`Festivo desactivado. Se regeneraron ${result.regeneratedTerms} malla(s).`);
+      setInfo(t('admin.calendar.info.festivoDesactivado', { count: result.regeneratedTerms }));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo desactivar el festivo');
+      setError(reason instanceof Error ? reason.message : t('admin.calendar.errores.desactivarFestivo'));
     } finally {
       setBusy(null);
     }
@@ -239,7 +244,7 @@ export function CalendarView({
       .map((value) => Number(value))
       .filter((value) => Number.isInteger(value) && value > 0);
     if (ids.length === 0) {
-      setError('Indica al menos un ID de curso de Moodle.');
+      setError(t('admin.calendar.errores.sinIds'));
       return;
     }
     setBusy('attach');
@@ -250,9 +255,9 @@ export function CalendarView({
         { method: 'POST', body: { moodleCourseIds: ids } }
       );
       setCourseIds('');
-      setInfo(`${result.attached} curso(s) asociados a ${termId}.`);
+      setInfo(t('admin.calendar.info.cursosAsociados', { count: result.attached, periodo: termId }));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudieron asociar los cursos');
+      setError(reason instanceof Error ? reason.message : t('admin.calendar.errores.asociarCursos'));
     } finally {
       setBusy(null);
     }
@@ -269,9 +274,15 @@ export function CalendarView({
       );
       setCheck(result);
       await loadAlerts(sessionToken);
-      setInfo(`${result.ready} de ${result.total} aulas listas · ${result.overdue} vencida(s).`);
+      setInfo(
+        t('admin.calendar.info.comprobacion', {
+          listas: result.ready,
+          total: result.total,
+          count: result.overdue
+        })
+      );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo comprobar las aulas');
+      setError(reason instanceof Error ? reason.message : t('admin.calendar.errores.comprobarAulas'));
     } finally {
       setBusy(null);
     }
@@ -286,9 +297,9 @@ export function CalendarView({
         `/admin/calendar/terms/${encodeURIComponent(termId)}/push-to-moodle`,
         { method: 'POST' }
       );
-      setInfo(`Fechas propagadas a ${result.ok} de ${result.courses} curso(s).`);
+      setInfo(t('admin.calendar.info.fechasPropagadas', { ok: result.ok, count: result.courses }));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudieron propagar las fechas');
+      setError(reason instanceof Error ? reason.message : t('admin.calendar.errores.propagarFechas'));
     } finally {
       setBusy(null);
     }
@@ -297,35 +308,32 @@ export function CalendarView({
   return (
     <section className="grid-1">
       <article className="card">
-        <h2>Periodo académico</h2>
-        <p className="muted">
-          La malla son ocho semanas de martes a lunes. Los plazos los fija el Master Syllabus §10:
-          respuesta inicial el martes, respuestas a compañeros el jueves y entrega el lunes, todos a
-          las 23:59 ET. Un festivo mueve el plazo afectado al día siguiente, salvo cuando ya cae en
-          el cierre del lunes.
-        </p>
+        <h2>{t('admin.calendar.periodo.titulo')}</h2>
+        <p className="muted">{t('admin.calendar.periodo.descripcion')}</p>
         <div className="login-form">
-          <label htmlFor="cal-term">Identificador del periodo</label>
+          <label htmlFor="cal-term">{t('admin.calendar.periodo.campoId')}</label>
           <input id="cal-term" value={termId} onChange={(event) => setTermId(event.target.value)} placeholder="2026-FALL" />
-          <label htmlFor="cal-start">Primer día de clase</label>
+          <label htmlFor="cal-start">{t('admin.calendar.periodo.campoInicio')}</label>
           <input
             id="cal-start"
             type="date"
             value={startDate}
             onChange={(event) => setStartDate(event.target.value)}
           />
-          <small className="muted">
-            Si no cae en martes, la malla empieza el primer martes posterior.
-          </small>
+          <small className="muted">{t('admin.calendar.periodo.notaMartes')}</small>
           <div className="inline-actions">
             <button onClick={() => void generateGrid()} disabled={busy !== null || !startDate}>
-              {busy === 'grid' ? 'Generando…' : 'Generar malla'}
+              {busy === 'grid'
+                ? t('admin.calendar.periodo.generando')
+                : t('admin.calendar.periodo.generar')}
             </button>
             <button className="ghost" onClick={() => void loadGrid()} disabled={busy !== null}>
-              Ver malla existente
+              {t('admin.calendar.periodo.verExistente')}
             </button>
             <button className="ghost" onClick={() => void pushToMoodle()} disabled={busy !== null}>
-              {busy === 'push' ? 'Propagando…' : 'Propagar fechas a Moodle'}
+              {busy === 'push'
+                ? t('admin.calendar.periodo.propagando')
+                : t('admin.calendar.periodo.propagar')}
             </button>
           </div>
         </div>
@@ -333,19 +341,17 @@ export function CalendarView({
 
       {grid ? (
         <article className="card scroll-card">
-          <h2>
-            Malla de {grid.termId} · revisión {grid.revision}
-          </h2>
+          <h2>{t('admin.calendar.malla.titulo', { periodo: grid.termId, revision: grid.revision })}</h2>
           <table>
             <caption>
-              Del {grid.termStartsOn} al {grid.termEndsOn}. Horas en huso del este (ET).
+              {t('admin.calendar.malla.pie', { inicio: grid.termStartsOn, fin: grid.termEndsOn })}
             </caption>
             <thead>
               <tr>
-                <th scope="col">Semana</th>
-                <th scope="col">Apertura</th>
-                <th scope="col">Aula lista</th>
-                <th scope="col">Plazos</th>
+                <th scope="col">{t('admin.calendar.malla.colSemana')}</th>
+                <th scope="col">{t('admin.calendar.malla.colApertura')}</th>
+                <th scope="col">{t('admin.calendar.malla.colAulaLista')}</th>
+                <th scope="col">{t('admin.calendar.malla.colPlazos')}</th>
               </tr>
             </thead>
             <tbody>
@@ -365,7 +371,9 @@ export function CalendarView({
                     {week.holidays?.length ? (
                       // Se nombra el festivo porque es la explicación de que un
                       // plazo de esa semana no caiga donde se espera.
-                      <em className="calendar-holiday">Festivo en la semana: {week.holidays.join(', ')}</em>
+                      <em className="calendar-holiday">
+                        {t('admin.calendar.malla.festivoEnSemana', { festivos: week.holidays.join(', ') })}
+                      </em>
                     ) : null}
                   </td>
                 </tr>
@@ -376,51 +384,50 @@ export function CalendarView({
       ) : null}
 
       <article className="card">
-        <h2>Cursos del periodo</h2>
+        <h2>{t('admin.calendar.cursos.titulo')}</h2>
         <form className="login-form" onSubmit={attachCourses}>
-          <label htmlFor="cal-courses">IDs de curso de Moodle</label>
+          <label htmlFor="cal-courses">{t('admin.calendar.cursos.campoIds')}</label>
           <input
             id="cal-courses"
             value={courseIds}
             onChange={(event) => setCourseIds(event.target.value)}
             placeholder="12, 13, 14"
           />
-          <small className="muted">
-            Son los cursos que el punto de control vigila para este periodo.
-          </small>
+          <small className="muted">{t('admin.calendar.cursos.nota')}</small>
           <button type="submit" disabled={busy !== null}>
-            {busy === 'attach' ? 'Asociando…' : 'Asociar al periodo'}
+            {busy === 'attach' ? t('admin.calendar.cursos.asociando') : t('admin.calendar.cursos.asociar')}
           </button>
         </form>
       </article>
 
       <article className="card">
-        <h2>Aulas listas</h2>
-        <p className="muted">
-          §8 del Master Syllabus: el aula de la semana entrante debe estar completa el jueves a las
-          10:00 ET. El chequeo diario abre los avisos y cierra los que ya se resolvieron.
-        </p>
+        <h2>{t('admin.calendar.aulas.titulo')}</h2>
+        <p className="muted">{t('admin.calendar.aulas.descripcion')}</p>
         <button onClick={() => void runShellCheck()} disabled={busy !== null}>
-          {busy === 'check' ? 'Comprobando…' : 'Comprobar ahora'}
+          {busy === 'check' ? t('admin.calendar.aulas.comprobando') : t('admin.calendar.aulas.comprobar')}
         </button>
         {check ? (
           <table>
             <caption>
-              Comprobado el {easternLabel(check.checkedAt)} · {check.ready} de {check.total} listas ·{' '}
-              {check.overdue} vencida(s)
+              {t('admin.calendar.aulas.pie', {
+                fecha: easternLabel(check.checkedAt),
+                listas: check.ready,
+                total: check.total,
+                count: check.overdue
+              })}
             </caption>
             <thead>
               <tr>
-                <th scope="col">Curso</th>
-                <th scope="col">Semana</th>
-                <th scope="col">Corte</th>
-                <th scope="col">Estado</th>
+                <th scope="col">{t('admin.calendar.aulas.colCurso')}</th>
+                <th scope="col">{t('admin.calendar.aulas.colSemana')}</th>
+                <th scope="col">{t('admin.calendar.aulas.colCorte')}</th>
+                <th scope="col">{t('admin.calendar.aulas.colEstado')}</th>
               </tr>
             </thead>
             <tbody>
               {check.items.length === 0 ? (
                 <tr>
-                  <td colSpan={4}>No hay cursos asociados a este periodo.</td>
+                  <td colSpan={4}>{t('admin.calendar.aulas.vacio')}</td>
                 </tr>
               ) : (
                 check.items.map((item) => (
@@ -430,11 +437,13 @@ export function CalendarView({
                     <td>{easternLabel(item.shellReadyBy)}</td>
                     <td>
                       {item.ready ? (
-                        <span className="badge">lista</span>
+                        <span className="badge">{t('admin.calendar.estado.lista')}</span>
                       ) : (
                         <>
                           <span className={item.overdue ? 'badge danger' : 'badge'}>
-                            {item.overdue ? 'vencida' : 'pendiente'}
+                            {item.overdue
+                              ? t('admin.calendar.estado.vencida')
+                              : t('admin.calendar.estado.pendiente')}
                           </span>
                           <ul className="calendar-missing">
                             {item.missing.map((line) => (
@@ -453,24 +462,22 @@ export function CalendarView({
       </article>
 
       <article className="card scroll-card">
-        <h2>Avisos abiertos ({alerts.length})</h2>
+        <h2>{t('admin.calendar.avisos.titulo', { total: alerts.length })}</h2>
         <table>
-          <caption>
-            Un aviso por curso y semana. Se cierra solo cuando el aula se completa.
-          </caption>
+          <caption>{t('admin.calendar.avisos.pie')}</caption>
           <thead>
             <tr>
-              <th scope="col">Curso</th>
-              <th scope="col">Semana</th>
-              <th scope="col">Gravedad</th>
-              <th scope="col">Avisados</th>
-              <th scope="col">Entrega</th>
+              <th scope="col">{t('admin.calendar.avisos.colCurso')}</th>
+              <th scope="col">{t('admin.calendar.avisos.colSemana')}</th>
+              <th scope="col">{t('admin.calendar.avisos.colGravedad')}</th>
+              <th scope="col">{t('admin.calendar.avisos.colAvisados')}</th>
+              <th scope="col">{t('admin.calendar.avisos.colEntrega')}</th>
             </tr>
           </thead>
           <tbody>
             {alerts.length === 0 ? (
               <tr>
-                <td colSpan={5}>Sin avisos abiertos.</td>
+                <td colSpan={5}>{t('admin.calendar.avisos.vacio')}</td>
               </tr>
             ) : (
               alerts.map((alert) => (
@@ -479,17 +486,22 @@ export function CalendarView({
                   <td>{alert.week}</td>
                   <td>
                     <span className={alert.severity === 'overdue' ? 'badge danger' : 'badge'}>
-                      {alert.severity === 'overdue' ? 'vencida' : 'pendiente'}
+                      {alert.severity === 'overdue'
+                        ? t('admin.calendar.estado.vencida')
+                        : t('admin.calendar.estado.pendiente')}
                     </span>
                   </td>
                   <td>
                     {alert.recipients.length === 0 ? (
-                      <em>sin destinatario resoluble</em>
+                      <em>{t('admin.calendar.avisos.sinDestinatario')}</em>
                     ) : (
                       <ul className="calendar-missing">
                         {alert.recipients.map((recipient) => (
                           <li key={recipient.email}>
-                            {recipient.role === 'instructor' ? 'Instructor' : 'Dirección de programa'}:{' '}
+                            {recipient.role === 'instructor'
+                              ? t('admin.calendar.avisos.rolInstructor')
+                              : t('admin.calendar.avisos.rolDireccion')}
+                            :{' '}
                             {recipient.name ? `${recipient.name} · ` : ''}
                             {recipient.email}
                           </li>
@@ -498,7 +510,7 @@ export function CalendarView({
                     )}
                   </td>
                   <td>
-                    {DELIVERY_LABEL[alert.delivery]}
+                    {t(DELIVERY_LABEL[alert.delivery])}
                     {alert.delivery_detail ? <div className="muted">{alert.delivery_detail}</div> : null}
                   </td>
                 </tr>
@@ -509,9 +521,11 @@ export function CalendarView({
       </article>
 
       <article className="card scroll-card">
-        <h2>Festivos institucionales ({holidays.filter((h) => h.is_active).length} activos)</h2>
+        <h2>
+          {t('admin.calendar.festivos.titulo', { total: holidays.filter((h) => h.is_active).length })}
+        </h2>
         <form className="login-form" onSubmit={addHoliday}>
-          <label htmlFor="hol-date">Fecha</label>
+          <label htmlFor="hol-date">{t('admin.calendar.festivos.campoFecha')}</label>
           <input
             id="hol-date"
             type="date"
@@ -519,14 +533,14 @@ export function CalendarView({
             onChange={(event) => setHolidayForm((current) => ({ ...current, date: event.target.value }))}
             required
           />
-          <label htmlFor="hol-es">Nombre en español</label>
+          <label htmlFor="hol-es">{t('admin.calendar.festivos.campoNombreEs')}</label>
           <input
             id="hol-es"
             value={holidayForm.nameEs}
             onChange={(event) => setHolidayForm((current) => ({ ...current, nameEs: event.target.value }))}
             required
           />
-          <label htmlFor="hol-en">Nombre en inglés</label>
+          <label htmlFor="hol-en">{t('admin.calendar.festivos.campoNombreEn')}</label>
           <input
             id="hol-en"
             value={holidayForm.nameEn}
@@ -534,16 +548,18 @@ export function CalendarView({
             required
           />
           <button type="submit" disabled={busy !== null}>
-            {busy === 'holiday' ? 'Guardando…' : 'Añadir festivo'}
+            {busy === 'holiday'
+              ? t('admin.calendar.festivos.guardando')
+              : t('admin.calendar.festivos.anadir')}
           </button>
         </form>
         <table>
           <thead>
             <tr>
-              <th scope="col">Fecha</th>
-              <th scope="col">Nombre</th>
-              <th scope="col">Estado</th>
-              <th scope="col">Acción</th>
+              <th scope="col">{t('admin.calendar.festivos.colFecha')}</th>
+              <th scope="col">{t('admin.calendar.festivos.colNombre')}</th>
+              <th scope="col">{t('admin.calendar.festivos.colEstado')}</th>
+              <th scope="col">{t('admin.calendar.festivos.colAccion')}</th>
             </tr>
           </thead>
           <tbody>
@@ -553,11 +569,15 @@ export function CalendarView({
                 <td>
                   {holiday.name_es} / {holiday.name_en}
                 </td>
-                <td>{holiday.is_active ? 'activo' : 'desactivado'}</td>
+                <td>
+                  {holiday.is_active
+                    ? t('admin.calendar.festivos.activo')
+                    : t('admin.calendar.festivos.desactivado')}
+                </td>
                 <td>
                   {holiday.is_active ? (
                     <button className="ghost danger" onClick={() => void removeHoliday(holiday.id)}>
-                      Desactivar
+                      {t('admin.calendar.festivos.desactivar')}
                     </button>
                   ) : (
                     <span className="muted">—</span>

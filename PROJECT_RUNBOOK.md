@@ -203,6 +203,73 @@ DB de Moodle en wizard:
 - Podcasts.
 - Eventos integrados y agrupaciones.
 - Empresas.
+- **Resumen de actividad**: estado operativo con datos reales (conteos y
+  semáforos binarios) y, debajo, una vista previa del tablero analítico
+  comprometido para la Etapa V, con datos de demostración y rótulo explícito.
+  La separación es contractual (Cláusula 4): las gráficas no son entregable
+  de las etapas actuales y no deben presentarse como cifras de la institución.
+- **Reportes**: inventarios reales con búsqueda, filtros, ordenación y
+  exportación a CSV (BOM UTF-8, CRLF por RFC 4180, neutralización de fórmulas
+  para que Excel no ejecute una celda que empiece por `=`). Cubre programas,
+  cursos de Moodle, usuarios de la plataforma, usuarios del panel, seminarios,
+  podcasts y el inventario de rutas de API. Una pestaña aparte agrupa la vista
+  previa analítica de Etapa V, que no ofrece exportación a propósito: un CSV
+  descargado pierde el rótulo de «datos de muestra».
+- **Roles y permisos**: gestor de roles con matriz sección × (ninguno / ver /
+  editar) y administración de las cuentas del panel.
+- **Panel bilingüe (ES/EN)**: todos los textos pasan por i18next. El idioma
+  arranca según el de la persona y se cambia con el selector de la cabecera,
+  presente también en la pantalla de acceso.
+- La barra lateral sólo muestra las secciones que el rol puede abrir, y marca
+  «solo lectura» las que puede consultar sin editar. Esto es presentación: la
+  comprobación real la hace el servidor en cada petición.
+
+## 8.4 Identidad y permisos del panel (`apps/api/src/modules/iam`)
+
+Sustituye la cuenta única que se comparaba contra `ADMIN_EMAIL` /
+`ADMIN_PASSWORD` del `.env` y las sesiones en memoria.
+
+Tablas (migración idempotente en cada arranque, `migrateIam`):
+
+- `admin_roles` — roles; `is_system` protege a `superadmin`.
+- `admin_role_permissions` — `(role_id, section, level)` con
+  `level IN ('none','view','edit')`.
+- `admin_users` — cuentas del panel; contraseña con scrypt y salt por usuario.
+- `admin_sessions` — sesiones persistentes, que ya sobreviven a `pm2 restart`.
+
+Las 18 secciones del panel se declaran en un único sitio,
+`apps/api/src/modules/iam/sections.ts`, que usan a la vez la matriz de
+permisos, el guardián y la barra lateral.
+
+**Cómo se aplican los permisos.** Un hook `preHandler` sobre `/admin/*`, no
+anotación ruta por ruta: el panel tiene casi trescientas rutas y anotarlas una
+a una garantiza que alguna se quede sin anotar. El hook deduce la sección por
+prefijo de ruta (tabla `ROUTE_SECTIONS`) y el nivel por método HTTP (`GET`
+pide `view`, lo demás pide `edit`). **Una ruta que no esté en esa tabla no
+queda abierta**: se trata como exclusiva del superadministrador, para que una
+ruta nueva falle de forma visible en lugar de quedar accesible a todos.
+
+Si añades una ruta `/admin/...` nueva, añádela también a `ROUTE_SECTIONS`.
+
+Roles sembrados al arrancar: `superadmin`, `academico`, `admisiones`,
+`acreditacion`, `contenido`, `finanzas`, `lectura`. Si un rol ya existe no se
+reescriben sus permisos: un despliegue no debe deshacer un ajuste manual.
+
+Dos salvaguardas deliberadas:
+
+- La cuenta de `ADMIN_EMAIL` / `ADMIN_PASSWORD` del `.env` **sigue
+  funcionando** como superadministrador de rescate. Si alguien deja la matriz
+  en un estado que impide entrar, esa cuenta no depende de la base.
+- Los permisos del rol `superadmin` **no se pueden modificar** (devuelve 400).
+  Si se pudieran, un clic dejaría la plataforma sin nadie capaz de volver a
+  conceder permisos.
+
+`ADMIN_API_KEY` (cabecera `x-admin-key`) se mantiene y equivale a
+superadministrador: es la que usan los temporizadores de systemd.
+
+Los permisos se releen en cada petición en vez de viajar dentro del token,
+para que retirar un acceso surta efecto en ese momento y no al caducar la
+sesión.
 
 ## 9) Puertos fijos esperados
 
@@ -248,6 +315,12 @@ Todas cuelgan de `/api` por `rewriteUrl` en Fastify.
 - `GET /api/admin/status`
 - `GET /api/admin/routes`
 - `GET /api/admin/config`
+- `GET /api/admin/iam/sections` — catálogo de secciones y niveles
+- `GET|POST /api/admin/iam/roles`
+- `PATCH|DELETE /api/admin/iam/roles/:id`
+- `PUT /api/admin/iam/roles/:id/permissions` — matriz completa del rol
+- `GET|POST /api/admin/iam/users`
+- `PATCH|DELETE /api/admin/iam/users/:id`
 - `GET /api/admin/users`
 - `POST /api/admin/users`
 - `PATCH /api/admin/users/:userId/status`

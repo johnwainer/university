@@ -1005,3 +1005,609 @@ body:has(.admin-shell) {
   align-self: start;
   width: auto;
 }
+
+/* =========================================================================
+   Rediseño: barra lateral, formularios y vocabulario de componentes
+   =========================================================================
+   Tres cosas se arreglan aquí.
+
+   1. La barra lateral. Los grupos no se distinguían de las entradas y el
+      estado activo era sólo un cambio de color de texto, que se pierde de
+      vista en una lista de dieciocho. Ahora el grupo es una versalita con
+      filete, y el activo lleva una barra de acento a la izquierda además del
+      fondo: dos señales, no una, porque el color solo no basta.
+
+   2. Los formularios. Cada vista traía su propio tamaño de input y su propio
+      espaciado. `ad-field` + `ad-input` unifica alto, filete, radio y foco.
+
+   3. El vocabulario `ad-*`, que usan las vistas de roles, resumen y reportes,
+      para que las tres se parezcan entre sí sin repetir CSS.
+
+   Se mantiene la línea del panel: claro, tipografía del sistema, filetes de
+   1px, sin desenfoques ni degradados.
+   ========================================================================= */
+
+.admin-shell {
+  /* Ritmo vertical. Tener la escala en tokens es lo que evita que cada vista
+     invente su propio margen y el panel acabe con seis espaciados distintos. */
+  --ad-sp-1: 4px;
+  --ad-sp-2: 8px;
+  --ad-sp-3: 12px;
+  --ad-sp-4: 16px;
+  --ad-sp-5: 24px;
+  --ad-sp-6: 32px;
+  --ad-radio: 8px;
+
+  /* Series de las gráficas.
+     Elegidas resolviendo, no a ojo: luminancias escalonadas con paso 1.4:1
+     entre adyacentes y todas por encima de 3:1 contra el blanco, que es el
+     mínimo de WCAG 1.4.11 para un objeto gráfico. El escalonado importa
+     porque significa que las series se distinguen también por claridad, así
+     que siguen leyéndose impresas en gris o con daltonismo, donde el tono
+     solo no sirve. Medido: 13.16 / 9.37 / 6.71 / 4.78 / 3.40 contra blanco. */
+  --ad-serie-1: #002d6d;
+  --ad-serie-2: #930000;
+  --ad-serie-3: #00666f;
+  --ad-serie-4: #9c6800;
+  --ad-serie-5: #a27eb4;
+}
+
+/* ---------- Barra lateral ------------------------------------------------ */
+.admin-shell .admin-nav-group + .admin-nav-group {
+  margin-top: var(--ad-sp-5);
+  padding-top: var(--ad-sp-4);
+  border-top: 1px solid var(--adm-line);
+}
+
+.admin-shell .admin-nav-group-label {
+  margin: 0 0 var(--ad-sp-2);
+  padding: 0 var(--ad-sp-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--adm-ink-3);
+}
+
+.admin-shell .admin-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ad-sp-2);
+  width: 100%;
+  padding: 9px var(--ad-sp-3) 9px 14px;
+  border: 0;
+  border-radius: var(--ad-radio);
+  background: transparent;
+  color: var(--adm-ink-2);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-shell .admin-nav-item:hover:not(.active) {
+  background: var(--adm-surface-2);
+  color: var(--adm-ink);
+}
+
+.admin-shell .admin-nav-item.active {
+  background: var(--adm-surface-2);
+  color: var(--adm-ink);
+  font-weight: 600;
+}
+
+/* La barra de acento es la segunda señal del estado activo. El fondo solo es
+   muy sutil en un tema claro, y quien no distingue bien los grises lo pierde. */
+.admin-shell .admin-nav-item.active::before {
+  content: '';
+  position: absolute;
+  inset-block: 6px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--adm-accent-ink);
+}
+
+.admin-shell .admin-nav-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Marca de sección consultable pero no editable. Va en la barra lateral y no
+   dentro de la vista para que se sepa ANTES de entrar y de intentar guardar. */
+.admin-shell .admin-nav-solo-lectura {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--adm-ink-3);
+}
+
+.admin-shell .admin-quien {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--ad-sp-3);
+  margin-bottom: var(--ad-sp-2);
+  border: 1px solid var(--adm-line);
+  border-radius: var(--ad-radio);
+  background: var(--adm-surface-2);
+  font-size: 12.5px;
+}
+.admin-shell .admin-quien strong { color: var(--adm-ink); }
+.admin-shell .admin-quien span { color: var(--adm-ink-3); }
+
+/* ---------- Selector de idioma ------------------------------------------- */
+.admin-shell .admin-idioma {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: var(--ad-radio);
+  background: var(--adm-surface-2);
+}
+
+.admin-shell .admin-idioma-btn {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--adm-ink-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.admin-shell .admin-idioma-btn.active {
+  background: var(--adm-surface);
+  color: var(--adm-ink);
+  box-shadow: 0 1px 0 rgba(11, 32, 58, 0.12);
+}
+
+/* ---------- Formularios --------------------------------------------------- */
+.admin-shell .ad-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ad-sp-1);
+  min-width: 0;
+}
+
+.admin-shell .ad-field > label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--adm-ink-2);
+}
+
+.admin-shell .ad-input,
+.admin-shell .ad-select,
+.admin-shell .ad-textarea {
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: var(--ad-radio);
+  background: var(--adm-surface);
+  color: var(--adm-ink);
+  font: inherit;
+  font-size: 13.5px;
+}
+
+.admin-shell .ad-textarea { min-height: 96px; resize: vertical; }
+
+.admin-shell .ad-input:focus-visible,
+.admin-shell .ad-select:focus-visible,
+.admin-shell .ad-textarea:focus-visible,
+.admin-shell .ad-btn:focus-visible,
+.admin-shell .admin-nav-item:focus-visible,
+.admin-shell .admin-idioma-btn:focus-visible,
+.admin-shell .ad-sortable:focus-visible {
+  outline: 2px solid var(--adm-accent-ink);
+  outline-offset: 1px;
+}
+
+.admin-shell .ad-input:disabled,
+.admin-shell .ad-select:disabled,
+.admin-shell .ad-textarea:disabled {
+  background: var(--adm-surface-2);
+  color: var(--adm-ink-3);
+  cursor: not-allowed;
+}
+
+/* ---------- Botones ------------------------------------------------------- */
+.admin-shell .ad-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ad-sp-2);
+  min-height: 36px;
+  padding: 7px 14px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: var(--ad-radio);
+  background: var(--adm-surface);
+  color: var(--adm-ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.admin-shell .ad-btn:hover:not(:disabled) { background: var(--adm-surface-2); }
+.admin-shell .ad-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.admin-shell .ad-btn-primary {
+  border-color: var(--adm-ink);
+  background: var(--adm-ink);
+  color: #fff;
+}
+.admin-shell .ad-btn-primary:hover:not(:disabled) { background: #16324f; }
+
+.admin-shell .ad-btn-ghost { border-color: transparent; background: transparent; color: var(--adm-ink-2); }
+.admin-shell .ad-btn-ghost:hover:not(:disabled) { background: var(--adm-surface-2); color: var(--adm-ink); }
+
+.admin-shell .ad-btn-danger { border-color: var(--adm-danger); color: var(--adm-danger); }
+.admin-shell .ad-btn-danger:hover:not(:disabled) { background: #fdf2f1; }
+
+/* ---------- Tarjetas y rejillas ------------------------------------------ */
+.admin-shell .ad-card {
+  border: 1px solid var(--adm-line);
+  border-radius: 10px;
+  background: var(--adm-surface);
+  overflow: hidden;
+}
+.admin-shell .ad-card + .ad-card { margin-top: var(--ad-sp-4); }
+
+.admin-shell .ad-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ad-sp-3);
+  padding: var(--ad-sp-3) var(--ad-sp-4);
+  border-bottom: 1px solid var(--adm-line);
+  background: var(--adm-surface-2);
+}
+.admin-shell .ad-card-head h2,
+.admin-shell .ad-card-head h3 { margin: 0; font-size: 14.5px; color: var(--adm-ink); }
+
+.admin-shell .ad-card-body { padding: var(--ad-sp-4); }
+
+.admin-shell .ad-grid { display: grid; gap: var(--ad-sp-4); }
+.admin-shell .ad-grid-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.admin-shell .ad-grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.admin-shell .ad-grid-4 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+.admin-shell .ad-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ad-sp-3);
+  margin-bottom: var(--ad-sp-4);
+}
+
+/* ---------- Pestañas ------------------------------------------------------ */
+.admin-shell .ad-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ad-sp-1);
+  margin-bottom: var(--ad-sp-4);
+  border-bottom: 1px solid var(--adm-line);
+}
+
+.admin-shell .ad-tab {
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--adm-ink-2);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.admin-shell .ad-tab:hover { color: var(--adm-ink); }
+.admin-shell .ad-tab[aria-selected='true'],
+.admin-shell .ad-tab.active {
+  border-bottom-color: var(--adm-accent-ink);
+  color: var(--adm-ink);
+  font-weight: 600;
+}
+
+/* ---------- Tablas -------------------------------------------------------- */
+/* El inventario de rutas es muy ancho; sin este contenedor desborda la vista
+   entera en lugar de desplazarse dentro de su tarjeta. */
+.admin-shell .ad-table-wrap { overflow-x: auto; }
+
+.admin-shell .ad-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+.admin-shell .ad-table th,
+.admin-shell .ad-table td {
+  padding: 9px var(--ad-sp-3);
+  border-bottom: 1px solid var(--adm-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin-shell .ad-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--adm-surface-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--adm-ink-3);
+  white-space: nowrap;
+}
+
+.admin-shell .ad-table tbody tr:hover { background: var(--adm-surface-2); }
+.admin-shell .ad-table tbody tr:last-child td { border-bottom: 0; }
+
+.admin-shell .ad-sortable {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ad-sp-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.admin-shell .ad-sortable:hover { color: var(--adm-ink); }
+
+/* ---------- Matriz de permisos ------------------------------------------- */
+/* Las tres opciones van juntas en una celda, así que necesita su propio
+   tratamiento: columna de sección ancha y fija, y las opciones sin envolver. */
+.admin-shell .ad-matrix { width: 100%; border-collapse: collapse; font-size: 13px; }
+.admin-shell .ad-matrix th,
+.admin-shell .ad-matrix td {
+  padding: 8px var(--ad-sp-3);
+  border-bottom: 1px solid var(--adm-line);
+  text-align: left;
+}
+.admin-shell .ad-matrix thead th,
+.admin-shell .ad-matrix [scope='rowgroup'] {
+  background: var(--adm-surface-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--adm-ink-3);
+}
+.admin-shell .ad-matrix [role='radiogroup'] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ad-sp-4);
+}
+.admin-shell .ad-matrix [role='radiogroup'] label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ad-sp-1);
+  color: var(--adm-ink-2);
+  cursor: pointer;
+}
+
+/* ---------- Indicadores --------------------------------------------------- */
+.admin-shell .ad-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ad-sp-1);
+  padding: var(--ad-sp-4);
+  border: 1px solid var(--adm-line);
+  border-radius: 10px;
+  background: var(--adm-surface);
+}
+.admin-shell .ad-stat-valor {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--adm-ink);
+  font-variant-numeric: tabular-nums;
+}
+.admin-shell .ad-stat-etiqueta { font-size: 12.5px; color: var(--adm-ink-3); }
+
+.admin-shell .ad-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ad-sp-1);
+  padding: 2px 8px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--adm-ink-2);
+  white-space: nowrap;
+}
+.admin-shell .ad-badge-ok { border-color: #a9d9c3; background: #eef9f4; color: var(--adm-ok); }
+.admin-shell .ad-badge-warn { border-color: #e4cf9a; background: #fdf7e8; color: var(--adm-warn); }
+.admin-shell .ad-badge-off { border-color: var(--adm-line-strong); background: var(--adm-surface-2); color: var(--adm-ink-3); }
+
+/* El semáforo lleva SIEMPRE texto al lado: el punto de color es un refuerzo,
+   no el dato. Un semáforo que sólo es color no lo lee quien no ve el color. */
+.admin-shell .ad-semaforo {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: var(--ad-sp-2);
+  border-radius: 50%;
+  background: var(--adm-ink-3);
+}
+.admin-shell .ad-semaforo-ok { background: var(--adm-ok); }
+.admin-shell .ad-semaforo-warn { background: var(--adm-warn); }
+.admin-shell .ad-semaforo-off { background: var(--adm-line-strong); }
+
+/* ---------- Gráficas ------------------------------------------------------ */
+.admin-shell .ad-chart {
+  padding: var(--ad-sp-4);
+  border: 1px solid var(--adm-line);
+  border-radius: 10px;
+  background: var(--adm-surface);
+}
+.admin-shell .ad-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ad-sp-2);
+  margin-bottom: var(--ad-sp-3);
+}
+.admin-shell .ad-chart svg { display: block; width: 100%; height: auto; }
+.admin-shell .ad-chart figure { margin: 0; }
+.admin-shell .ad-chart figcaption {
+  margin-top: var(--ad-sp-2);
+  font-size: 12px;
+  color: var(--adm-ink-3);
+}
+
+/* ---------- Vista previa de Etapa V -------------------------------------- */
+/* Esto no es decoración. El contrato separa el tablero de estado operativo
+   (entregable ahora) del dashboard analítico (Etapa V), y estas pantallas se
+   enseñan a terceros. El banner y la marca existen para que nadie confunda
+   una cifra de demostración con una cifra de la institución. */
+.admin-shell .ad-preview-banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ad-sp-1);
+  padding: var(--ad-sp-4);
+  margin-bottom: var(--ad-sp-5);
+  border: 1px solid #e4cf9a;
+  border-left: 3px solid var(--adm-warn);
+  border-radius: 10px;
+  background: #fff8e6;
+  color: var(--adm-ink);
+  font-size: 13px;
+}
+.admin-shell .ad-preview-banner strong { color: #7a4b00; }
+
+.admin-shell .ad-preview-mark {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid #e4cf9a;
+  border-radius: 999px;
+  background: #fff8e6;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #7a4b00;
+  white-space: nowrap;
+}
+
+/* ---------- Notas y vacíos ------------------------------------------------ */
+.admin-shell .ad-note {
+  padding: var(--ad-sp-3) var(--ad-sp-4);
+  border: 1px solid var(--adm-line);
+  border-radius: var(--ad-radio);
+  background: var(--adm-surface-2);
+  font-size: 12.5px;
+  color: var(--adm-ink-2);
+}
+.admin-shell .ad-note[role='alert'] {
+  border-color: #e3b5b0;
+  background: #fdf2f1;
+  color: var(--adm-danger);
+}
+
+.admin-shell .ad-empty {
+  padding: var(--ad-sp-6);
+  border: 1px dashed var(--adm-line-strong);
+  border-radius: 10px;
+  background: var(--adm-surface-2);
+  text-align: center;
+  font-size: 13px;
+  color: var(--adm-ink-3);
+}
+
+/* ---------- Pantalla estrecha -------------------------------------------- */
+@media (max-width: 860px) {
+  .admin-shell .ad-card-body { padding: var(--ad-sp-3); }
+  .admin-shell .ad-toolbar { flex-direction: column; align-items: stretch; }
+  .admin-shell .ad-matrix [role='radiogroup'] { gap: var(--ad-sp-3); }
+}
+
+/* ---------- Acciones dentro de tablas ------------------------------------ */
+/* Las celdas de acciones apilaban cada botón en su propia línea y además
+   abrían la nota del motivo como un bloque completo, con lo que una fila de
+   rol medía 250px y la tabla dejaba de leerse como tabla. Los botones van en
+   línea y la nota se convierte en un pie corto bajo ellos. */
+.admin-shell .ad-table td:last-child {
+  white-space: nowrap;
+}
+
+.admin-shell .ad-table td .ad-btn,
+.admin-shell .ad-matrix td .ad-btn {
+  min-height: 28px;
+  padding: 3px 10px;
+  font-size: 12.5px;
+}
+
+/* `ad-toolbar` dentro de una celda es un caso aparte. Fuera de la tabla es una
+   barra que puede envolver y separa del contenido de abajo; dentro, ese mismo
+   envolver apilaba los tres botones en vertical y el margen inferior sumaba
+   otros 16px, de ahí las filas de 190px. Aquí va en una línea y sin margen. */
+.admin-shell .ad-table td .ad-toolbar,
+.admin-shell .ad-matrix td .ad-toolbar {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--ad-sp-2);
+  margin-bottom: 0;
+}
+
+/* La nota del motivo («es de sistema», «tiene N usuarios») explica por qué un
+   botón está inhabilitado: debe estar, pero en pequeño y sin caja, porque
+   dentro de una celda la caja pesa más que el dato de la fila. */
+.admin-shell .ad-table td .ad-note {
+  display: block;
+  max-width: 260px;
+  margin-top: var(--ad-sp-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--adm-ink-3);
+  white-space: normal;
+}
+
+/* Que la primera columna no se estreche hasta partir el nombre letra a letra
+   cuando la de acciones se queda en una sola línea. */
+.admin-shell .ad-table td:first-child,
+.admin-shell .ad-table th:first-child {
+  min-width: 160px;
+}
+
+/* Una tabla más ancha que su tarjeta se recortaba por el borde y dejaba
+   botones a medias. El cuerpo de la tarjeta se desplaza en horizontal, que es
+   lo mismo que hace `ad-table-wrap` pero sin depender de que cada vista se
+   acuerde de envolver su tabla. */
+.admin-shell .ad-card-body { overflow-x: auto; }
+
+/* Las gráficas caían en la rejilla de cuatro columnas pensada para los
+   indicadores numéricos, y a 180px de ancho los ejes y las etiquetas dejan de
+   leerse: una gráfica ilegible es peor que no ponerla. Cualquier rejilla que
+   contenga gráficas pasa a una anchura mínima con la que se pueden leer. */
+.admin-shell .ad-grid:has(> .ad-chart) {
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+}
+
+/* Respaldo para navegadores sin :has(): la propia gráfica impone su mínimo y
+   la rejilla la acomoda. */
+.admin-shell .ad-chart { min-width: 320px; }
+
+@media (max-width: 520px) {
+  .admin-shell .ad-chart { min-width: 0; }
+  .admin-shell .ad-grid:has(> .ad-chart) { grid-template-columns: 1fr; }
+}
+
+/* Las tres acciones más su nota de motivo sumaban más ancho que la tarjeta y
+   el botón de borrar quedaba cortado por el borde. Se estrechan las columnas
+   de datos, que tienen contenido corto, para que las acciones quepan enteras
+   antes de tener que recurrir al desplazamiento horizontal. */
+.admin-shell .ad-table td:first-child,
+.admin-shell .ad-table th:first-child { min-width: 120px; }
+.admin-shell .ad-table td .ad-note { max-width: 200px; }

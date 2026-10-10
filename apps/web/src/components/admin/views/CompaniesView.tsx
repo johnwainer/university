@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { api, CompanyRecord, CompanyMemberRecord, CompanyCourseAccessRecord, CompanyDashboardStats, CompanyUserProgressRecord, CompanyCourseGroup } from '../../../lib/api';
 
@@ -19,6 +20,7 @@ export function CompaniesView({
   loadUsers: (token: string) => Promise<void>;
   loadBase: (token: string) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [companiesData, setCompaniesData] = useState<CompanyRecord[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [selectedCompanyMembers, setSelectedCompanyMembers] = useState<CompanyMemberRecord[]>([]);
@@ -80,7 +82,7 @@ export function CompaniesView({
       const response = await api.admin.companies(token);
       setCompaniesData(response);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando empresas');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorCargar'));
     } finally {
       setLoadingCompanies(false);
     }
@@ -118,7 +120,7 @@ export function CompaniesView({
       setSelectedCompanyMemberProgress(statsRes.memberProgress);
       setSelectedCompanyGroups(groups);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo cargar la empresa seleccionada');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorCargarSeleccionada'));
     }
   };
 
@@ -137,11 +139,11 @@ export function CompaniesView({
         representativeUserId: companyForm.representativeUserId,
         isActive: companyForm.isActive
       });
-      setInfo('Empresa creada exitosamente.');
+      setInfo(t('admin.companies.creada'));
       setCompanyForm({ name: '', slug: '', description: '', contactEmail: '', representativeUserId: '', isActive: true });
       await Promise.all([loadCompanies(sessionToken), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear empresa');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorCrear'));
     } finally {
       setSavingCompany(false);
     }
@@ -161,26 +163,26 @@ export function CompaniesView({
         representativeUserId: companyForm.representativeUserId,
         isActive: companyForm.isActive
       });
-      setInfo('Empresa actualizada exitosamente.');
+      setInfo(t('admin.companies.actualizada'));
       setSelectedCompanyId('');
       setCompanyForm({ name: '', slug: '', description: '', contactEmail: '', representativeUserId: '', isActive: true });
       await Promise.all([loadCompanies(sessionToken), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar empresa');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorActualizar'));
     } finally {
       setSavingCompany(false);
     }
   };
 
   const onDeleteCompany = async (id: string) => {
-    if (!sessionToken || !confirm('¿Estás seguro de eliminar permanentemente este departamento y todo lo asociado?')) return;
+    if (!sessionToken || !confirm(t('admin.companies.confirmEliminar'))) return;
     try {
       await api.admin.deleteCompany(sessionToken, id);
-      setInfo('Empresa eliminada.');
+      setInfo(t('admin.companies.eliminada'));
       if (selectedCompanyId === id) setSelectedCompanyId('');
       await loadCompanies(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo eliminar la empresa');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorEliminar'));
     }
   };
 
@@ -198,11 +200,11 @@ export function CompaniesView({
         locale: companyMemberForm.locale || 'es',
         role: 'collaborator'
       });
-      setInfo('Estudiante agregado y sincronizado.');
+      setInfo(t('admin.companies.estudianteAgregado'));
       setCompanyMemberForm({ userId: '', fullName: '', email: '', locale: 'es' });
       await Promise.all([onSelectCompany(selectedCompanyId), loadBase(sessionToken), loadUsers(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo agregar estudiante');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorAgregarEstudiante'));
     } finally {
       setSavingCompanyMember(false);
     }
@@ -223,20 +225,20 @@ export function CompaniesView({
       setEditingCompanyMemberId(null);
       await Promise.all([onSelectCompany(selectedCompanyId), loadBase(sessionToken), loadUsers(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar estudiante');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorActualizarEstudiante'));
     } finally {
       setSavingCompanyMember(false);
     }
   };
 
   const onDeleteCompanyMember = async (userId: string) => {
-    if (!sessionToken || !selectedCompanyId || !confirm('¿Estás seguro de eliminar a este estudiante?')) return;
+    if (!sessionToken || !selectedCompanyId || !confirm(t('admin.companies.confirmEliminarEstudiante'))) return;
     try {
       await api.admin.deleteCompanyMember(sessionToken, selectedCompanyId, userId);
-      setInfo('Estudiante eliminado y desmatriculado de cursos del departamento.');
+      setInfo(t('admin.companies.estudianteEliminado'));
       await Promise.all([onSelectCompany(selectedCompanyId), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo eliminar el estudiante');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorEliminarEstudiante'));
     }
   };
 
@@ -253,7 +255,7 @@ export function CompaniesView({
       const assignments = await api.admin.companyMemberAssignments(sessionToken, selectedCompanyId, userId);
       setMemberAssignments(assignments);
     } catch {
-      setError('Error cargando los accesos del estudiante.');
+      setError(t('admin.companies.errorCargarAccesos'));
       setExpandedMemberId(null);
     }
   };
@@ -264,27 +266,27 @@ export function CompaniesView({
     setSavingMemberAssignment(true);
     try {
       await api.admin.addGroupToCompanyMember(sessionToken, selectedCompanyId, userId, memberGroupFormId);
-      setInfo('Paquete asignado al estudiante.');
+      setInfo(t('admin.companies.paqueteAsignado'));
       setMemberGroupFormId('');
       const assignments = await api.admin.companyMemberAssignments(sessionToken, selectedCompanyId, userId);
       setMemberAssignments(assignments);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error al asignar paquete.');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorAsignarPaquete'));
     } finally {
       setSavingMemberAssignment(false);
     }
   };
 
   const onRemoveGroupFromMember = async (userId: string, groupId: string) => {
-    if (!sessionToken || !selectedCompanyId || !confirm('¿Quitar este paquete del estudiante?')) return;
+    if (!sessionToken || !selectedCompanyId || !confirm(t('admin.companies.confirmQuitarPaquete'))) return;
     setSavingMemberAssignment(true);
     try {
       await api.admin.removeGroupFromCompanyMember(sessionToken, selectedCompanyId, userId, groupId);
-      setInfo('Paquete removido del estudiante.');
+      setInfo(t('admin.companies.paqueteRemovido'));
       const assignments = await api.admin.companyMemberAssignments(sessionToken, selectedCompanyId, userId);
       setMemberAssignments(assignments);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error al remover paquete.');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorRemoverPaquete'));
     } finally {
       setSavingMemberAssignment(false);
     }
@@ -296,27 +298,27 @@ export function CompaniesView({
     setSavingMemberAssignment(true);
     try {
       await api.admin.addCourseToCompanyMember(sessionToken, selectedCompanyId, userId, Number(memberCourseFormId));
-      setInfo('Curso adicional asignado.');
+      setInfo(t('admin.companies.cursoAdicionalAsignado'));
       setMemberCourseFormId('');
       const assignments = await api.admin.companyMemberAssignments(sessionToken, selectedCompanyId, userId);
       setMemberAssignments(assignments);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error al asignar curso adicional.');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorAsignarCursoAdicional'));
     } finally {
       setSavingMemberAssignment(false);
     }
   };
 
   const onRemoveCourseFromMember = async (userId: string, moodleCourseId: number) => {
-    if (!sessionToken || !selectedCompanyId || !confirm('¿Quitar este curso adicional del estudiante?')) return;
+    if (!sessionToken || !selectedCompanyId || !confirm(t('admin.companies.confirmQuitarCursoAdicional'))) return;
     setSavingMemberAssignment(true);
     try {
       await api.admin.removeCourseFromCompanyMember(sessionToken, selectedCompanyId, userId, moodleCourseId);
-      setInfo('Curso adicional removido.');
+      setInfo(t('admin.companies.cursoAdicionalRemovido'));
       const assignments = await api.admin.companyMemberAssignments(sessionToken, selectedCompanyId, userId);
       setMemberAssignments(assignments);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error al remover curso adicional.');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorRemoverCursoAdicional'));
     } finally {
       setSavingMemberAssignment(false);
     }
@@ -332,28 +334,28 @@ export function CompaniesView({
       await api.admin.upsertCompanyCourseAccess(sessionToken, selectedCompanyId, Number(companyCourseId), {
         isActive: true
       });
-      setInfo('Curso asignado (estudiantes serán matriculados automáticamente).');
+      setInfo(t('admin.companies.cursoAsignado'));
       setCompanyCourseId('');
       setCompanyCourseSearch('');
       await Promise.all([onSelectCompany(selectedCompanyId), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo asignar curso');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorAsignarCurso'));
     } finally {
       setSavingCompanyCourse(false);
     }
   };
 
   const onRemoveCompanyCourse = async (moodleCourseId: number) => {
-    if (!sessionToken || !selectedCompanyId || !confirm('¿Remover este curso? (Los estudiantes serán desmatriculados)')) return;
+    if (!sessionToken || !selectedCompanyId || !confirm(t('admin.companies.confirmRemoverCurso'))) return;
     setSavingCompanyCourse(true);
     setError(null);
     setInfo(null);
     try {
       await api.admin.deleteCompanyCourseAccess(sessionToken, selectedCompanyId, moodleCourseId);
-      setInfo('Curso removido exitosamente.');
+      setInfo(t('admin.companies.cursoRemovido'));
       await Promise.all([onSelectCompany(selectedCompanyId), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo remover curso');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorRemoverCurso'));
     } finally {
       setSavingCompanyCourse(false);
     }
@@ -370,24 +372,24 @@ export function CompaniesView({
         name: companyGroupForm.name,
         description: companyGroupForm.description
       });
-      setInfo('Paquete creado exitosamente.');
+      setInfo(t('admin.companies.paqueteCreado'));
       setCompanyGroupForm({ name: '', description: '' });
       await onSelectCompany(selectedCompanyId);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear paquete');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorCrearPaquete'));
     } finally {
       setSavingCompanyGroup(false);
     }
   };
 
   const onDeleteCompanyGroup = async (groupId: string) => {
-    if (!sessionToken || !selectedCompanyId || !confirm('¿Estás seguro de eliminar este paquete?')) return;
+    if (!sessionToken || !selectedCompanyId || !confirm(t('admin.companies.confirmEliminarPaquete'))) return;
     try {
       await api.admin.deleteCompanyCourseGroup(sessionToken, selectedCompanyId, groupId);
-      setInfo('Paquete eliminado.');
+      setInfo(t('admin.companies.paqueteEliminado'));
       await onSelectCompany(selectedCompanyId);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo eliminar paquete');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorEliminarPaquete'));
     }
   };
 
@@ -397,25 +399,25 @@ export function CompaniesView({
     setSavingCompanyGroup(true);
     try {
       await api.admin.addCourseToCompanyGroup(sessionToken, selectedCompanyId, groupId, Number(groupCourseId));
-      setInfo('Curso añadido al paquete.');
+      setInfo(t('admin.companies.cursoAnadidoPaquete'));
       setGroupCourseId('');
       setGroupCourseSearch('');
       await onSelectCompany(selectedCompanyId);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo añadir curso al paquete');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorAnadirCursoPaquete'));
     } finally {
       setSavingCompanyGroup(false);
     }
   };
 
   const onRemoveCourseFromGroup = async (groupId: string, moodleCourseId: number) => {
-    if (!sessionToken || !selectedCompanyId || !confirm('¿Remover este curso del paquete?')) return;
+    if (!sessionToken || !selectedCompanyId || !confirm(t('admin.companies.confirmRemoverCursoPaquete'))) return;
     try {
       await api.admin.removeCourseFromCompanyGroup(sessionToken, selectedCompanyId, groupId, moodleCourseId);
-      setInfo('Curso removido del paquete.');
+      setInfo(t('admin.companies.cursoRemovidoPaquete'));
       await onSelectCompany(selectedCompanyId);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo remover curso del paquete');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorRemoverCursoPaquete'));
     }
   };
 
@@ -426,10 +428,10 @@ export function CompaniesView({
     setInfo(null);
     try {
       await api.admin.moodleSyncEnterprise(sessionToken);
-      setInfo('Sincronización forzada con Moodle completada.');
+      setInfo(t('admin.companies.syncCompletada'));
       await Promise.all([onSelectCompany(companyId), loadBase(sessionToken)]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error al sincronizar empresa');
+      setError(reason instanceof Error ? reason.message : t('admin.companies.errorSync'));
     } finally {
       setSyncingEnterprise(false);
     }
@@ -438,38 +440,38 @@ export function CompaniesView({
   return (
     <section className="grid-2">
       <article className="card">
-        <h2>{selectedCompanyId ? `Editar empresa: ${companyForm.name}` : 'Crear empresa'}</h2>
+        <h2>{selectedCompanyId ? t('admin.companies.editarTitulo', { nombre: companyForm.name }) : t('admin.companies.crearEmpresa')}</h2>
         <form className="login-form" onSubmit={(e) => {
           if (selectedCompanyId) { void onUpdateCompany(); e.preventDefault(); }
           else { void onCreateCompany(e); }
         }}>
-          <label>Nombre empresa</label>
+          <label>{t('admin.companies.campoNombre')}</label>
           <input
             value={companyForm.name}
             onChange={(event) => setCompanyForm((current) => ({ ...current, name: event.target.value }))}
-            placeholder="Empresa ABC"
+            placeholder={t('admin.companies.placeholderNombre')}
             required
           />
-          <label>Slug (opcional)</label>
+          <label>{t('admin.companies.campoSlug')}</label>
           <input
             value={companyForm.slug}
             onChange={(event) => setCompanyForm((current) => ({ ...current, slug: event.target.value }))}
-            placeholder="departamento-ciencias"
+            placeholder={t('admin.companies.placeholderSlug')}
           />
-          <label>Descripción</label>
+          <label>{t('admin.companies.campoDescripcion')}</label>
           <input
             value={companyForm.description}
             onChange={(event) => setCompanyForm((current) => ({ ...current, description: event.target.value }))}
-            placeholder="Programa académico del departamento"
+            placeholder={t('admin.companies.placeholderDescripcion')}
           />
-          <label>Email de contacto</label>
+          <label>{t('admin.companies.campoEmail')}</label>
           <input
             type="email"
             value={companyForm.contactEmail}
             onChange={(event) => setCompanyForm((current) => ({ ...current, contactEmail: event.target.value }))}
-            placeholder="rrhh@empresa.com"
+            placeholder={t('admin.companies.placeholderEmail')}
           />
-          <label>Representante</label>
+          <label>{t('admin.companies.campoRepresentante')}</label>
           <select
             value={companyForm.representativeUserId}
             onChange={(event) =>
@@ -477,7 +479,7 @@ export function CompaniesView({
             }
             required
           >
-            <option value="">Selecciona representante</option>
+            <option value="">{t('admin.companies.optionSeleccionaRepresentante')}</option>
             {currentUsers
               .filter((user) => user.status === 'active')
               .map((user) => (
@@ -492,37 +494,41 @@ export function CompaniesView({
               checked={companyForm.isActive}
               onChange={(event) => setCompanyForm((current) => ({ ...current, isActive: event.target.checked }))}
             />{' '}
-            Empresa activa
+            {t('admin.companies.empresaActiva')}
           </label>
           <button type="submit" disabled={savingCompany}>
-            {savingCompany ? 'Guardando...' : selectedCompanyId ? 'Actualizar empresa' : 'Crear empresa'}
+            {savingCompany
+              ? t('admin.companies.guardando')
+              : selectedCompanyId
+                ? t('admin.companies.actualizarEmpresa')
+                : t('admin.companies.crearEmpresa')}
           </button>
           {selectedCompanyId && (
             <button type="button" className="ghost" onClick={() => {
               setSelectedCompanyId('');
               setCompanyForm({ name: '', slug: '', description: '', contactEmail: '', representativeUserId: '', isActive: true });
-            }}>Cancelar edición</button>
+            }}>{t('admin.companies.cancelarEdicion')}</button>
           )}
         </form>
       </article>
 
       <article className="card scroll-card">
-        <h2>Departamentos ({companiesData.length})</h2>
-        {loadingCompanies ? <p>Cargando departamentos...</p> : null}
+        <h2>{t('admin.companies.departamentosTitulo', { total: companiesData.length })}</h2>
+        {loadingCompanies ? <p>{t('admin.companies.cargandoDepartamentos')}</p> : null}
         <table>
           <thead>
             <tr>
-              <th>Empresa</th>
-              <th>Representante</th>
-              <th>Miembros</th>
-              <th>Estado</th>
-              <th>Acción</th>
+              <th>{t('admin.companies.colEmpresa')}</th>
+              <th>{t('admin.companies.colRepresentante')}</th>
+              <th>{t('admin.companies.colMiembros')}</th>
+              <th>{t('admin.companies.colEstado')}</th>
+              <th>{t('admin.companies.colAccion')}</th>
             </tr>
           </thead>
           <tbody>
             {companiesData.length === 0 ? (
               <tr>
-                <td colSpan={5}>No hay empresas creadas.</td>
+                <td colSpan={5}>{t('admin.companies.sinEmpresas')}</td>
               </tr>
             ) : (
               companiesData.map((company) => (
@@ -530,7 +536,7 @@ export function CompaniesView({
                   <td>{company.name}</td>
                   <td>{company.representative_name ?? company.representative_email ?? '-'}</td>
                   <td>{company.members_total ?? 0}</td>
-                  <td>{company.is_active ? 'activa' : 'inactiva'}</td>
+                  <td>{company.is_active ? t('admin.companies.estadoActiva') : t('admin.companies.estadoInactiva')}</td>
                   <td>
                     <button className="ghost" onClick={() => {
                       setSelectedCompanyId(company.id);
@@ -544,10 +550,10 @@ export function CompaniesView({
                       });
                       void onSelectCompany(company.id);
                     }}>
-                      Gestionar
+                      {t('admin.companies.gestionar')}
                     </button>
                     <button className="ghost danger" onClick={() => void onDeleteCompany(company.id)}>
-                      Borrar
+                      {t('admin.companies.borrar')}
                     </button>
                   </td>
                 </tr>
@@ -559,25 +565,25 @@ export function CompaniesView({
 
       <article className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2>Agregar estudiante</h2>
+          <h2>{t('admin.companies.agregarEstudiante')}</h2>
           {selectedCompanyId && (
             <button className="ghost" onClick={() => void onSyncEnterprise(selectedCompanyId)} disabled={syncingEnterprise}>
-              {syncingEnterprise ? 'Sincronizando...' : 'Sync Moodle'}
+              {syncingEnterprise ? t('admin.companies.sincronizando') : t('admin.companies.syncMoodle')}
             </button>
           )}
         </div>
         {!selectedCompanyId ? (
-          <p>Selecciona un departamento para gestionar sus estudiantes.</p>
+          <p>{t('admin.companies.seleccionaDepartamentoEstudiantes')}</p>
         ) : (
           <form className="login-form" onSubmit={onAddCompanyMember}>
-            <label>Usuario existente (opcional)</label>
+            <label>{t('admin.companies.campoUsuarioExistente')}</label>
             <select
               value={companyMemberForm.userId}
               onChange={(event) =>
                 setCompanyMemberForm((current) => ({ ...current, userId: event.target.value }))
               }
             >
-              <option value="">Crear nuevo estudiante</option>
+              <option value="">{t('admin.companies.optionCrearNuevo')}</option>
               {currentUsers
                 .filter((user) => user.status === 'active')
                 .map((user) => (
@@ -586,24 +592,24 @@ export function CompaniesView({
                   </option>
                 ))}
             </select>
-            <label>Nombre (si es nuevo)</label>
+            <label>{t('admin.companies.campoNombreNuevo')}</label>
             <input
               value={companyMemberForm.fullName}
               onChange={(event) =>
                 setCompanyMemberForm((current) => ({ ...current, fullName: event.target.value }))
               }
-              placeholder="Carlos Gómez"
+              placeholder={t('admin.companies.placeholderNombreNuevo')}
             />
-            <label>Email (si es nuevo)</label>
+            <label>{t('admin.companies.campoEmailNuevo')}</label>
             <input
               type="email"
               value={companyMemberForm.email}
               onChange={(event) =>
                 setCompanyMemberForm((current) => ({ ...current, email: event.target.value }))
               }
-              placeholder="carlos@empresa.com"
+              placeholder={t('admin.companies.placeholderEmailNuevo')}
             />
-            <label>Idioma</label>
+            <label>{t('admin.companies.campoIdioma')}</label>
             <input
               value={companyMemberForm.locale}
               onChange={(event) =>
@@ -612,34 +618,34 @@ export function CompaniesView({
               placeholder="es"
             />
             <button type="submit" disabled={savingCompanyMember}>
-              {savingCompanyMember ? 'Agregando...' : 'Agregar estudiante'}
+              {savingCompanyMember ? t('admin.companies.agregando') : t('admin.companies.agregarEstudiante')}
             </button>
           </form>
         )}
       </article>
 
       <article className="card scroll-card">
-        <h2>Estadísticas Generales</h2>
+        <h2>{t('admin.companies.estadisticasTitulo')}</h2>
         {!selectedCompanyId ? (
-          <p>Selecciona una empresa para ver sus estadísticas.</p>
+          <p>{t('admin.companies.seleccionaEmpresaEstadisticas')}</p>
         ) : !selectedCompanyStats ? (
-          <p>Cargando estadísticas...</p>
+          <p>{t('admin.companies.cargandoEstadisticas')}</p>
         ) : (
             <div className="grid-like-two" style={{ marginBottom: '24px' }}>
               <div style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-                <small style={{ color: 'var(--text-muted)' }}>Total Integrantes</small>
+                <small style={{ color: 'var(--text-muted)' }}>{t('admin.companies.totalIntegrantes')}</small>
                 <div style={{ fontSize: '2rem', fontWeight: 800 }}>{selectedCompanyStats.totalMembers}</div>
               </div>
               <div style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-                <small style={{ color: 'var(--text-muted)' }}>Integrantes Activos</small>
+                <small style={{ color: 'var(--text-muted)' }}>{t('admin.companies.integrantesActivos')}</small>
                 <div style={{ fontSize: '2rem', fontWeight: 800 }}>{selectedCompanyStats.activeMembers}</div>
               </div>
               <div style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-                <small style={{ color: 'var(--text-muted)' }}>Matrículas</small>
+                <small style={{ color: 'var(--text-muted)' }}>{t('admin.companies.matriculas')}</small>
                 <div style={{ fontSize: '2rem', fontWeight: 800 }}>{selectedCompanyStats.totalEnrollments}</div>
               </div>
               <div style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-                <small style={{ color: 'var(--text-muted)' }}>Progreso Promedio</small>
+                <small style={{ color: 'var(--text-muted)' }}>{t('admin.companies.progresoPromedio')}</small>
                 <div style={{ fontSize: '2rem', fontWeight: 800 }}>{selectedCompanyStats.averageProgress}%</div>
               </div>
           </div>
@@ -648,14 +654,14 @@ export function CompaniesView({
 
       {selectedCompanyStats && selectedCompanyStats.totalMembers > 0 && (
       <article className="card scroll-card">
-        <h2>Distribución de Integrantes</h2>
+        <h2>{t('admin.companies.distribucionTitulo')}</h2>
         <div style={{ width: '100%', height: '300px' }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={[
-                  { name: 'Activos', value: selectedCompanyStats.activeMembers },
-                  { name: 'Inactivos', value: selectedCompanyStats.totalMembers - selectedCompanyStats.activeMembers }
+                  { name: t('admin.companies.chartActivos'), value: selectedCompanyStats.activeMembers },
+                  { name: t('admin.companies.chartInactivos'), value: selectedCompanyStats.totalMembers - selectedCompanyStats.activeMembers }
                 ]}
                 cx="50%"
                 cy="50%"
@@ -679,26 +685,26 @@ export function CompaniesView({
 
 
       <article className="card scroll-card">
-        <h2>Estudiantes del departamento</h2>
+        <h2>{t('admin.companies.estudiantesTitulo')}</h2>
         {!selectedCompanyId ? (
-          <p>Selecciona un departamento para ver estudiantes.</p>
+          <p>{t('admin.companies.seleccionaDepartamentoVerEstudiantes')}</p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>Nombre</th>
-                <th>Email</th>
-                <th>Rol</th>
-                <th>Estado</th>
-                <th>ID externo</th>
-                <th>Accesos directos</th>
-                <th>Acción</th>
+                <th>{t('admin.companies.colNombre')}</th>
+                <th>{t('admin.companies.colEmail')}</th>
+                <th>{t('admin.companies.colRol')}</th>
+                <th>{t('admin.companies.colEstado')}</th>
+                <th>{t('admin.companies.colIdExterno')}</th>
+                <th>{t('admin.companies.colAccesosDirectos')}</th>
+                <th>{t('admin.companies.colAccion')}</th>
               </tr>
             </thead>
             <tbody>
               {selectedCompanyMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>No hay estudiantes en este departamento.</td>
+                  <td colSpan={7}>{t('admin.companies.sinEstudiantes')}</td>
                 </tr>
               ) : (
                 selectedCompanyMembers.map((member) => (
@@ -710,14 +716,14 @@ export function CompaniesView({
                             <input
                               value={editingCompanyMemberForm.fullName}
                               onChange={(e) => setEditingCompanyMemberForm(curr => ({ ...curr, fullName: e.target.value }))}
-                              placeholder="Nombre"
+                              placeholder={t('admin.companies.colNombre')}
                             />
                           </td>
                           <td>
                             <input
                               value={editingCompanyMemberForm.email}
                               onChange={(e) => setEditingCompanyMemberForm(curr => ({ ...curr, email: e.target.value }))}
-                              placeholder="Email"
+                              placeholder={t('admin.companies.colEmail')}
                               type="email"
                             />
                           </td>
@@ -726,8 +732,8 @@ export function CompaniesView({
                               value={editingCompanyMemberForm.role}
                               onChange={(e) => setEditingCompanyMemberForm(curr => ({ ...curr, role: e.target.value as 'representative' | 'collaborator' }))}
                             >
-                              <option value="collaborator">Collaborator</option>
-                              <option value="representative">Representative</option>
+                              <option value="collaborator">{t('admin.companies.rolColaborador')}</option>
+                              <option value="representative">{t('admin.companies.rolRepresentante')}</option>
                             </select>
                           </td>
                           <td>{member.status}</td>
@@ -740,13 +746,13 @@ export function CompaniesView({
                                   fullName: editingCompanyMemberForm.fullName,
                                   email: editingCompanyMemberForm.email,
                                   role: editingCompanyMemberForm.role
-                                }, 'Estudiante actualizado.')}
+                                }, t('admin.companies.estudianteActualizado'))}
                                 disabled={savingCompanyMember}
                               >
-                                Guardar
+                                {t('admin.companies.guardar')}
                               </button>
                               <button className="ghost" onClick={() => setEditingCompanyMemberId(null)}>
-                                Cancelar
+                                {t('admin.companies.cancelar')}
                               </button>
                             </div>
                           </td>
@@ -762,7 +768,7 @@ export function CompaniesView({
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.8rem' }}>
                               {(member.assigned_groups?.length > 0) && (
                                 <div>
-                                  <strong style={{ color: 'var(--text-muted)' }}>Paquetes:</strong>
+                                  <strong style={{ color: 'var(--text-muted)' }}>{t('admin.companies.etiquetaPaquetes')}</strong>
                                   <ul style={{ margin: 0, paddingLeft: '16px' }}>
                                     {member.assigned_groups.map(g => <li key={g.id}>{g.name}</li>)}
                                   </ul>
@@ -770,22 +776,22 @@ export function CompaniesView({
                               )}
                               {(member.assigned_courses?.length > 0) && (
                                 <div>
-                                  <strong style={{ color: 'var(--text-muted)' }}>Cursos (indiv):</strong>
+                                  <strong style={{ color: 'var(--text-muted)' }}>{t('admin.companies.etiquetaCursosIndiv')}</strong>
                                   <ul style={{ margin: 0, paddingLeft: '16px' }}>
                                     {member.assigned_courses.map(c => <li key={c.id}>{c.name}</li>)}
                                   </ul>
                                 </div>
                               )}
                               {(!member.assigned_groups?.length && !member.assigned_courses?.length) && (
-                                <span style={{ color: 'var(--text-muted)' }}>Ninguno</span>
+                                <span style={{ color: 'var(--text-muted)' }}>{t('admin.companies.ninguno')}</span>
                               )}
                             </div>
                           </td>
                           <td>
                             {member.member_role === 'representative' ? (
                               <div className="inline-actions">
-                                <span className="badge">representante</span>
-                                <button className="ghost" onClick={() => void onExpandMember(member.user_id)}>Accesos</button>
+                                <span className="badge">{t('admin.companies.badgeRepresentante')}</span>
+                                <button className="ghost" onClick={() => void onExpandMember(member.user_id)}>{t('admin.companies.accesos')}</button>
                               </div>
                             ) : (
                               <div className="inline-actions">
@@ -801,23 +807,29 @@ export function CompaniesView({
                                   }}
                                   disabled={savingCompanyMember}
                                 >
-                                  Editar
+                                  {t('admin.companies.editar')}
                                 </button>
                                 <button
                                   className="ghost"
-                                  onClick={() => void onUpdateCompanyMember(member, { status: member.status === 'active' ? 'inactive' : 'active' }, `Estudiante ${member.status === 'active' ? 'desactivado' : 'activado'}.`)}
+                                  onClick={() => void onUpdateCompanyMember(
+                                    member,
+                                    { status: member.status === 'active' ? 'inactive' : 'active' },
+                                    member.status === 'active'
+                                      ? t('admin.companies.estudianteDesactivado')
+                                      : t('admin.companies.estudianteActivado')
+                                  )}
                                   disabled={savingCompanyMember}
                                 >
-                                  {member.status === 'active' ? 'Desactivar' : 'Activar'}
+                                  {member.status === 'active' ? t('admin.companies.desactivar') : t('admin.companies.activar')}
                                 </button>
                                 <button
                                   className="ghost danger"
                                   onClick={() => void onDeleteCompanyMember(member.user_id)}
                                   disabled={savingCompanyMember}
                                 >
-                                  Eliminar
+                                  {t('admin.companies.eliminar')}
                                 </button>
-                                <button className="ghost" onClick={() => void onExpandMember(member.user_id)}>Accesos</button>
+                                <button className="ghost" onClick={() => void onExpandMember(member.user_id)}>{t('admin.companies.accesos')}</button>
                               </div>
                             )}
                           </td>
@@ -828,30 +840,30 @@ export function CompaniesView({
                       <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
                         <td colSpan={7}>
                           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Accesos Adicionales de {member.full_name}</h3>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{t('admin.companies.accesosAdicionalesDe', { nombre: member.full_name })}</h3>
                             {memberAssignments === null ? (
-                              <p>Cargando accesos...</p>
+                              <p>{t('admin.companies.cargandoAccesos')}</p>
                             ) : (
                               <div className="grid-2">
                                 <div>
-                                  <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem' }}>Paquetes de Cursos</h4>
+                                  <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem' }}>{t('admin.companies.paquetesDeCursos')}</h4>
                                   <form className="inline-actions" style={{ marginBottom: '12px' }} onSubmit={(e) => void onAddGroupToMember(e, member.user_id)}>
                                     <select value={memberGroupFormId} onChange={e => setMemberGroupFormId(e.target.value)} required style={{ padding: '6px' }}>
-                                      <option value="">Añadir Paquete...</option>
+                                      <option value="">{t('admin.companies.optionAnadirPaquete')}</option>
                                       {selectedCompanyGroups.filter(g => !memberAssignments.groups.some(mg => mg.id === g.id)).map(g => (
                                         <option key={g.id} value={g.id}>{g.name}</option>
                                       ))}
                                     </select>
-                                    <button type="submit" disabled={savingMemberAssignment} className="ghost">Asignar</button>
+                                    <button type="submit" disabled={savingMemberAssignment} className="ghost">{t('admin.companies.asignar')}</button>
                                   </form>
                                   {memberAssignments.groups.length === 0 ? (
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No tiene paquetes adicionales.</p>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{t('admin.companies.sinPaquetesAdicionales')}</p>
                                   ) : (
                                     <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.85rem' }}>
                                       {memberAssignments.groups.map(g => (
                                         <li key={g.id} style={{ marginBottom: '4px' }}>
                                           <strong>{g.name}</strong> 
-                                          <button className="text-danger" style={{ background: 'none', border: 'none', marginLeft: '6px', cursor: 'pointer', padding: 0 }} onClick={() => void onRemoveGroupFromMember(member.user_id, g.id)}>[quitar]</button>
+                                          <button className="text-danger" style={{ background: 'none', border: 'none', marginLeft: '6px', cursor: 'pointer', padding: 0 }} onClick={() => void onRemoveGroupFromMember(member.user_id, g.id)}>{t('admin.companies.quitar')}</button>
                                         </li>
                                       ))}
                                     </ul>
@@ -859,24 +871,24 @@ export function CompaniesView({
                                 </div>
                                 
                                 <div>
-                                  <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem' }}>Cursos Individuales Adicionales</h4>
+                                  <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem' }}>{t('admin.companies.cursosIndividualesAdicionales')}</h4>
                                   <form className="inline-actions" style={{ marginBottom: '12px' }} onSubmit={(e) => void onAddCourseToMember(e, member.user_id)}>
                                     <select value={memberCourseFormId} onChange={e => setMemberCourseFormId(e.target.value)} required style={{ padding: '6px' }}>
-                                      <option value="">Añadir Curso...</option>
+                                      <option value="">{t('admin.companies.optionAnadirCurso')}</option>
                                       {allCoursesList.filter(c => !memberAssignments.courses.some(mc => mc.moodle_course_id === c.moodle_course_id)).map(c => (
                                         <option key={c.moodle_course_id} value={c.moodle_course_id}>{c.full_name}</option>
                                       ))}
                                     </select>
-                                    <button type="submit" disabled={savingMemberAssignment} className="ghost">Añadir</button>
+                                    <button type="submit" disabled={savingMemberAssignment} className="ghost">{t('admin.companies.anadir')}</button>
                                   </form>
                                   {memberAssignments.courses.length === 0 ? (
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No tiene cursos adicionales específicos.</p>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{t('admin.companies.sinCursosAdicionales')}</p>
                                   ) : (
                                     <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.85rem' }}>
                                       {memberAssignments.courses.map(c => (
                                         <li key={c.moodle_course_id} style={{ marginBottom: '4px' }}>
                                           {c.full_name}
-                                          <button className="text-danger" style={{ background: 'none', border: 'none', marginLeft: '6px', cursor: 'pointer', padding: 0 }} onClick={() => void onRemoveCourseFromMember(member.user_id, c.moodle_course_id)}>[quitar]</button>
+                                          <button className="text-danger" style={{ background: 'none', border: 'none', marginLeft: '6px', cursor: 'pointer', padding: 0 }} onClick={() => void onRemoveCourseFromMember(member.user_id, c.moodle_course_id)}>{t('admin.companies.quitar')}</button>
                                         </li>
                                       ))}
                                     </ul>
@@ -897,21 +909,25 @@ export function CompaniesView({
       </article>
 
       <article className="card">
-        <h2>Asignar cursos a la empresa</h2>
+        <h2>{t('admin.companies.asignarCursosTitulo')}</h2>
         {!selectedCompanyId ? (
-          <p>Selecciona una empresa para asignar cursos.</p>
+          <p>{t('admin.companies.seleccionaEmpresaAsignar')}</p>
         ) : (
           <form className="login-form" onSubmit={onAssignCompanyCourse}>
-            <label>Buscar curso</label>
+            <label>{t('admin.companies.buscarCurso')}</label>
             <input
               type="text"
               value={companyCourseSearch}
               onChange={(event) => setCompanyCourseSearch(event.target.value)}
-              placeholder="🔍 Escribe para filtrar cursos..."
+              placeholder={t('admin.companies.placeholderBuscarCurso')}
             />
-            <label>Curso seleccionado</label>
+            <label>{t('admin.companies.cursoSeleccionado')}</label>
             <select value={companyCourseId} onChange={(event) => setCompanyCourseId(event.target.value)} required>
-              <option value="">Selecciona curso ({allCoursesList.filter(course => course.full_name.toLowerCase().includes(companyCourseSearch.toLowerCase())).length} disponibles)</option>
+              <option value="">
+                {t('admin.companies.optionSeleccionaCursoDisponibles', {
+                  total: allCoursesList.filter(course => course.full_name.toLowerCase().includes(companyCourseSearch.toLowerCase())).length
+                })}
+              </option>
               {allCoursesList.filter(course =>
                 course.full_name.toLowerCase().includes(companyCourseSearch.toLowerCase())
               ).map((course) => (
@@ -921,32 +937,32 @@ export function CompaniesView({
               ))}
             </select>
             <button type="submit" disabled={savingCompanyCourse}>
-              {savingCompanyCourse ? 'Asignando...' : 'Asignar curso'}
+              {savingCompanyCourse ? t('admin.companies.asignando') : t('admin.companies.asignarCurso')}
             </button>
           </form>
         )}
       </article>
 
       <article className="card scroll-card">
-        <h2>Cursos habilitados por empresa</h2>
+        <h2>{t('admin.companies.cursosHabilitadosTitulo')}</h2>
         {!selectedCompanyId ? (
-          <p>Selecciona una empresa para ver sus cursos.</p>
+          <p>{t('admin.companies.seleccionaEmpresaCursos')}</p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>ID Moodle</th>
-                <th>Nombre del Curso</th>
-                <th>Categoría</th>
-                <th>Sincronizado</th>
-                <th>Estado</th>
-                <th>Acción</th>
+                <th>{t('admin.companies.colIdMoodle')}</th>
+                <th>{t('admin.companies.colNombreCurso')}</th>
+                <th>{t('admin.companies.colCategoria')}</th>
+                <th>{t('admin.companies.colSincronizado')}</th>
+                <th>{t('admin.companies.colEstado')}</th>
+                <th>{t('admin.companies.colAccion')}</th>
               </tr>
             </thead>
             <tbody>
               {selectedCompanyCourses.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>No hay cursos habilitados para este departamento.</td>
+                  <td colSpan={6}>{t('admin.companies.sinCursosHabilitados')}</td>
                 </tr>
               ) : (
                 selectedCompanyCourses.map((course) => (
@@ -955,14 +971,14 @@ export function CompaniesView({
                     <td>{course.full_name ?? '-'}</td>
                     <td>-</td>
                     <td>{new Date(course.updated_at).toLocaleString()}</td>
-                    <td>{course.is_active ? 'activo' : 'inactivo'}</td>
+                    <td>{course.is_active ? t('admin.companies.estadoActivo') : t('admin.companies.estadoInactivo')}</td>
                     <td>
                       <button
                         className="ghost danger"
                         onClick={() => void onRemoveCompanyCourse(course.moodle_course_id)}
                         disabled={savingCompanyCourse}
                       >
-                        Remover
+                        {t('admin.companies.remover')}
                       </button>
                     </td>
                   </tr>
@@ -974,36 +990,36 @@ export function CompaniesView({
       </article>
 
       <article className="card scroll-card">
-        <h2>Paquetes de Cursos (Grupos)</h2>
+        <h2>{t('admin.companies.paquetesTitulo')}</h2>
         {!selectedCompanyId ? (
-          <p>Selecciona una empresa para gestionar paquetes.</p>
+          <p>{t('admin.companies.seleccionaEmpresaPaquetes')}</p>
         ) : (
           <div className="grid-2">
             <div>
-              <h3>Crear un paquete</h3>
+              <h3>{t('admin.companies.crearPaqueteTitulo')}</h3>
               <form className="login-form" onSubmit={onCreateCompanyGroup}>
-                <label>Nombre del Paquete</label>
+                <label>{t('admin.companies.campoNombrePaquete')}</label>
                 <input
                   type="text"
                   value={companyGroupForm.name}
                   onChange={(e) => setCompanyGroupForm({ ...companyGroupForm, name: e.target.value })}
-                  placeholder="Ej: Onboarding Básicos"
+                  placeholder={t('admin.companies.placeholderNombrePaquete')}
                   required
                 />
-                <label>Descripción</label>
+                <label>{t('admin.companies.campoDescripcion')}</label>
                 <input
                   type="text"
                   value={companyGroupForm.description}
                   onChange={(e) => setCompanyGroupForm({ ...companyGroupForm, description: e.target.value })}
-                  placeholder="Descripción opcional"
+                  placeholder={t('admin.companies.placeholderDescripcionOpcional')}
                 />
-                <button type="submit" disabled={savingCompanyGroup}>Crear Paquete</button>
+                <button type="submit" disabled={savingCompanyGroup}>{t('admin.companies.crearPaquete')}</button>
               </form>
             </div>
             <div>
-              <h3>Paquetes Existentes</h3>
+              <h3>{t('admin.companies.paquetesExistentes')}</h3>
               {selectedCompanyGroups.length === 0 ? (
-                <p>No hay paquetes creados.</p>
+                <p>{t('admin.companies.sinPaquetes')}</p>
               ) : (
                 <div style={{ display: 'grid', gap: '16px' }}>
                   {selectedCompanyGroups.map(group => (
@@ -1013,22 +1029,22 @@ export function CompaniesView({
                           <strong style={{ display: 'block' }}>{group.name}</strong>
                           <small style={{ color: 'var(--text-muted)' }}>{group.description}</small>
                         </div>
-                        <button className="ghost danger" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => onDeleteCompanyGroup(group.id)}>Eliminar Paquete</button>
+                        <button className="ghost danger" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => onDeleteCompanyGroup(group.id)}>{t('admin.companies.eliminarPaquete')}</button>
                       </div>
                       
                       <div style={{ marginBottom: '12px', background: 'rgba(255,255,255,0.03)', padding: '8px', borderRadius: '8px' }}>
-                        <small style={{ display: 'block', marginBottom: '6px', color: 'var(--text-muted)' }}>Añadir curso a paquete:</small>
+                        <small style={{ display: 'block', marginBottom: '6px', color: 'var(--text-muted)' }}>{t('admin.companies.anadirCursoAPaquete')}</small>
                         <form style={{ display: 'flex', gap: '8px' }} onSubmit={(e) => onAddCourseToGroup(e, group.id)}>
                           <select value={groupCourseId} onChange={e => setGroupCourseId(e.target.value)} style={{ flex: 1, padding: '4px 8px' }} required>
-                            <option value="">Selecciona curso</option>
+                            <option value="">{t('admin.companies.optionSeleccionaCurso')}</option>
                             {allCoursesList.map(c => <option key={c.moodle_course_id} value={c.moodle_course_id}>{c.full_name}</option>)}
                           </select>
-                          <button type="submit" disabled={savingCompanyGroup} style={{ padding: '4px 8px', fontSize: '0.8rem' }}>+ Añadir</button>
+                          <button type="submit" disabled={savingCompanyGroup} style={{ padding: '4px 8px', fontSize: '0.8rem' }}>{t('admin.companies.anadirCorto')}</button>
                         </form>
                       </div>
 
                       <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.85rem' }}>
-                        {group.items.length === 0 ? <li style={{ color: 'var(--text-muted)' }}>Sin cursos.</li> : null}
+                        {group.items.length === 0 ? <li style={{ color: 'var(--text-muted)' }}>{t('admin.companies.sinCursosPaquete')}</li> : null}
                         {group.items.map(item => (
                           <li key={item.moodle_course_id} style={{ marginBottom: '4px' }}>
                             {item.full_name} 
@@ -1047,13 +1063,13 @@ export function CompaniesView({
       
       {selectedCompanyId && selectedCompanyMemberProgress.length > 0 && (
       <article className="card scroll-card">
-        <h2>Rendimiento por Estudiante</h2>
+        <h2>{t('admin.companies.rendimientoTitulo')}</h2>
         <div style={{ width: '100%', height: '350px' }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={selectedCompanyMemberProgress.map(p => ({
                 name: p.full_name ? `${p.full_name.split(' ')[0]} ${p.course_name ? '(' + p.course_name.substring(0, 10) + '...)' : ''}` : 'N/A',
-                curso: p.course_name?.substring(0, 15) ?? 'Sin curso',
+                curso: p.course_name?.substring(0, 15) ?? t('admin.companies.sinCurso'),
                 progreso: p.progress_percent,
               }))}
               margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
@@ -1068,7 +1084,7 @@ export function CompaniesView({
                 labelStyle={{ color: '#f5f5f5', fontWeight: 'bold' }}
               />
               <Legend wrapperStyle={{ color: '#f5f5f5', paddingTop: '10px' }} />
-              <Bar dataKey="progreso" fill="#8884d8" name="Progreso %" />
+              <Bar dataKey="progreso" fill="#8884d8" name={t('admin.companies.chartProgreso')} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -1076,26 +1092,26 @@ export function CompaniesView({
       )}
 
       <article className="card scroll-card">
-        <h2>Detalles de Progreso</h2>
+        <h2>{t('admin.companies.detallesProgresoTitulo')}</h2>
         {!selectedCompanyId ? (
-           <p>Selecciona una empresa.</p>
+           <p>{t('admin.companies.seleccionaEmpresa')}</p>
         ) : selectedCompanyMemberProgress.length === 0 ? (
-           <p>No hay progreso registrado.</p>
+           <p>{t('admin.companies.sinProgreso')}</p>
         ) : (
             <div className="grid-1">
                <table>
                 <thead>
                   <tr>
-                    <th>Estudiante</th>
-                    <th>Curso</th>
-                    <th>Progreso</th>
+                    <th>{t('admin.companies.colEstudiante')}</th>
+                    <th>{t('admin.companies.colCurso')}</th>
+                    <th>{t('admin.companies.colProgreso')}</th>
                   </tr>
                 </thead>
                 <tbody>
                    {selectedCompanyMemberProgress.map((prog, idx) => (
                       <tr key={idx}>
                         <td>{prog.full_name}</td>
-                        <td>{prog.course_name ?? <span style={{ color: 'var(--text-muted)' }}>Sin cursos inscritos</span>}</td>
+                        <td>{prog.course_name ?? <span style={{ color: 'var(--text-muted)' }}>{t('admin.companies.sinCursosInscritos')}</span>}</td>
                         <td>{prog.progress_percent}%</td>
                       </tr>
                    ))}

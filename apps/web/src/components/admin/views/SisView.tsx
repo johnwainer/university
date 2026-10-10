@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Fase 1 — Núcleo SIS + Pagos (admin view).
@@ -142,6 +143,7 @@ export function SisView({
   setError: (msg: string | null) => void;
   setInfo: (msg: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<SisTab>('admissions');
 
   // Admisiones
@@ -188,7 +190,7 @@ export function SisView({
       const data = await sisFetch<AdmissionApplication[]>(token, '/admin/admissions');
       setApplications(data);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando admisiones');
+      setError(reason instanceof Error ? reason.message : t('admin.sis.errorCargarAdmisiones'));
     } finally {
       setLoadingAdmissions(false);
     }
@@ -199,7 +201,7 @@ export function SisView({
       const data = await sisFetch<Invoice[]>(token, '/admin/invoices');
       setInvoices(data);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando facturas');
+      setError(reason instanceof Error ? reason.message : t('admin.sis.errorCargarFacturas'));
     }
   };
 
@@ -208,7 +210,7 @@ export function SisView({
       const data = await sisFetch<Hold[]>(token, '/admin/holds');
       setHolds(data);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Error cargando bloqueos');
+      setError(reason instanceof Error ? reason.message : t('admin.sis.errorCargarBloqueos'));
     }
   };
 
@@ -237,11 +239,11 @@ export function SisView({
           notes: admissionForm.notes || undefined
         }
       });
-      setInfo('Aplicación creada.');
+      setInfo(t('admin.sis.aplicacionCreada'));
       setAdmissionForm({ fullName: '', email: '', phone: '', notes: '' });
       await loadAdmissions(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear la aplicación');
+      setError(reason instanceof Error ? reason.message : t('admin.sis.errorCrearAplicacion'));
     } finally {
       setSavingAdmission(false);
     }
@@ -256,10 +258,10 @@ export function SisView({
         method: 'PATCH',
         body: { stage }
       });
-      setInfo('Etapa actualizada.');
+      setInfo(t('admin.sis.etapaActualizada'));
       await loadAdmissions(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo actualizar la etapa');
+      setError(reason instanceof Error ? reason.message : t('admin.sis.errorActualizarEtapa'));
     }
   };
 
@@ -273,7 +275,7 @@ export function SisView({
       );
       setLedger(data);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo cargar el ledger');
+      setError(reason instanceof Error ? reason.message : t('admin.sis.errorCargarLedger'));
     }
   };
 
@@ -282,7 +284,7 @@ export function SisView({
     if (!sessionToken || !ledgerStudentId) return;
     const amount = Math.round(parseFloat(ledgerForm.amount) * 100);
     if (!Number.isFinite(amount)) {
-      setError('Monto inválido');
+      setError(t('admin.sis.errorMontoInvalido'));
       return;
     }
     setSavingLedger(true);
@@ -297,11 +299,11 @@ export function SisView({
           description: ledgerForm.description || undefined
         }
       });
-      setInfo('Movimiento registrado.');
+      setInfo(t('admin.sis.movimientoRegistrado'));
       setLedgerForm({ kind: 'charge', amount: '', description: '' });
       await onLoadLedger();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo registrar el movimiento');
+      setError(reason instanceof Error ? reason.message : t('admin.sis.errorRegistrarMovimiento'));
     } finally {
       setSavingLedger(false);
     }
@@ -312,7 +314,7 @@ export function SisView({
     if (!sessionToken) return;
     const total = Math.round(parseFloat(invoiceForm.total) * 100);
     if (!Number.isFinite(total)) {
-      setError('Total inválido');
+      setError(t('admin.sis.errorTotalInvalido'));
       return;
     }
     setSavingInvoice(true);
@@ -327,11 +329,11 @@ export function SisView({
           dueDate: invoiceForm.dueDate || undefined
         }
       });
-      setInfo('Factura creada.');
+      setInfo(t('admin.sis.facturaCreada'));
       setInvoiceForm({ studentUserId: '', total: '', dueDate: '' });
       await loadInvoices(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear la factura');
+      setError(reason instanceof Error ? reason.message : t('admin.sis.errorCrearFactura'));
     } finally {
       setSavingInvoice(false);
     }
@@ -352,11 +354,11 @@ export function SisView({
           reason: holdForm.reason || undefined
         }
       });
-      setInfo('Bloqueo creado.');
+      setInfo(t('admin.sis.bloqueoCreado'));
       setHoldForm({ studentUserId: '', holdType: 'financial', reason: '' });
       await loadHolds(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo crear el bloqueo');
+      setError(reason instanceof Error ? reason.message : t('admin.sis.errorCrearBloqueo'));
     } finally {
       setSavingHold(false);
     }
@@ -368,10 +370,10 @@ export function SisView({
     setInfo(null);
     try {
       await sisFetch(sessionToken, `/admin/holds/${id}/release`, { method: 'PATCH' });
-      setInfo('Bloqueo liberado.');
+      setInfo(t('admin.sis.bloqueoLiberado'));
       await loadHolds(sessionToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo liberar el bloqueo');
+      setError(reason instanceof Error ? reason.message : t('admin.sis.errorLiberarBloqueo'));
     }
   };
 
@@ -386,7 +388,7 @@ export function SisView({
       );
       setAudit(data);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo cargar la auditoría');
+      setError(reason instanceof Error ? reason.message : t('admin.sis.errorCargarAuditoria'));
     } finally {
       setLoadingAudit(false);
     }
@@ -397,65 +399,65 @@ export function SisView({
       <article className="card">
         <div className="inline-actions" style={{ marginBottom: '16px' }}>
           <button className={tab === 'admissions' ? '' : 'ghost'} onClick={() => setTab('admissions')}>
-            Admisiones
+            {t('admin.sis.tabAdmisiones')}
           </button>
           <button className={tab === 'finance' ? '' : 'ghost'} onClick={() => setTab('finance')}>
-            Finanzas
+            {t('admin.sis.tabFinanzas')}
           </button>
           <button className={tab === 'audit' ? '' : 'ghost'} onClick={() => setTab('audit')}>
-            Auditoría de grado
+            {t('admin.sis.tabAuditoria')}
           </button>
         </div>
 
         {tab === 'admissions' && (
           <div className="grid-2">
             <div>
-              <h2>Nueva aplicación</h2>
+              <h2>{t('admin.sis.nuevaAplicacion')}</h2>
               <form className="login-form" onSubmit={onCreateAdmission}>
-                <label>Nombre completo</label>
+                <label>{t('admin.sis.campoNombreCompleto')}</label>
                 <input
                   value={admissionForm.fullName}
                   onChange={(e) => setAdmissionForm((c) => ({ ...c, fullName: e.target.value }))}
                   required
                 />
-                <label>Email</label>
+                <label>{t('admin.sis.campoEmail')}</label>
                 <input
                   type="email"
                   value={admissionForm.email}
                   onChange={(e) => setAdmissionForm((c) => ({ ...c, email: e.target.value }))}
                   required
                 />
-                <label>Teléfono</label>
+                <label>{t('admin.sis.campoTelefono')}</label>
                 <input
                   value={admissionForm.phone}
                   onChange={(e) => setAdmissionForm((c) => ({ ...c, phone: e.target.value }))}
                 />
-                <label>Notas</label>
+                <label>{t('admin.sis.campoNotas')}</label>
                 <input
                   value={admissionForm.notes}
                   onChange={(e) => setAdmissionForm((c) => ({ ...c, notes: e.target.value }))}
                 />
                 <button type="submit" disabled={savingAdmission}>
-                  {savingAdmission ? 'Guardando...' : 'Crear aplicación'}
+                  {savingAdmission ? t('admin.sis.guardando') : t('admin.sis.crearAplicacion')}
                 </button>
               </form>
             </div>
             <div>
-              <h2>Aplicaciones ({applications.length})</h2>
-              {loadingAdmissions ? <p>Cargando...</p> : null}
+              <h2>{t('admin.sis.aplicacionesTitulo', { total: applications.length })}</h2>
+              {loadingAdmissions ? <p>{t('admin.sis.cargando')}</p> : null}
               <table>
                 <thead>
                   <tr>
-                    <th>Nombre</th>
-                    <th>Email</th>
-                    <th>Programa</th>
-                    <th>Etapa</th>
+                    <th>{t('admin.sis.colNombre')}</th>
+                    <th>{t('admin.sis.colEmail')}</th>
+                    <th>{t('admin.sis.colPrograma')}</th>
+                    <th>{t('admin.sis.colEtapa')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {applications.length === 0 ? (
                     <tr>
-                      <td colSpan={4}>No hay aplicaciones.</td>
+                      <td colSpan={4}>{t('admin.sis.sinAplicaciones')}</td>
                     </tr>
                   ) : (
                     applications.map((a) => (
@@ -487,35 +489,36 @@ export function SisView({
         {tab === 'finance' && (
           <div className="grid-1">
             <div className="card">
-              <h2>Estado de cuenta del estudiante</h2>
+              <h2>{t('admin.sis.estadoCuentaTitulo')}</h2>
               <div className="inline-actions" style={{ marginBottom: '12px' }}>
                 <input
-                  placeholder="ID de usuario del estudiante"
+                  placeholder={t('admin.sis.placeholderIdUsuarioEstudiante')}
                   value={ledgerStudentId}
                   onChange={(e) => setLedgerStudentId(e.target.value)}
                   style={{ flex: 1 }}
                 />
-                <button onClick={() => void onLoadLedger()}>Cargar ledger</button>
+                <button onClick={() => void onLoadLedger()}>{t('admin.sis.cargarLedger')}</button>
               </div>
               {ledger && (
                 <>
                   <p>
-                    <strong>Balance:</strong> {formatMoney(ledger.balanceCents, ledger.currency)}
+                    <strong>{t('admin.sis.labelBalance')}</strong>{' '}
+                    {formatMoney(ledger.balanceCents, ledger.currency)}
                   </p>
                   <table>
                     <thead>
                       <tr>
-                        <th>Fecha</th>
-                        <th>Tipo</th>
-                        <th>Descripción</th>
-                        <th>Monto</th>
-                        <th>Balance</th>
+                        <th>{t('admin.sis.colFecha')}</th>
+                        <th>{t('admin.sis.colTipo')}</th>
+                        <th>{t('admin.sis.colDescripcion')}</th>
+                        <th>{t('admin.sis.colMonto')}</th>
+                        <th>{t('admin.sis.colBalance')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {ledger.entries.length === 0 ? (
                         <tr>
-                          <td colSpan={5}>Sin movimientos.</td>
+                          <td colSpan={5}>{t('admin.sis.sinMovimientos')}</td>
                         </tr>
                       ) : (
                         ledger.entries.map((e) => (
@@ -531,32 +534,32 @@ export function SisView({
                     </tbody>
                   </table>
                   <form className="login-form" onSubmit={onAddLedgerEntry} style={{ marginTop: '12px' }}>
-                    <label>Tipo de movimiento</label>
+                    <label>{t('admin.sis.campoTipoMovimiento')}</label>
                     <select
                       value={ledgerForm.kind}
                       onChange={(e) =>
                         setLedgerForm((c) => ({ ...c, kind: e.target.value as LedgerEntry['kind'] }))
                       }
                     >
-                      <option value="charge">Cargo</option>
-                      <option value="payment">Pago</option>
-                      <option value="aid">Ayuda</option>
-                      <option value="adjustment">Ajuste</option>
+                      <option value="charge">{t('admin.sis.movimientoCargo')}</option>
+                      <option value="payment">{t('admin.sis.movimientoPago')}</option>
+                      <option value="aid">{t('admin.sis.movimientoAyuda')}</option>
+                      <option value="adjustment">{t('admin.sis.movimientoAjuste')}</option>
                     </select>
-                    <label>Monto (en la moneda, ej. 100.00)</label>
+                    <label>{t('admin.sis.campoMonto')}</label>
                     <input
                       value={ledgerForm.amount}
                       onChange={(e) => setLedgerForm((c) => ({ ...c, amount: e.target.value }))}
-                      placeholder="100.00"
+                      placeholder={t('admin.sis.placeholderMonto')}
                       required
                     />
-                    <label>Descripción</label>
+                    <label>{t('admin.sis.campoDescripcion')}</label>
                     <input
                       value={ledgerForm.description}
                       onChange={(e) => setLedgerForm((c) => ({ ...c, description: e.target.value }))}
                     />
                     <button type="submit" disabled={savingLedger}>
-                      {savingLedger ? 'Guardando...' : 'Registrar movimiento'}
+                      {savingLedger ? t('admin.sis.guardando') : t('admin.sis.registrarMovimiento')}
                     </button>
                   </form>
                 </>
@@ -564,16 +567,16 @@ export function SisView({
             </div>
 
             <div className="card">
-              <h2>Facturas ({invoices.length})</h2>
+              <h2>{t('admin.sis.facturasTitulo', { total: invoices.length })}</h2>
               <form className="inline-actions" onSubmit={onCreateInvoice} style={{ marginBottom: '12px' }}>
                 <input
-                  placeholder="ID estudiante"
+                  placeholder={t('admin.sis.placeholderIdEstudiante')}
                   value={invoiceForm.studentUserId}
                   onChange={(e) => setInvoiceForm((c) => ({ ...c, studentUserId: e.target.value }))}
                   required
                 />
                 <input
-                  placeholder="Total (100.00)"
+                  placeholder={t('admin.sis.placeholderTotal')}
                   value={invoiceForm.total}
                   onChange={(e) => setInvoiceForm((c) => ({ ...c, total: e.target.value }))}
                   required
@@ -584,22 +587,22 @@ export function SisView({
                   onChange={(e) => setInvoiceForm((c) => ({ ...c, dueDate: e.target.value }))}
                 />
                 <button type="submit" disabled={savingInvoice}>
-                  {savingInvoice ? '...' : 'Crear factura'}
+                  {savingInvoice ? '...' : t('admin.sis.crearFactura')}
                 </button>
               </form>
               <table>
                 <thead>
                   <tr>
-                    <th>Estudiante</th>
-                    <th>Total</th>
-                    <th>Estado</th>
-                    <th>Vence</th>
+                    <th>{t('admin.sis.colEstudiante')}</th>
+                    <th>{t('admin.sis.colTotal')}</th>
+                    <th>{t('admin.sis.colEstado')}</th>
+                    <th>{t('admin.sis.colVence')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoices.length === 0 ? (
                     <tr>
-                      <td colSpan={4}>No hay facturas.</td>
+                      <td colSpan={4}>{t('admin.sis.sinFacturas')}</td>
                     </tr>
                   ) : (
                     invoices.map((inv) => (
@@ -616,10 +619,10 @@ export function SisView({
             </div>
 
             <div className="card">
-              <h2>Bloqueos de matrícula ({holds.length})</h2>
+              <h2>{t('admin.sis.bloqueosTitulo', { total: holds.length })}</h2>
               <form className="inline-actions" onSubmit={onCreateHold} style={{ marginBottom: '12px' }}>
                 <input
-                  placeholder="ID estudiante"
+                  placeholder={t('admin.sis.placeholderIdEstudiante')}
                   value={holdForm.studentUserId}
                   onChange={(e) => setHoldForm((c) => ({ ...c, studentUserId: e.target.value }))}
                   required
@@ -630,33 +633,33 @@ export function SisView({
                     setHoldForm((c) => ({ ...c, holdType: e.target.value as Hold['hold_type'] }))
                   }
                 >
-                  <option value="financial">Financiero</option>
-                  <option value="academic">Académico</option>
-                  <option value="documents">Documentos</option>
+                  <option value="financial">{t('admin.sis.bloqueoFinanciero')}</option>
+                  <option value="academic">{t('admin.sis.bloqueoAcademico')}</option>
+                  <option value="documents">{t('admin.sis.bloqueoDocumentos')}</option>
                 </select>
                 <input
-                  placeholder="Razón"
+                  placeholder={t('admin.sis.placeholderRazon')}
                   value={holdForm.reason}
                   onChange={(e) => setHoldForm((c) => ({ ...c, reason: e.target.value }))}
                 />
                 <button type="submit" disabled={savingHold}>
-                  {savingHold ? '...' : 'Crear bloqueo'}
+                  {savingHold ? '...' : t('admin.sis.crearBloqueo')}
                 </button>
               </form>
               <table>
                 <thead>
                   <tr>
-                    <th>Estudiante</th>
-                    <th>Tipo</th>
-                    <th>Razón</th>
-                    <th>Estado</th>
-                    <th>Acción</th>
+                    <th>{t('admin.sis.colEstudiante')}</th>
+                    <th>{t('admin.sis.colTipo')}</th>
+                    <th>{t('admin.sis.colRazon')}</th>
+                    <th>{t('admin.sis.colEstado')}</th>
+                    <th>{t('admin.sis.colAccion')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {holds.length === 0 ? (
                     <tr>
-                      <td colSpan={5}>No hay bloqueos.</td>
+                      <td colSpan={5}>{t('admin.sis.sinBloqueos')}</td>
                     </tr>
                   ) : (
                     holds.map((h) => (
@@ -664,11 +667,11 @@ export function SisView({
                         <td>{h.student_name ?? h.student_user_id}</td>
                         <td>{h.hold_type}</td>
                         <td>{h.reason ?? '-'}</td>
-                        <td>{h.active ? 'activo' : 'liberado'}</td>
+                        <td>{h.active ? t('admin.sis.holdActivo') : t('admin.sis.holdLiberado')}</td>
                         <td>
                           {h.active ? (
                             <button className="ghost" onClick={() => void onReleaseHold(h.id)}>
-                              Liberar
+                              {t('admin.sis.liberar')}
                             </button>
                           ) : (
                             '-'
@@ -687,32 +690,37 @@ export function SisView({
           <div className="grid-1">
             <div className="inline-actions" style={{ marginBottom: '12px' }}>
               <input
-                placeholder="ID de usuario del estudiante"
+                placeholder={t('admin.sis.placeholderIdUsuarioEstudiante')}
                 value={auditStudentId}
                 onChange={(e) => setAuditStudentId(e.target.value)}
                 style={{ flex: 1 }}
               />
-              <button onClick={() => void onLoadAudit()}>Auditar</button>
+              <button onClick={() => void onLoadAudit()}>{t('admin.sis.auditar')}</button>
             </div>
-            {loadingAudit ? <p>Cargando...</p> : null}
+            {loadingAudit ? <p>{t('admin.sis.cargando')}</p> : null}
             {audit && (
               <div className="card">
-                <h2>Auditoría de grado</h2>
+                <h2>{t('admin.sis.auditoriaTitulo')}</h2>
                 <p>
-                  <strong>Cumplido:</strong> {audit.percentComplete}% (
-                  {audit.satisfiedRequirements}/{audit.totalRequirements} requisitos)
+                  <strong>{t('admin.sis.labelCumplido')}</strong>{' '}
+                  {t('admin.sis.cumplidoValor', {
+                    count: audit.totalRequirements,
+                    percent: audit.percentComplete,
+                    satisfied: audit.satisfiedRequirements
+                  })}
                 </p>
                 <p>
-                  <strong>Créditos completados:</strong> {audit.completedCredits} ·{' '}
-                  <strong>GPA:</strong> {audit.cumulativeGpa ?? 'N/A'}
+                  <strong>{t('admin.sis.labelCreditos')}</strong> {audit.completedCredits} ·{' '}
+                  <strong>{t('admin.sis.labelGpa')}</strong>{' '}
+                  {audit.cumulativeGpa ?? t('admin.sis.gpaNoDisponible')}
                 </p>
                 <table>
                   <thead>
                     <tr>
-                      <th>Tipo</th>
-                      <th>Descripción</th>
-                      <th>Detalle</th>
-                      <th>Estado</th>
+                      <th>{t('admin.sis.colTipo')}</th>
+                      <th>{t('admin.sis.colDescripcion')}</th>
+                      <th>{t('admin.sis.colDetalle')}</th>
+                      <th>{t('admin.sis.colEstado')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -720,8 +728,8 @@ export function SisView({
                       <tr>
                         <td colSpan={4}>
                           {audit.degreeProgramId
-                            ? 'Este programa no tiene requisitos definidos.'
-                            : 'El estudiante no tiene un programa de grado asignado.'}
+                            ? t('admin.sis.sinRequisitos')
+                            : t('admin.sis.sinProgramaGrado')}
                         </td>
                       </tr>
                     ) : (
