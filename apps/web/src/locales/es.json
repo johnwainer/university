@@ -92,7 +92,6 @@
     "noResults": "No hay resultados para tu búsqueda.",
     "free": "Acceso libre",
     "subscription": "Suscripción",
-    "purchase": "Compra única",
     "code": "Con código",
     "duration": "{{minutes}} min",
     "modules": "{{count}} módulos",
@@ -110,11 +109,12 @@
     "notEnrolledFilter": "No inscritos",
     "backHome": "Volver a inicio",
     "enterFullCourse": "Entrar al curso completo",
-    "viewPreview": "Ver curso (preview + compra)",
+    "viewPreview": "Ver curso (vista previa)",
     "language": {
       "en": "Inglés",
       "es": "Español"
-    }
+    },
+    "enrollmentAccess": "Acceso por inscripción"
   },
   "course": {
     "enterCourse": "Entrar al curso",
@@ -152,7 +152,6 @@
     "demoView": "Vista de demostración",
     "saveGuide": "Guarda tu respuesta y marca tu avance",
     "previewReadonly": "Este curso está en preview. Puedes explorar pero no guardar progreso ni respuestas.",
-    "purchaseUnlock": "Comprar / desbloquear curso completo",
     "writeHere": "Escribe aquí tu desarrollo, conclusiones o respuestas...",
     "saveProgress": "Guardar avance",
     "saving": "Guardando...",
@@ -169,10 +168,12 @@
     "sawFirstModule": "Ya viste el primer módulo. Desbloquea el curso para abrir el resto del contenido y guardar avance.",
     "seeCatalog": "Ver catálogo",
     "selectModule": "Selecciona un módulo para iniciar.",
-    "moduleLocked": "Bloqueado",
+    "moduleLocked": "Este módulo no está disponible en la vista previa. Solicita la inscripción para acceder al curso completo.",
     "moduleDone": "Completado",
     "modulePending": "Pendiente",
-    "noAttachments": "No hay archivos adjuntos en esta actividad."
+    "noAttachments": "No hay archivos adjuntos en esta actividad.",
+    "requestAccess": "Solicitar acceso al curso completo",
+    "previewNoSave": "Este es un acceso de vista previa. Solicita la inscripción para guardar tu progreso."
   },
   "myCourses": {
     "title": "Mis cursos",
@@ -418,10 +419,7 @@
       "auditing": "Oyente"
     },
     "billing": {
-      "balance": "Saldo pendiente",
-      "pay": "Pagar",
-      "payStarted": "Pago iniciado. Continúa en la pasarela.",
-      "payUnavailable": "El pago en línea no está disponible en esta demo.",
+      "balance": "Estado de cuenta",
       "movements": "Movimientos",
       "date": "Fecha",
       "concept": "Concepto",

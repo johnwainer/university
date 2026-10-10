@@ -282,8 +282,9 @@
 }
 
 .section-header-row h2 {
-  letter-spacing: -0.015em;
+  letter-spacing: var(--tfu-track-title);
   text-wrap: balance;
+  text-transform: uppercase;
 }
 
 .row-subtitle {
@@ -429,8 +430,9 @@
    frase partida. */
 .detail-cinematic h2 {
   margin: 10px 0 14px;
-  letter-spacing: -0.015em;
+  letter-spacing: var(--tfu-track-display);
   text-wrap: balance;
+  text-transform: uppercase;
 }
 
 /* El CTA heredaba el dorado del tema anterior, que no está en la paleta de

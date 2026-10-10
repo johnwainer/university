@@ -92,7 +92,6 @@
     "noResults": "No results for your search.",
     "free": "Free access",
     "subscription": "Subscription",
-    "purchase": "One-time purchase",
     "code": "With code",
     "duration": "{{minutes}} min",
     "modules": "{{count}} modules",
@@ -110,11 +109,12 @@
     "notEnrolledFilter": "Not enrolled",
     "backHome": "Back to home",
     "enterFullCourse": "Enter full course",
-    "viewPreview": "View course (preview + purchase)",
+    "viewPreview": "View course (preview)",
     "language": {
       "en": "English",
       "es": "Spanish"
-    }
+    },
+    "enrollmentAccess": "Enrollment access"
   },
   "course": {
     "enterCourse": "Enter Course",
@@ -152,7 +152,6 @@
     "demoView": "Demo view",
     "saveGuide": "Save your answer and mark your progress",
     "previewReadonly": "This course is in preview. You can explore but not save progress or answers.",
-    "purchaseUnlock": "Purchase / unlock full course",
     "writeHere": "Write your development, conclusions or answers here...",
     "saveProgress": "Save progress",
     "saving": "Saving...",
@@ -169,10 +168,12 @@
     "sawFirstModule": "You already saw the first module. Unlock the course to open the rest of the content and save progress.",
     "seeCatalog": "See catalog",
     "selectModule": "Select a module to start.",
-    "moduleLocked": "Locked",
+    "moduleLocked": "This module is not available in preview. Request enrollment to access the full course.",
     "moduleDone": "Done",
     "modulePending": "Pending",
-    "noAttachments": "No attachments in this activity."
+    "noAttachments": "No attachments in this activity.",
+    "requestAccess": "Request full course access",
+    "previewNoSave": "This is preview access. Request enrollment to save your progress."
   },
   "myCourses": {
     "title": "My Courses",
@@ -418,10 +419,7 @@
       "auditing": "Auditing"
     },
     "billing": {
-      "balance": "Outstanding balance",
-      "pay": "Pay",
-      "payStarted": "Payment started. Continue in the gateway.",
-      "payUnavailable": "Online payment is not available in this demo.",
+      "balance": "Account statement",
       "movements": "Transactions",
       "date": "Date",
       "concept": "Concept",

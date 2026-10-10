@@ -1445,7 +1445,7 @@ export function PublicApp() {
 
   const markModuleComplete = async () => {
     if (isPreviewOnly) {
-      setInteractionMessage('Este es un acceso de demostración. Compra el curso para guardar progreso.');
+      setInteractionMessage(t('course.previewNoSave'));
       return;
     }
     if (!activeModule) {
@@ -1573,7 +1573,7 @@ export function PublicApp() {
       return;
     }
     if (isModuleLocked(flatModules[nextIndex].module.id)) {
-      setInteractionMessage('Este módulo está bloqueado. Compra el curso para desbloquearlo completo.');
+      setInteractionMessage(t('course.moduleLocked'));
       return;
     }
     setActiveModuleId(flatModules[nextIndex].module.id);
@@ -2953,7 +2953,7 @@ export function PublicApp() {
                       <div className="preview-readonly-box">
                         <p>{t('course.previewReadonly')}</p>
                         <button className="go-course-btn" onClick={() => setView({ type: 'catalog' })}>
-                          {t('course.purchaseUnlock')}
+                          {t('course.requestAccess')}
                         </button>
                       </div>
                     ) : (

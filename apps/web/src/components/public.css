@@ -4664,3 +4664,40 @@
     transition: none;
   }
 }
+
+/* ===================================================================== */
+/* Titulares en caja alta — escala de tracking                           */
+/* ===================================================================== */
+/* brand.css ya pone en mayúscula y aplica --tfu-track-title a todo h1/h2/h3.
+   Aquí sólo se corrigen los dos extremos de la escala y los titulares que
+   traían un letter-spacing negativo propio, que por especificidad y orden de
+   carga ganaban a la regla general y dejaban las mayúsculas apretadas. */
+
+/* Extremo grande: a partir de ~2.4rem el ancho propio de Area Extended ya
+   separa bastante, y el tracking de sección abriría de más la palabra. */
+.hero-content h1,
+.legal-hero h1,
+.course-header-modern h1,
+.enterprise-hero h2,
+.detail-cinematic h2 {
+  letter-spacing: var(--tfu-track-display);
+  text-transform: uppercase;
+}
+
+/* Extremo pequeño: por debajo de ~1.3rem la caja alta se apelmaza y necesita
+   más aire del que da el valor de sección. Comprobado con getComputedStyle:
+   .section-header-row h2 NO entra aquí, computa a 2.16rem. */
+.footer-col-title,
+.contact-header h2,
+.footer-title {
+  letter-spacing: var(--tfu-track-eyebrow);
+  text-transform: uppercase;
+}
+
+/* La caja alta sin guiones parte mal las palabras largas en móvil, donde el
+   renglón es estrecho: sin esto, títulos como «TRANSFORMACIÓN» desbordan. */
+h1, h2, h3,
+.hero-title, .section-title {
+  overflow-wrap: break-word;
+  hyphens: auto;
+}

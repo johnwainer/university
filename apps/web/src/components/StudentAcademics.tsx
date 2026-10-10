@@ -43,7 +43,6 @@ export function StudentAcademics({ token, onGoMyCourses }: Props) {
   const [billing, setBilling] = useState<BillingResponse | null>(null);
   const [certificates, setCertificates] = useState<CertificateRecord[]>([]);
   const [competencies, setCompetencies] = useState<CompetencyRecord[]>([]);
-  const [paying, setPaying] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,23 +74,6 @@ export function StudentAcademics({ token, onGoMyCourses }: Props) {
     };
   }, [token]);
 
-  async function onPay() {
-    setPaying(true);
-    setError(null);
-    setInfo(null);
-    try {
-      const res = await api.publicAuth.pay(token, {});
-      if (res.clientSecret) {
-        setInfo(t('academics.billing.payStarted'));
-      } else {
-        setInfo(res.message ?? t('academics.billing.payUnavailable'));
-      }
-    } catch {
-      setInfo(t('academics.billing.payUnavailable'));
-    } finally {
-      setPaying(false);
-    }
-  }
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'record', label: t('academics.tabs.record') },
@@ -180,9 +162,6 @@ export function StudentAcademics({ token, onGoMyCourses }: Props) {
               <span>{t('academics.billing.balance')}</span>
               <strong>{billing ? money(billing.balanceCents, billing.currency) : '—'}</strong>
             </div>
-            <button className="cta-btn" disabled={paying || !billing || billing.balanceCents <= 0} onClick={onPay}>
-              {t('academics.billing.pay')}
-            </button>
           </div>
 
           {billing && billing.holds.length > 0 ? (

@@ -68,6 +68,17 @@
      anclas para que un encabezado no quede escondido debajo. */
   --tfu-utility-h: 38px;
   --tfu-nav-h: 68px;
+
+  /* --- Tracking de titulares -------------------------------------------- */
+  /* Los títulos van en mayúscula sostenida. En caja alta desaparecen las
+     ascendentes y descendentes que daban ritmo al renglón, así que hay que
+     devolver ese aire con tracking positivo. La cantidad va al revés que el
+     tamaño: a 3rem las letras ya están separadas por su propio ancho y un
+     tracking generoso rompe la palabra, mientras que a 1.2rem hace falta más
+     para que no se apelmace. De ahí tres escalones en vez de un valor único. */
+  --tfu-track-display: 0.035em;  /* héroes y portadas, >=2.4rem */
+  --tfu-track-title: 0.06em;     /* títulos de sección, 1.3-2.4rem */
+  --tfu-track-eyebrow: 0.09em;   /* títulos pequeños, <1.3rem */
 }
 
 /* Los titulares llevan la tipografía extendida: en Area Extended el tracking
@@ -76,7 +87,18 @@ h1, h2, h3,
 .brand-name, .brand-suffix,
 .hero-title, .section-title {
   font-family: var(--pcl-font-display);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tfu-track-title);
+  text-transform: uppercase;
+}
+
+/* Los subtítulos quedan como estaban: en caja mixta y sin tracking extra. Son
+   los que cargan la lectura larga, y la caja alta los haría más lentos de leer.
+   Se listan aquí porque algunos son h2/h3 y heredarían la regla de arriba. */
+.row-subtitle, .webinar-subtitle, .webinar-card-subtitle,
+.profile-tile-subtitle, .hero-content p, .course-header p,
+.section-subtitle, .lead, .subtitle {
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 body {
