@@ -248,7 +248,15 @@ SPA_FALLBACK_ROUTES="${SPA_FALLBACK_ROUTES:-admin about quienes-somos admissions
 # catálogo en vez de escribirse a mano —un programa nuevo en Moodle aparece
 # solo— y cae a la lista fija de abajo si la API no responde durante el
 # despliegue, para no publicar un sitio con las fichas rotas.
-PROGRAM_FALLBACK_SLUGS_DEFAULT="moodle-pcl-sales-exc-12 moodle-pcl-sales-ops-13 moodle-pcl-cx-success-14 moodle-pcl-cx-comm-15 moodle-pcl-lead-elead-16 moodle-pcl-lead-team-17 moodle-pcl-lead-change-18 moodle-pcl-ai-exec-19 moodle-pcl-ai-work-20 moodle-pcl-ai-network-21 moodle-pcl-edu-assess-22 moodle-pcl-edu-network-23 moodle-pcl-edu-walk-24"
+#
+# El slug de la ficha cambió con el modelo: el catálogo devuelve PROGRAMAS, y
+# el slug de un programa es su código en minúsculas (TFU-SALES-EXC ->
+# tfu-sales-exc). Los trece `moodle-pcl-*-<id>` de antes eran slugs de curso.
+# Se mantienen igualmente en esta lista porque son los que quedaron publicados
+# en enlaces ya repartidos: la API los sigue resolviendo al programa que
+# contiene ese curso, y sin su alias en el CDN el enlace directo daría un 403
+# de S3 antes de que el SPA pudiera siquiera pedirlo.
+PROGRAM_FALLBACK_SLUGS_DEFAULT="tfu-sales-exc tfu-sales-ops tfu-cx-success tfu-cx-comm tfu-lead-elead tfu-lead-team tfu-lead-change tfu-ai-exec tfu-ai-work tfu-ai-network tfu-edu-assess tfu-edu-network tfu-edu-walk moodle-pcl-sales-exc-12 moodle-pcl-sales-ops-13 moodle-pcl-cx-success-14 moodle-pcl-cx-comm-15 moodle-pcl-lead-elead-16 moodle-pcl-lead-team-17 moodle-pcl-lead-change-18 moodle-pcl-ai-exec-19 moodle-pcl-ai-work-20 moodle-pcl-ai-network-21 moodle-pcl-edu-assess-22 moodle-pcl-edu-network-23 moodle-pcl-edu-walk-24"
 
 # Devuelve los slugs del catálogo publicado, uno por línea; vacío si falla.
 catalog_program_slugs() {

@@ -37,10 +37,10 @@
 [data-accent='education']  { --cat-accent: #d4af36; }
 [data-accent='neutral']    { --cat-accent: var(--pcl-steel); }
 
-/* --- Etiqueta de categoría ------------------------------------------------
-   Sustituye al `public-badge` genérico en las tarjetas de curso. El borde lleva
-   el acento y el fondo apenas lo insinúa: sobre una foto, un relleno sólido
-   compite con el título. */
+/* --- Etiqueta de área ----------------------------------------------------
+   Sustituye al `public-badge` genérico en las tarjetas de programa. El borde
+   lleva el acento y el fondo apenas lo insinúa: sobre una foto, un relleno
+   sólido compite con el título. */
 .category-chip {
   justify-self: start;
   display: inline-block;
@@ -64,7 +64,7 @@
   overflow: hidden;
 }
 
-/* --- Dato de duración ----------------------------------------------------- */
+/* --- Dato bajo el título: cuántos cursos incluye el programa ------------- */
 .tile-meta {
   margin: 0;
   color: var(--pcl-ice);

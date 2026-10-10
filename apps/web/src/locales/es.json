@@ -36,11 +36,10 @@
     "openMenu": "Abrir menú"
   },
   "hero": {
-    "enterCourse": "Entrar al curso",
-    "watchNow": "Ver ahora",
     "exploreCatalog": "Explorar oferta académica",
     "slidesLabel": "Programas destacados",
-    "goToSlide": "Ver el programa destacado {{n}} de {{total}}"
+    "goToSlide": "Ver el programa destacado {{n}} de {{total}}",
+    "viewProgram": "Ver el programa"
   },
   "home": {
     "myCourses": "Mis cursos",
@@ -48,11 +47,9 @@
     "viewAll": "Ver todos",
     "loadingCourses": "Cargando tus cursos...",
     "noCoursesEnrolled": "Aún no tienes cursos inscritos. Explora la oferta académica y comienza tu ruta de aprendizaje.",
-    "exploreAndGet": "Explorar y obtener cursos",
+    "exploreAndGet": "Explorar programas",
     "continueLearning": "Continúa aprendiendo",
-    "continueLearningSubtitle": "Tus cursos más relevantes",
-    "allCourses": "Todos los cursos",
-    "allCoursesSubtitle": "Descubre programas para crecer académicamente",
+    "continueLearningSubtitle": "Tus programas más relevantes",
     "viewAllMyCourses": "Ver todos mis cursos",
     "suggested": "Sugerido",
     "live": "En vivo",
@@ -77,12 +74,14 @@
     "purposeHowTitle": "Cómo lo hacemos",
     "purposeHowBody": "Aprendizaje práctico, programas pertinentes para la industria, educación apoyada en tecnología y una comunidad multicultural.",
     "purposeWhyTitle": "Por qué lo hacemos",
-    "purposeWhyBody": "Porque el talento no debería quedarse atrás: la experiencia tiene valor y reinventarse es posible en cualquier etapa."
+    "purposeWhyBody": "Porque el talento no debería quedarse atrás: la experiencia tiene valor y reinventarse es posible en cualquier etapa.",
+    "allPrograms": "Todos los programas",
+    "allProgramsSubtitle": "La oferta académica completa de {{brandShort}}"
   },
   "catalog": {
     "title": "Catálogo académico",
     "showing": "Mostrando {{shown}} de {{total}}",
-    "search": "Buscar cursos, seminarios, VoD...",
+    "search": "Buscar programas por nombre, área o curso...",
     "all": "Todos",
     "courses": "Cursos",
     "live": "Seminarios",
@@ -96,25 +95,18 @@
     "duration": "{{minutes}} min",
     "modules": "{{count}} módulos",
     "lessons": "{{count}} lecciones",
-    "enrolled": "Inscrito",
-    "notEnrolled": "No inscrito",
-    "advancePercent": "Avance {{percent}}%",
-    "previewAvailable": "Preview disponible",
-    "group": "Grupo",
     "order": "Orden",
     "relevance": "Relevancia",
-    "newest": "Más nuevos",
     "clear": "Limpiar",
-    "myCoursesFilter": "Mis cursos",
-    "notEnrolledFilter": "No inscritos",
     "backHome": "Volver a inicio",
-    "enterFullCourse": "Entrar al curso completo",
-    "viewPreview": "Ver curso (vista previa)",
     "language": {
       "en": "Inglés",
       "es": "Español"
     },
-    "enrollmentAccess": "Acceso por inscripción"
+    "enrollmentAccess": "Acceso por inscripción",
+    "area": "Área",
+    "includesCourses_one": "Incluye {{count}} curso",
+    "includesCourses_other": "Incluye {{count}} cursos"
   },
   "course": {
     "enterCourse": "Entrar al curso",
@@ -130,14 +122,10 @@
     "noContent": "No hay contenido disponible aún.",
     "watchVideo": "Ver video",
     "complete": "Marcar como completado",
-    "locked": "Acceso restringido",
     "unlockWith": "Desbloquea este contenido con",
     "plan": "Plan del curso",
     "activities": "{{count}} actividades",
     "loadingStructure": "Cargando estructura...",
-    "previewMode": "Modo preview activo",
-    "previewDesc": "Solo puedes navegar el primer módulo. Desbloquea el curso para continuar tu ruta completa.",
-    "unlockCourse": "Desbloquear curso",
     "progressLabel": "Progreso",
     "completedLabel": "Completados",
     "level": "Nivel",
@@ -149,9 +137,7 @@
     "next": "Siguiente",
     "classAndMaterial": "Clase y material",
     "activityDev": "Desarrollo de actividad",
-    "demoView": "Vista de demostración",
     "saveGuide": "Guarda tu respuesta y marca tu avance",
-    "previewReadonly": "Este curso está en preview. Puedes explorar pero no guardar progreso ni respuestas.",
     "writeHere": "Escribe aquí tu desarrollo, conclusiones o respuestas...",
     "saveProgress": "Guardar avance",
     "saving": "Guardando...",
@@ -164,16 +150,10 @@
     "achievements": "Logros",
     "interactions": "Interacciones",
     "moduleCompleted": "Módulo completado",
-    "continueFullPath": "Continúa con la ruta completa",
-    "sawFirstModule": "Ya viste el primer módulo. Desbloquea el curso para abrir el resto del contenido y guardar avance.",
-    "seeCatalog": "Ver catálogo",
     "selectModule": "Selecciona un módulo para iniciar.",
-    "moduleLocked": "Este módulo no está disponible en la vista previa. Solicita la inscripción para acceder al curso completo.",
     "moduleDone": "Completado",
     "modulePending": "Pendiente",
-    "noAttachments": "No hay archivos adjuntos en esta actividad.",
-    "requestAccess": "Solicitar acceso al curso completo",
-    "previewNoSave": "Este es un acceso de vista previa. Solicita la inscripción para guardar tu progreso."
+    "noAttachments": "No hay archivos adjuntos en esta actividad."
   },
   "myCourses": {
     "title": "Mis cursos",
@@ -186,10 +166,9 @@
     "avgProgress": "Promedio de avance",
     "account": "Cuenta",
     "editProfile": "Editar mi perfil",
-    "syncing": "Sincronizando",
     "continueCourse": "Continuar curso",
-    "notAvailable": "No disponible",
-    "loginRequired": "Inicia sesión para ver tus cursos"
+    "loginRequired": "Inicia sesión para ver tus cursos",
+    "myClassroom": "Mi aula"
   },
   "profile": {
     "title": "Mi perfil",
@@ -316,10 +295,8 @@
     "activeProgram": "Programa académico activo en {{brandShort}}.",
     "addStudent": "Agregar estudiante",
     "addingStudent": "Guardando...",
-    "assignCourses": "Asignar cursos del departamento",
     "selectCourse": "Selecciona curso",
     "assigning": "Asignando...",
-    "assignCourse": "Asignar curso",
     "students": "Estudiantes",
     "name": "Nombre",
     "email": "Email",
@@ -340,7 +317,9 @@
     "progress": "Progreso",
     "interactions": "Interacciones",
     "lastActivity": "Última Actividad",
-    "noProgress": "Aún no hay progreso registrado."
+    "noProgress": "Aún no hay progreso registrado.",
+    "reactivateCourses": "Reactivar cursos del departamento",
+    "noInactiveCourses": "No hay cursos desactivados. Para habilitar un curso nuevo, escribe a la institución."
   },
   "legal": {
     "title": "Centro legal {{brandShort}}",
@@ -388,7 +367,8 @@
     "course": "Curso",
     "bundle": "Programa",
     "new": "Nuevo",
-    "popular": "Popular"
+    "popular": "Popular",
+    "program": "Programa"
   },
   "language": {
     "switch": "Idioma",
@@ -553,16 +533,15 @@
     "breadcrumbPrograms": "Programas",
     "eyebrow": "Programa de The Floridian University",
     "navAbout": "Sobre el programa",
-    "navLearn": "Lo que aprenderás",
     "navPlan": "Plan del curso",
     "navFormat": "Formato y entrega",
     "navSimilar": "Programas similares",
     "aboutTitle": "Sobre el programa",
-    "learnTitle": "Lo que aprenderás y practicarás",
     "planTitle": "Plan del curso",
     "planLead": "El aula está organizada en semanas. Cada una abre el viernes anterior y cierra el lunes a las 23:59 ET.",
     "planWeek": "Semana {{n}}",
-    "planActivities": "{{count}} actividades",
+    "planActivities_one": "{{count}} actividad",
+    "planActivities_other": "{{count}} actividades",
     "planEmpty": "El aula de este programa todavía no tiene publicado su plan semanal.",
     "formatTitle": "Formato y entrega",
     "formatOnlineTitle": "En línea y asincrónico",
@@ -571,11 +550,18 @@
     "formatCadenceBody": "Respuesta inicial a la discusión el martes, respuestas a compañeros el jueves y entrega el lunes, todas a las 23:59 ET.",
     "formatBilingualTitle": "Bilingüe",
     "formatBilingualBody": "El programa existe en español y en inglés como contenido equivalente, no como traducción automática. El estudiante elige el idioma del portal y del aula.",
-    "formatHours": "Duración estimada",
     "similarTitle": "Programas similares",
     "ctaTitle": "Lleva este programa a tu equipo",
     "ctaBody": "Escríbenos y revisamos contigo el programa, la dedicación semanal que exige y las fechas de la convocatoria vigente.",
-    "ctaButton": "Hablar con admisiones"
+    "ctaButton": "Hablar con admisiones",
+    "navSyllabus": "Temario",
+    "syllabusTitle": "Cursos que incluye el programa",
+    "syllabusLead": "El programa se cursa completo, en este orden.",
+    "syllabusNoAccess": "Los cursos forman parte del programa y se cursan dentro de él; no se matriculan por separado.",
+    "courseModules_one": "{{count}} módulo",
+    "courseModules_other": "{{count}} módulos",
+    "creditHours_one": "{{count}} hora crédito",
+    "creditHours_other": "{{count}} horas crédito"
   },
   "admin": {
     "overview": {
@@ -884,6 +870,72 @@
         }
       }
     },
+    "programs": {
+      "titulo": "Composición de programas",
+      "descripcion": "El programa es la unidad en la que se matricula el estudiante; los cursos de Moodle viven dentro. Aquí se decide qué cursos contiene cada programa y en qué orden se cursan.",
+      "estado": {
+        "cargando": "Cargando programas y aulas disponibles...",
+        "recargar": "Recargar",
+        "reintentar": "Reintentar",
+        "soloLectura": "Estás viendo esta sección en solo lectura: necesitas permiso de edición en «SIS / Académico» para cambiar la composición de un programa.",
+        "errorCarga": "No se pudieron cargar los programas."
+      },
+      "aviso": {
+        "sinCursos_one": "{{programas}} no tiene ningún curso. Un programa sin cursos no tiene nada que cursar: quien se matricule verá una ficha vacía.",
+        "sinCursos_other": "{{count}} programas no tienen ningún curso ({{programas}}). Un programa sin cursos no tiene nada que cursar: quien se matricule verá una ficha vacía.",
+        "esteSinCursos": "{{codigo}} no tiene ningún curso todavía. Añade al menos uno abajo: sin cursos, el estudiante matriculado verá una ficha vacía."
+      },
+      "lista": {
+        "titulo": "Programas",
+        "total_one": "{{count}} programa",
+        "total_other": "{{count}} programas",
+        "vacio": "Todavía no hay programas definidos.",
+        "colCodigo": "Código",
+        "colNombre": "Nombre",
+        "colEstado": "Estado",
+        "colCursos": "Cursos",
+        "colAcciones": "Acciones",
+        "activo": "Activo",
+        "inactivo": "Inactivo",
+        "sinCursos": "Sin cursos",
+        "numCursos_one": "{{count}} curso",
+        "numCursos_other": "{{count}} cursos",
+        "gestionar": "Gestionar cursos"
+      },
+      "cursos": {
+        "titulo": "Cursos del programa",
+        "tituloCon": "Cursos de {{codigo}} — {{nombre}}",
+        "descripcion": "El orden es el que verá el estudiante dentro del programa.",
+        "sinSeleccion": "Selecciona un programa de la lista para ver y cambiar sus cursos.",
+        "colOrden": "Orden",
+        "colCurso": "Curso",
+        "colVisible": "Visibilidad en Moodle",
+        "colAcciones": "Acciones",
+        "visible": "Visible",
+        "oculto": "Oculto",
+        "subir": "Subir",
+        "bajar": "Bajar",
+        "quitar": "Quitar del programa",
+        "quitado": "{{curso}} se quitó del programa.",
+        "reordenado": "Orden guardado.",
+        "vinculado": "Curso añadido al final del programa.",
+        "errorVincular": "No se pudo añadir el curso al programa.",
+        "errorQuitar": "No se pudo quitar el curso del programa.",
+        "errorReordenar": "No se pudo guardar el nuevo orden.",
+        "notaOrden": "Un curso con estudiantes matriculados no se puede quitar: primero hay que resolver esas matrículas. Un curso sólo puede pertenecer a un programa a la vez."
+      },
+      "anadir": {
+        "etiqueta": "Añadir un aula de Moodle",
+        "elige": "Elige un aula...",
+        "ayuda_one": "{{count}} aula de Moodle sin programa asignado.",
+        "ayuda_other": "{{count}} aulas de Moodle sin programa asignado.",
+        "sinDisponibles": "No queda ninguna aula de Moodle sin programa asignado. Sincroniza Moodle o libera un curso de otro programa.",
+        "boton": "Añadir al programa"
+      },
+      "validacion": {
+        "sinCurso": "Elige primero un aula de la lista."
+      }
+    },
     "roles": {
       "titulo": "Roles y permisos",
       "descripcion": "Define qué puede ver y qué puede cambiar cada rol, y administra las cuentas del panel.",
@@ -1057,6 +1109,10 @@
       "sis": {
         "label": "SIS / Académico",
         "hint": "Expedientes y periodos"
+      },
+      "programs": {
+        "label": "Programas y cursos",
+        "hint": "Qué cursos contiene cada programa"
       },
       "calendar": {
         "label": "Calendario y aulas",

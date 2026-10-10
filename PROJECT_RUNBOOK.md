@@ -180,11 +180,23 @@ DB de Moodle en wizard:
 
 ## 8.2 Web pública (`apps/web`)
 
+**El programa es la unidad del sitio público.** Es lo que se navega y aquello
+en lo que el estudiante se matricula; los cursos viven DENTRO del programa y no
+se ven ni se cursan por separado. Quien no está matriculado ve, en la ficha del
+programa, el temario: los cursos que incluye con su nombre y su descripción,
+sin enlace y sin vista previa. Al aula de un curso sólo se entra desde «Mis
+cursos», que son las matrículas activas del estudiante.
+
 - Landing moderna.
-- Slider principal.
-- Secciones dinámicas: mis cursos, webinars/eventos, podcasts, categorías.
-- Explorar catálogo con filtros.
-- Vista de curso y consumo de módulos.
+- Slider principal (programas destacados).
+- Secciones dinámicas: mis cursos, webinars/eventos, podcasts, áreas.
+- Explorar catálogo de programas, con filtro por área y orden A-Z. La búsqueda
+  mira también los cursos del temario.
+- Ficha del programa: resumen, temario (los cursos que incluye, como índice no
+  navegable), plan de ocho semanas, formato y programas de la misma área.
+- Aula del curso y consumo de módulos, sólo para quien tiene matrícula activa.
+  No hay modo vista previa ni módulos candados: fueron la puerta por la que se
+  llegaba a un curso suelto.
 - Gestión de progreso y aprendizaje.
 - Mis entradas (tickets del usuario).
 - Perfil (edición de datos).
@@ -286,9 +298,22 @@ Todas cuelgan de `/api` por `rewriteUrl` en Fastify.
 
 ## 10.1 Públicas v1
 
-- `GET /api/v1/home`
-- `GET /api/v1/catalog`
-- `GET /api/v1/catalog/:slug`
+- `GET /api/v1/home` — `featured`, `continueLearning` y `programs` son
+  programas; `liveNow` sigue siendo contenido suelto (seminarios).
+- `GET /api/v1/catalog` — array de PROGRAMAS, no de cursos. Cada programa trae
+  `courseCount` y `courses[]` (título, resumen y módulos de cada curso). Los
+  cursos **no** llevan identificador de Moodle, a propósito: sin él no se puede
+  construir una ruta a un curso, y la regla «no se ve ni se cursa un curso
+  suelto» queda garantizada por construcción y no por disciplina del cliente.
+- `GET /api/v1/programs/catalog` — el mismo catálogo, por su nombre propio.
+- `GET /api/v1/catalog/:slug?locale=es|en` — ficha del programa:
+  `{ content, program, outline, related, entitlement }`. `content` y `program`
+  son el mismo programa (`content` se conserva por compatibilidad), `outline`
+  es el plan de ocho semanas y `related` hasta 3 programas de la misma área.
+  El slug es el código del programa en minúsculas (`TFU-SALES-EXC` ->
+  `tfu-sales-exc`); los slugs antiguos de curso (`moodle-pcl-sales-exc-12`)
+  siguen resolviendo al programa que contiene ese curso, para no romper los
+  enlaces ya repartidos.
 - `GET /api/v1/courses/:moodleCourseId/content`
 - `GET /api/v1/courses/:moodleCourseId/progress`
 - `PUT /api/v1/courses/:moodleCourseId/progress`
@@ -443,6 +468,12 @@ curl http://localhost:4000/api/v1/catalog
 - Todas las nuevas integraciones externas deben entrar por `apps/api`.
 - Cualquier feature pública nueva debe quedar administrable en `/admin` cuando aplique.
 - Mantener consistencia de puertos locales: `4000` API, `5174` web, `8081` Moodle.
+- **El catálogo público expone programas, nunca cursos sueltos.** El payload de
+  un programa no lleva el identificador de Moodle de sus cursos: es lo que hace
+  imposible construir una ruta a un curso. Si alguien lo añade «por comodidad»,
+  el front podrá volver a enlazar cursos individuales y la regla se cae sola.
+- Al aula de un curso se entra **sólo** desde «Mis cursos», con el id de la
+  matrícula. El sitio público no tiene ruta de curso.
 
 ## 16) Etapa I — CIE Readiness (módulo `cie`)
 
@@ -645,3 +676,80 @@ Un curso oculto en Moodle (`visible = 0`) deja de publicarse en el catálogo
 público y su ficha se retira de `content_assets`, pero sigue en
 `moodle_courses` para que el panel admin lo vea. Los textos que vienen de
 Moodle se decodifican de entidades HTML antes de guardarse.
+
+## 20) Modelo programa → cursos en el sitio público
+
+El programa es la unidad: se navega, se presenta y se matricula. Los cursos
+viven dentro y no tienen página propia.
+
+**Dónde está cada pieza**
+
+| Pieza | Archivo |
+|---|---|
+| Programas para el sitio público | `apps/api/src/modules/programs/service.ts` |
+| Composición programa → cursos | `apps/api/src/modules/programs/schema.ts` |
+| Tipos del front (`ProgramaPublico`, `CursoDelPrograma`) | `apps/web/src/lib/api.ts` |
+| Catálogo, portada, ficha y aula | `apps/web/src/components/PublicApp.tsx` |
+| Estilos del temario | `apps/web/src/components/programa.css` |
+
+La relación no usa tabla nueva: `degree_requirements` con
+`requirement_type = 'course'` ya significa «este curso forma parte de este
+programa», y es lo que lee la auditoría de grado del SIS. La migración sólo le
+añadió `sort_order`, porque un programa con varios cursos necesita decir cuál
+va primero.
+
+**Lo que no se debe deshacer**
+
+- Los cursos del temario se pintan como `<li>` con texto: ni `<a>`, ni
+  `<button>`, ni `onClick`. Si parecieran pulsables, el visitante haría clic y
+  no pasaría nada, que es peor que leerlos como el índice que son.
+- `courses[].modulos` es `null` cuando el aula de Moodle todavía no está
+  montada. En ese caso el dato se **omite**; no se escribe un `0`, que se leería
+  como «aula vacía».
+- `GET /v1/courses/:moodleCourseId/content` exige matrícula activa y responde
+  403 sin ella. Esa comprobación del servidor es la que de verdad cierra el
+  acceso; el front sólo deja de ofrecerlo.
+
+**El payload público NO lleva el id de Moodle de los cursos.** Es deliberado.
+La regla «no se cursa un curso suelto» la impone el servidor negando el
+contenido sin matrícula, pero si el id viajara al front, la interfaz podría
+volver a construir una ruta al curso. Omitirlo lo hace imposible por
+construcción en vez de por disciplina. Si alguna vista necesita el id, que lo
+pida por una ruta de admin, no por el catálogo público.
+
+**Componer programas desde el panel.** Sección «Programas y cursos», dentro del
+grupo Académico. Sus rutas están bajo `/admin/degree-programs`, que el guardián
+ya asigna a la sección de permisos `sis`; por eso la entrada del menú lleva
+`permiso: 'sis'` en `NAV_GROUPS` y no una sección propia, que el servidor no
+conocería.
+
+- `GET /admin/degree-programs/composition`
+- `GET /admin/degree-programs/available-courses`
+- `POST /admin/degree-programs/:id/courses`
+- `DELETE /admin/degree-programs/:id/courses/:moodleCourseId`
+- `PUT /admin/degree-programs/:id/courses/order`
+
+Dos reglas que impone el servidor y conviene no quitar: un curso **no puede
+pertenecer a dos programas** (409), porque dejaría ambiguo de qué programa
+depende la matrícula de quien lo esté cursando; y no se puede desvincular un
+curso con **matrículas activas** dentro de ese programa (400), porque esos
+estudiantes quedarían con una matrícula que no cuelga de nada.
+
+**Moodle.** Hacia fuera ya está cerrado: `/course/view.php` y el buscador
+redirigen a login y no revelan nombres de curso a un visitante anónimo
+(comprobado). Lo que queda abierto es el hueco de dentro —una persona ya
+autenticada en Moodle que se automatricule— y **no se puede cerrar por servicio
+web**: de las 21 funciones habilitadas ninguna gestiona métodos de
+matriculación. El guion está listo en
+`infra/moodle/cli/paeu-cerrar-curso-suelto.php`; desactiva las instancias
+`self` y `guest` de los cursos `PCL-*`, deja intacta la `manual` (que es por
+donde matricula la plataforma) y aborta avisando si algún curso se quedara sin
+ella. Requiere shell en la máquina de Moodle, hoy con el puerto 22 cerrado,
+igual que `paeu-ajustes-bilingue.php`.
+
+**Alias del CDN.** Lightsail no tiene reescritura comodín, así que cada ficha
+necesita su alias del index. `PROGRAM_FALLBACK_SLUGS_DEFAULT` en
+`infra/deploy/00-config.sh` lleva los trece slugs de programa (`tfu-*`) y, a
+propósito, también los trece slugs antiguos de curso (`moodle-pcl-*-<id>`): la
+API los resuelve al programa que contiene ese curso, pero sin su alias el
+enlace directo moriría en un 403 de S3 antes de llegar al SPA.

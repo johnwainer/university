@@ -36,11 +36,10 @@
     "openMenu": "Open menu"
   },
   "hero": {
-    "enterCourse": "Enter Course",
-    "watchNow": "Watch Now",
     "exploreCatalog": "Explore Academic Catalog",
     "slidesLabel": "Featured programs",
-    "goToSlide": "Show featured program {{n}} of {{total}}"
+    "goToSlide": "Show featured program {{n}} of {{total}}",
+    "viewProgram": "View program"
   },
   "home": {
     "myCourses": "My Courses",
@@ -48,7 +47,7 @@
     "viewAll": "View All",
     "loadingCourses": "Loading your courses...",
     "noCoursesEnrolled": "You have no enrolled courses yet. Explore the academic catalog and start your learning journey.",
-    "exploreAndGet": "Explore courses",
+    "exploreAndGet": "Explore programs",
     "continueLearning": "Continue Learning",
     "liveEvents": "Live Events",
     "liveEventsSubtitle": "Upcoming academic live sessions",
@@ -59,9 +58,7 @@
     "noLiveEvents": "No upcoming live events.",
     "noPodcasts": "No master classes available.",
     "progress": "Progress",
-    "continueLearningSubtitle": "Your most relevant courses",
-    "allCourses": "All courses",
-    "allCoursesSubtitle": "Discover programs to grow academically",
+    "continueLearningSubtitle": "Your most relevant programs",
     "viewAllMyCourses": "View all my courses",
     "suggested": "Suggested",
     "live": "Live",
@@ -77,12 +74,14 @@
     "purposeHowTitle": "How we do it",
     "purposeHowBody": "Practical learning, industry-relevant programs, technology-driven education and a supportive multicultural community.",
     "purposeWhyTitle": "Why we do it",
-    "purposeWhyBody": "Because talent should never be left behind: experience has value and reinvention is possible at any stage."
+    "purposeWhyBody": "Because talent should never be left behind: experience has value and reinvention is possible at any stage.",
+    "allPrograms": "All programs",
+    "allProgramsSubtitle": "{{brandShort}}'s full academic catalog"
   },
   "catalog": {
     "title": "Academic Catalog",
     "showing": "Showing {{shown}} of {{total}}",
-    "search": "Search courses, seminars, VoD...",
+    "search": "Search programs by name, area or course...",
     "all": "All",
     "courses": "Courses",
     "live": "Seminars",
@@ -96,25 +95,18 @@
     "duration": "{{minutes}} min",
     "modules": "{{count}} modules",
     "lessons": "{{count}} lessons",
-    "enrolled": "Enrolled",
-    "notEnrolled": "Not enrolled",
-    "advancePercent": "Progress {{percent}}%",
-    "previewAvailable": "Preview available",
-    "group": "Group",
     "order": "Order",
     "relevance": "Relevance",
-    "newest": "Newest",
     "clear": "Clear",
-    "myCoursesFilter": "My courses",
-    "notEnrolledFilter": "Not enrolled",
     "backHome": "Back to home",
-    "enterFullCourse": "Enter full course",
-    "viewPreview": "View course (preview)",
     "language": {
       "en": "English",
       "es": "Spanish"
     },
-    "enrollmentAccess": "Enrollment access"
+    "enrollmentAccess": "Enrollment access",
+    "area": "Area",
+    "includesCourses_one": "Includes {{count}} course",
+    "includesCourses_other": "Includes {{count}} courses"
   },
   "course": {
     "enterCourse": "Enter Course",
@@ -130,14 +122,10 @@
     "noContent": "No content available yet.",
     "watchVideo": "Watch video",
     "complete": "Mark as complete",
-    "locked": "Restricted access",
     "unlockWith": "Unlock this content with",
     "plan": "Course plan",
     "activities": "{{count}} activities",
     "loadingStructure": "Loading structure...",
-    "previewMode": "Preview mode active",
-    "previewDesc": "You can only browse the first module. Unlock the course to continue your full path.",
-    "unlockCourse": "Unlock course",
     "progressLabel": "Progress",
     "completedLabel": "Completed",
     "level": "Level",
@@ -149,9 +137,7 @@
     "next": "Next",
     "classAndMaterial": "Class and material",
     "activityDev": "Activity development",
-    "demoView": "Demo view",
     "saveGuide": "Save your answer and mark your progress",
-    "previewReadonly": "This course is in preview. You can explore but not save progress or answers.",
     "writeHere": "Write your development, conclusions or answers here...",
     "saveProgress": "Save progress",
     "saving": "Saving...",
@@ -164,16 +150,10 @@
     "achievements": "Achievements",
     "interactions": "Interactions",
     "moduleCompleted": "Module completed",
-    "continueFullPath": "Continue with the full path",
-    "sawFirstModule": "You already saw the first module. Unlock the course to open the rest of the content and save progress.",
-    "seeCatalog": "See catalog",
     "selectModule": "Select a module to start.",
-    "moduleLocked": "This module is not available in preview. Request enrollment to access the full course.",
     "moduleDone": "Done",
     "modulePending": "Pending",
-    "noAttachments": "No attachments in this activity.",
-    "requestAccess": "Request full course access",
-    "previewNoSave": "This is preview access. Request enrollment to save your progress."
+    "noAttachments": "No attachments in this activity."
   },
   "myCourses": {
     "title": "My Courses",
@@ -186,10 +166,9 @@
     "avgProgress": "Average progress",
     "account": "Account",
     "editProfile": "Edit my profile",
-    "syncing": "Syncing",
     "continueCourse": "Continue course",
-    "notAvailable": "Not available",
-    "loginRequired": "Sign in to see your courses"
+    "loginRequired": "Sign in to see your courses",
+    "myClassroom": "My classroom"
   },
   "profile": {
     "title": "My Profile",
@@ -316,10 +295,8 @@
     "activeProgram": "Active academic program at {{brandShort}}.",
     "addStudent": "Add student",
     "addingStudent": "Saving...",
-    "assignCourses": "Assign department courses",
     "selectCourse": "Select course",
     "assigning": "Assigning...",
-    "assignCourse": "Assign course",
     "students": "Students",
     "name": "Name",
     "email": "Email",
@@ -340,7 +317,9 @@
     "progress": "Progress",
     "interactions": "Interactions",
     "lastActivity": "Last Activity",
-    "noProgress": "No progress recorded yet."
+    "noProgress": "No progress recorded yet.",
+    "reactivateCourses": "Reactivate department courses",
+    "noInactiveCourses": "There are no deactivated courses. To enable a new course, contact the institution."
   },
   "legal": {
     "title": "{{brandShort}} Legal Center",
@@ -388,7 +367,8 @@
     "course": "Course",
     "bundle": "Program",
     "new": "New",
-    "popular": "Popular"
+    "popular": "Popular",
+    "program": "Program"
   },
   "language": {
     "switch": "Language",
@@ -553,16 +533,15 @@
     "breadcrumbPrograms": "Programs",
     "eyebrow": "A The Floridian University program",
     "navAbout": "About this program",
-    "navLearn": "What you'll learn",
     "navPlan": "Course plan",
     "navFormat": "Format & delivery",
     "navSimilar": "Similar programs",
     "aboutTitle": "About this program",
-    "learnTitle": "What you'll learn and practice",
     "planTitle": "Course plan",
     "planLead": "The classroom is organized by week. Each one opens the previous Friday and closes Monday at 11:59 PM ET.",
     "planWeek": "Week {{n}}",
-    "planActivities": "{{count}} activities",
+    "planActivities_one": "{{count}} activity",
+    "planActivities_other": "{{count}} activities",
     "planEmpty": "This program's classroom has not published its weekly plan yet.",
     "formatTitle": "Format & delivery",
     "formatOnlineTitle": "Online and asynchronous",
@@ -571,11 +550,18 @@
     "formatCadenceBody": "Initial discussion response on Tuesday, peer responses on Thursday and the assignment on Monday, all at 11:59 PM ET.",
     "formatBilingualTitle": "Bilingual",
     "formatBilingualBody": "The program exists in Spanish and English as equivalent content, not machine translation. Students choose the language of the portal and the classroom.",
-    "formatHours": "Estimated length",
     "similarTitle": "Similar programs",
     "ctaTitle": "Bring this program to your team",
     "ctaBody": "Write to us and we will review the program with you, the weekly commitment it asks for and the dates of the current intake.",
-    "ctaButton": "Talk to admissions"
+    "ctaButton": "Talk to admissions",
+    "navSyllabus": "Syllabus",
+    "syllabusTitle": "Courses included in this program",
+    "syllabusLead": "The program is taken in full, in this order.",
+    "syllabusNoAccess": "These courses are part of the program and are taken within it; they cannot be enrolled in separately.",
+    "courseModules_one": "{{count}} module",
+    "courseModules_other": "{{count}} modules",
+    "creditHours_one": "{{count}} credit hour",
+    "creditHours_other": "{{count}} credit hours"
   },
   "admin": {
     "overview": {
@@ -884,6 +870,72 @@
         }
       }
     },
+    "programs": {
+      "titulo": "Program composition",
+      "descripcion": "The program is the unit students enroll in; Moodle courses live inside it. This is where you decide which courses each program contains and the order in which they are taken.",
+      "estado": {
+        "cargando": "Loading programs and available classrooms...",
+        "recargar": "Reload",
+        "reintentar": "Retry",
+        "soloLectura": "You are viewing this section in read-only mode: you need edit permission on “SIS / Academic” to change a program's composition.",
+        "errorCarga": "Programs could not be loaded."
+      },
+      "aviso": {
+        "sinCursos_one": "{{programas}} has no courses. A program with no courses has nothing to take: anyone who enrolls will see an empty record.",
+        "sinCursos_other": "{{count}} programs have no courses ({{programas}}). A program with no courses has nothing to take: anyone who enrolls will see an empty record.",
+        "esteSinCursos": "{{codigo}} has no courses yet. Add at least one below: with no courses, an enrolled student will see an empty record."
+      },
+      "lista": {
+        "titulo": "Programs",
+        "total_one": "{{count}} program",
+        "total_other": "{{count}} programs",
+        "vacio": "No programs have been defined yet.",
+        "colCodigo": "Code",
+        "colNombre": "Name",
+        "colEstado": "Status",
+        "colCursos": "Courses",
+        "colAcciones": "Actions",
+        "activo": "Active",
+        "inactivo": "Inactive",
+        "sinCursos": "No courses",
+        "numCursos_one": "{{count}} course",
+        "numCursos_other": "{{count}} courses",
+        "gestionar": "Manage courses"
+      },
+      "cursos": {
+        "titulo": "Program courses",
+        "tituloCon": "Courses in {{codigo}} — {{nombre}}",
+        "descripcion": "This is the order students will see inside the program.",
+        "sinSeleccion": "Select a program from the list to view and change its courses.",
+        "colOrden": "Order",
+        "colCurso": "Course",
+        "colVisible": "Moodle visibility",
+        "colAcciones": "Actions",
+        "visible": "Visible",
+        "oculto": "Hidden",
+        "subir": "Move up",
+        "bajar": "Move down",
+        "quitar": "Remove from program",
+        "quitado": "{{curso}} was removed from the program.",
+        "reordenado": "Order saved.",
+        "vinculado": "Course added at the end of the program.",
+        "errorVincular": "The course could not be added to the program.",
+        "errorQuitar": "The course could not be removed from the program.",
+        "errorReordenar": "The new order could not be saved.",
+        "notaOrden": "A course with actively enrolled students cannot be removed: those enrollments must be resolved first. A course can belong to only one program at a time."
+      },
+      "anadir": {
+        "etiqueta": "Add a Moodle classroom",
+        "elige": "Select a classroom...",
+        "ayuda_one": "{{count}} Moodle classroom is not assigned to any program.",
+        "ayuda_other": "{{count}} Moodle classrooms are not assigned to any program.",
+        "sinDisponibles": "No Moodle classroom is left unassigned. Sync Moodle or release a course from another program.",
+        "boton": "Add to program"
+      },
+      "validacion": {
+        "sinCurso": "Select a classroom from the list first."
+      }
+    },
     "roles": {
       "titulo": "Roles & permissions",
       "descripcion": "Define what each role can see and change, and manage the panel accounts.",
@@ -1057,6 +1109,10 @@
       "sis": {
         "label": "SIS / Academic",
         "hint": "Records and terms"
+      },
+      "programs": {
+        "label": "Programs & courses",
+        "hint": "Which courses each program contains"
       },
       "calendar": {
         "label": "Calendar & classrooms",

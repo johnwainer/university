@@ -29,6 +29,7 @@ import { CalendarView } from './admin/views/CalendarView';
 import RolesView from './admin/views/RolesView';
 import OverviewView from './admin/views/OverviewView';
 import ReportsView from './admin/views/ReportsView';
+import ProgramsView from './admin/views/ProgramsView';
 import { useTranslation } from 'react-i18next';
 import { BRAND, BRAND_SHORT } from '../i18n';
 import type { AdminIdentity, PermissionLevel } from '../lib/api';
@@ -57,6 +58,7 @@ type PanelSection =
   | 'podcasts'
   | 'integrations'
   | 'sis'
+  | 'programs'
   | 'crm'
   | 'compliance'
   | 'cie'
@@ -70,7 +72,19 @@ type PanelSection =
 // La navegación del panel es datos, no dieciséis botones escritos a mano: el
 // armazón recorre esta tabla para pintar la barra lateral y para resolver el
 // título de la vista activa, así que añadir una sección es añadir una fila.
-type NavItem = { id: PanelSection; label: string; hint: string };
+type NavItem = {
+  id: PanelSection;
+  label: string;
+  hint: string;
+  /**
+   * Sección del servidor que gobierna esta entrada, cuando no coincide con su
+   * `id`. Casi siempre coinciden, pero una vista puede consumir rutas que el
+   * servidor ya protege bajo otra sección: entonces el permiso que decide si
+   * se muestra tiene que ser el de ESA sección, o el menú ofrecería una
+   * pantalla que el servidor responde con 403.
+   */
+  permiso?: string;
+};
 type NavGroup = { label: string; items: NavItem[] };
 
 /**
@@ -98,6 +112,14 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'admin.nav.grupos.academico',
     items: [
       { id: 'sis', label: 'admin.nav.sis.label', hint: 'admin.nav.sis.hint' },
+      {
+        id: 'programs',
+        label: 'admin.nav.programs.label',
+        hint: 'admin.nav.programs.hint',
+        // `/admin/degree-programs` ya cuelga de `sis` en el catálogo del
+        // servidor; no existe una sección 'programs' que pedirle.
+        permiso: 'sis'
+      },
       { id: 'calendar', label: 'admin.nav.calendar.label', hint: 'admin.nav.calendar.hint' },
       { id: 'compliance', label: 'admin.nav.compliance.label', hint: 'admin.nav.compliance.hint' }
     ]
@@ -303,6 +325,9 @@ export function AdminApp() {
   const puedeVer = (seccion: string) => nivelDe(seccion) !== 'none';
   const puedeEditar = (seccion: string) => nivelDe(seccion) === 'edit';
 
+  /** La sección cuyo permiso manda sobre una entrada del menú. */
+  const seccionDe = (item: NavItem) => item.permiso ?? item.id;
+
   /**
    * La barra lateral sólo muestra lo que la persona puede abrir, y los grupos
    * que se quedan sin entradas desaparecen enteros. Esto es presentación: el
@@ -311,7 +336,7 @@ export function AdminApp() {
    */
   const gruposVisibles = NAV_GROUPS.map((grupo) => ({
     ...grupo,
-    items: grupo.items.filter((item) => puedeVer(item.id))
+    items: grupo.items.filter((item) => puedeVer(seccionDe(item)))
   })).filter((grupo) => grupo.items.length > 0);
 
   const routeSummary = useMemo(() => {
@@ -1144,7 +1169,7 @@ export function AdminApp() {
                   onClick={() => setActiveSection(item.id)}
                 >
                   <span className="admin-nav-item-label">{t(item.label)}</span>
-                  {nivelDe(item.id) === 'view' ? (
+                  {nivelDe(seccionDe(item)) === 'view' ? (
                     <span className="admin-nav-solo-lectura" title={t('admin.nav.soloLecturaTitulo')}>
                       {t('admin.nav.soloLectura')}
                     </span>
@@ -1728,6 +1753,18 @@ export function AdminApp() {
 
           {activeSection === 'sis' ? (
             <SisView sessionToken={sessionToken} setError={setError} setInfo={setInfo} />
+          ) : null}
+
+          {/* Las rutas de composición cuelgan de `/admin/degree-programs`, que el
+              servidor asigna a la sección `sis`: el permiso que decide si esto
+              es editable tiene que ser el de `sis` o el panel ofrecería botones
+              que el servidor responde con 403. */}
+          {activeSection === 'programs' ? (
+            <ProgramsView
+              token={sessionToken}
+              puedeEditar={puedeEditar('sis')}
+              locale={i18n.language?.startsWith('en') ? 'en' : 'es'}
+            />
           ) : null}
 
           {activeSection === 'crm' ? (

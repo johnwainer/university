@@ -1,5 +1,4 @@
 import type {
-  ContentAsset,
   Entitlement,
   HomeResponse,
   Offer,
@@ -291,13 +290,78 @@ export type UserCoursesResponse = {
   moodleCourses: Array<Record<string, unknown>>;
 };
 
+/**
+ * Un curso dentro de un programa, tal y como lo devuelve el catálogo público.
+ *
+ * Los campos van en español porque es el nombre que les da la API; renombrarlos
+ * aquí obligaría a un mapeo en cada punto de lectura y a mantener dos
+ * vocabularios para la misma cosa.
+ *
+ * No hay identificador de Moodle y es deliberado del lado del servidor: sin él
+ * es imposible construir una ruta a un curso, de modo que el temario no puede
+ * volver a convertirse en una lista de enlaces por descuido.
+ */
+export type CursoDelPrograma = {
+  titulo: string;
+  tituloEn: string | null;
+  resumen: string | null;
+  resumenEn: string | null;
+  /** Módulos del aula. `null` cuando el aula aún no está montada: no se inventa. */
+  modulos: number | null;
+};
+
+/**
+ * El programa: la unidad que el sitio público navega y en la que el estudiante
+ * se matricula. Reemplaza a `ContentAsset` en catálogo, portada y ficha.
+ *
+ * Los cursos viajan dentro, en `courses`, y sólo como temario. Un estudiante no
+ * matriculado ve qué incluye el programa; no puede abrir ninguno de sus cursos.
+ */
+export type ProgramaPublico = {
+  id: string;
+  kind: 'program';
+  slug: string;
+  code: string;
+  title: string;
+  titleEn: string | null;
+  summary: string | null;
+  summaryEn: string | null;
+  heroImage: string | null;
+  /** El área del programa, p. ej. ["Ventas y Crecimiento de Ingresos"]. */
+  tags: string[];
+  language: string;
+  degreeLevel: string | null;
+  creditHours: number | null;
+  courseCount: number;
+  courses: CursoDelPrograma[];
+};
+
 export type CatalogContentDetailResponse = {
-  content: ContentAsset & Record<string, unknown>;
-  /** Índice público del aula: títulos de las semanas, sin materiales. */
+  /**
+   * Se conserva el nombre `content` porque es la clave que devuelve la API; lo
+   * que cambió es qué hay dentro, que ahora es un programa y no un curso.
+   */
+  content: ProgramaPublico;
+  /** El mismo programa bajo su nombre propio. */
+  program: ProgramaPublico;
+  /** Plan de ocho semanas del aula: títulos y cuántas actividades, sin materiales. */
   outline?: Array<{ week: number; title: string; activities: number }>;
   /** Programas de la misma área, para el bloque de programas similares. */
-  related?: Array<ContentAsset & Record<string, unknown>>;
+  related?: ProgramaPublico[];
   entitlement: Entitlement | null;
+};
+
+/**
+ * Portada.
+ *
+ * `featured`, `continueLearning` y `programs` son programas; `liveNow` sigue
+ * siendo contenido suelto, porque los seminarios en vivo sí son piezas
+ * individuales y no forman parte de ningún programa.
+ */
+export type PublicHomeResponse = Omit<HomeResponse, 'featured' | 'continueLearning'> & {
+  featured: ProgramaPublico[];
+  continueLearning: ProgramaPublico[];
+  programs: ProgramaPublico[];
 };
 
 export type MoodleCourseContentResponse = {
@@ -604,6 +668,39 @@ export type DegreeProgram = {
   department_name: string | null;
 };
 
+/**
+ * Un curso de Moodle tal como lo entrega la composicion del programa.
+ *
+ * El servidor lo devuelve ya en camelCase (lo construye con `json_build_object`),
+ * a diferencia del resto de filas de `moodle_courses`, que llegan en snake_case.
+ * Se respeta esa forma en vez de normalizarla para que el tipo describa lo que
+ * de verdad viaja por el cable.
+ */
+export type ProgramCourse = {
+  moodleCourseId: number;
+  shortName: string;
+  fullName: string;
+  visible: boolean;
+  sortOrder: number;
+};
+
+/** Un programa con los cursos que contiene, en el orden en que se cursan. */
+export type ProgramComposition = {
+  id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+  courses: ProgramCourse[];
+};
+
+/** Aula de Moodle que todavia no pertenece a ningun programa. */
+export type AvailableProgramCourse = {
+  moodle_course_id: number;
+  short_name: string;
+  full_name: string;
+  visible: boolean;
+};
+
 export type TranscriptRecord = {
   id: string;
   moodle_course_id: number;
@@ -723,11 +820,21 @@ export type ContactSubmitResponse = {
 };
 
 export const api = {
-  home: () => fetchJson<HomeResponse>('/v1/home'),
-  catalog: () => fetchJson<ContentAsset[]>('/v1/catalog'),
+  home: () => fetchJson<PublicHomeResponse>('/v1/home'),
+  catalog: () => fetchJson<ProgramaPublico[]>('/v1/catalog'),
+  /** Mismo catálogo de programas, pedido por su nombre propio. */
+  programsCatalog: () => fetchJson<ProgramaPublico[]>('/v1/programs/catalog'),
   webinars: () => fetchJson<WebinarRecord[]>('/v1/webinars'),
   podcasts: () => fetchJson<PodcastRecord[]>('/v1/podcasts'),
-  catalogBySlug: (slug: string) => fetchJson<CatalogContentDetailResponse>(`/v1/catalog/${encodeURIComponent(slug)}`),
+  /**
+   * El idioma viaja en la petición porque los títulos del plan de ocho semanas
+   * los traduce la API, no el front: sin pasarlo, la ficha mostraba el plan en
+   * español aunque el portal estuviera en inglés.
+   */
+  catalogBySlug: (slug: string, locale: 'es' | 'en' = 'es') =>
+    fetchJson<CatalogContentDetailResponse>(
+      `/v1/catalog/${encodeURIComponent(slug)}?locale=${encodeURIComponent(locale)}`
+    ),
   terms: () => fetchJson<AcademicTermRecord[]>('/v1/terms'),
   degrees: () => fetchJson<DegreeProgram[]>('/v1/degrees'),
   publicPrograms: (locale: 'es' | 'en') =>
@@ -1518,6 +1625,31 @@ export const api = {
     degreePrograms: (token: string) =>
       fetchJson<DegreeProgram[]>('/admin/degree-programs', { auth: { token } }),
     createDegreeProgram: (token: string, payload: { name: string; code: string; degreeLevel: string; departmentId?: string; creditHoursRequired?: number; description?: string }) =>
-      fetchJson<DegreeProgram>('/admin/degree-programs', { method: 'POST', auth: { token }, body: payload })
+      fetchJson<DegreeProgram>('/admin/degree-programs', { method: 'POST', auth: { token }, body: payload }),
+    programComposition: (token: string) =>
+      fetchJson<{ programs: ProgramComposition[] }>('/admin/degree-programs/composition', { auth: { token } }),
+    programAvailableCourses: (token: string) =>
+      fetchJson<{ courses: AvailableProgramCourse[] }>('/admin/degree-programs/available-courses', {
+        auth: { token }
+      }),
+    linkProgramCourse: (
+      token: string,
+      programId: string,
+      payload: { moodleCourseId: number; sortOrder?: number }
+    ) =>
+      fetchJson<{ linked: boolean }>(
+        `/admin/degree-programs/${encodeURIComponent(programId)}/courses`,
+        { method: 'POST', auth: { token }, body: payload }
+      ),
+    unlinkProgramCourse: (token: string, programId: string, moodleCourseId: number) =>
+      fetchJson<{ unlinked: boolean }>(
+        `/admin/degree-programs/${encodeURIComponent(programId)}/courses/${moodleCourseId}`,
+        { method: 'DELETE', auth: { token } }
+      ),
+    reorderProgramCourses: (token: string, programId: string, moodleCourseIds: number[]) =>
+      fetchJson<{ reordered: boolean }>(
+        `/admin/degree-programs/${encodeURIComponent(programId)}/courses/order`,
+        { method: 'PUT', auth: { token }, body: { moodleCourseIds } }
+      )
   }
 };

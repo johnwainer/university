@@ -4,18 +4,20 @@ import i18n from '../i18n';
 import {
   api,
   type CatalogContentDetailResponse,
+  type CursoDelPrograma,
+  type ProgramaPublico,
   type PublicCourseInteractionRecord,
   type LegalPageResponse,
   type SitePageSummary,
   type MoodleCourseContentResponse,
   type PublicCourseProgressRecord,
+  type PublicHomeResponse,
   type PublicMyCoursesResponse,
   type PublicSession,
   type WebinarRecord,
   type PodcastRecord,
   type EnterpriseOverviewResponse
 } from '../lib/api';
-import type { ContentAsset, HomeResponse } from '@atlas/shared';
 import { EnterpriseGroupManager } from './EnterpriseGroupManager';
 import { BRAND, BRAND_SHORT } from '../i18n';
 import { INSTITUTION_CONTACTS } from '../institution';
@@ -34,7 +36,17 @@ type ViewState =
   | { type: 'home' }
   | { type: 'catalog' }
   | { type: 'detail'; slug: string }
-  | { type: 'course'; slug: string }
+  /**
+   * Aula de un curso del estudiante.
+   *
+   * Se identifica por el id de Moodle y no por un slug porque al aula sólo se
+   * llega desde «Mis cursos», que es la lista de matrículas y sí trae el id. El
+   * sitio público ya no tiene slug de curso: el catálogo devuelve programas, y
+   * sus cursos viajan sin identificador justamente para que no exista una ruta
+   * por la que entrar a uno suelto. El título viaja con la vista porque es el
+   * de la matrícula; la API de contenido no lo devuelve.
+   */
+  | { type: 'course'; moodleCourseId: number; titulo: string }
   | { type: 'my-courses' }
   | { type: 'academics' }
   | { type: 'profile' }
@@ -66,7 +78,7 @@ type ContentRow = {
   id: string;
   title: string;
   subtitle?: string;
-  items: ContentAsset[];
+  items: ProgramaPublico[];
 };
 
 const DEFAULT_PROGRESS: CourseProgress = {
@@ -302,50 +314,27 @@ function isNavActive(view: ViewState, item: NavItem): boolean {
 const FOOTER_PAGE_SLUGS = ['terms', 'privacy', 'ferpa', 'title-ix', 'accessibility'];
 
 /**
- * Parte el resumen enriquecido de un programa en sus dos mitades.
+ * Elige el idioma de un programa y de los cursos de su temario.
  *
- * El `summaryHtml` del catálogo trae, en este orden: el lema, la entradilla,
- * un título «Lo que aprenderás y practicarás» y la lista de competencias.
- * La ficha las presenta como dos secciones distintas, así que aquí se corta
- * por la lista: lo de antes es el «sobre el programa» y la lista es lo que se
- * practica. Si un programa no trae lista, todo el texto va a la primera y la
- * segunda sección no se pinta.
- *
- * Se corta con un índice de cadena y no con una expresión regular glotona
- * porque el HTML viene del repositorio versionado y su forma es conocida.
+ * Se resuelve aquí y no en la plantilla porque el programa se pinta en cuatro
+ * sitios (portada, catálogo, ficha y bloque de similares) y en cada uno habría
+ * que repetir el `?? `: basta con que uno se olvide para que una tarjeta salga
+ * a medio traducir. Cuando no hay versión inglesa se deja el español, que es
+ * contenido real, antes que un hueco.
  */
-function splitProgramHtml(html: string | undefined): { about: string; practice: string } {
-  if (!html) {
-    return { about: '', practice: '' };
+function localizarPrograma(programa: ProgramaPublico, lang: string): ProgramaPublico {
+  if (lang !== 'en') {
+    return programa;
   }
-  const listaInicio = html.indexOf('<ul>');
-  if (listaInicio === -1) {
-    return { about: html, practice: '' };
-  }
-  let cabeza = html.slice(0, listaInicio);
-  // El párrafo que anuncia la lista se queda con la lista, no con el resumen.
-  const anuncio = cabeza.lastIndexOf('<p><strong>');
-  if (anuncio !== -1 && cabeza.slice(anuncio).length < 120) {
-    cabeza = cabeza.slice(0, anuncio);
-  }
-  return { about: cabeza, practice: html.slice(listaInicio) };
-}
-
-function localizeAsset(item: ContentAsset, lang: string): ContentAsset {
-  if (lang !== 'en' || !item.titleEn) {
-    return item;
-  }
-  // La categoría también se traduce: es la etiqueta más visible de la tarjeta y
-  // antes se quedaba en español aunque el resto del portal estuviera en inglés.
-  // `tags[0]` es la categoría, y es de donde tira el filtro del catálogo.
-  const categoryEn = item.categoryNameEn ?? item.categoryName;
   return {
-    ...item,
-    title: item.titleEn,
-    summary: item.summaryEn ?? item.summary,
-    summaryHtml: item.summaryHtmlEn ?? item.summaryHtml,
-    categoryName: categoryEn,
-    tags: categoryEn && item.tags.length > 0 ? [categoryEn, ...item.tags.slice(1)] : item.tags
+    ...programa,
+    title: programa.titleEn ?? programa.title,
+    summary: programa.summaryEn ?? programa.summary,
+    courses: programa.courses.map((curso) => ({
+      ...curso,
+      titulo: curso.tituloEn ?? curso.titulo,
+      resumen: curso.resumenEn ?? curso.resumen
+    }))
   };
 }
 
@@ -370,11 +359,6 @@ function categoryAccentKey(label: string): string {
   return CATEGORY_ACCENTS.find((entry) => entry.match.test(label))?.key ?? 'neutral';
 }
 
-/**
- * Las horas son el dato que más piden los compradores corporativos y el que el
- * sitio de Peregrine pone junto al nombre de cada programa. `durationMinutes`
- * viene en minutos porque es el campo común a todos los tipos de contenido.
- */
 /**
  * Los eventos en vivo guardan su traducción en columnas aparte (title_en, ...).
  * La API las devuelve con COALESCE sobre el español, así que aquí basta con
@@ -412,23 +396,7 @@ function webinarWhen(webinar: WebinarRecord, lang: string): string {
   }
 }
 
-function durationLabel(item: ContentAsset, lang: string): string | null {
-  const minutes = item.durationMinutes;
-  if (!minutes || minutes <= 0) {
-    return null;
-  }
-  if (minutes % 60 === 0) {
-    const hours = minutes / 60;
-    return lang === 'en' ? `${hours} h` : `${hours} h`;
-  }
-  return lang === 'en' ? `${minutes} min` : `${minutes} min`;
-}
-
-function ContentBadge({ kind }: { kind: ContentAsset['kind'] }) {
-  return <span className={`public-badge kind-${kind}`}>{kind.toUpperCase()}</span>;
-}
-
-function normalizeCourseLabel(value: string): string {
+function normalizarEtiquetaArea(value: string): string {
   const trimmed = value.trim();
   const normalized = trimmed
     .normalize('NFD')
@@ -443,21 +411,17 @@ function normalizeCourseLabel(value: string): string {
   return trimmed;
 }
 
-function getCourseCategoryLabel(item: ContentAsset): string {
-  if (item.kind !== 'course') {
-    return item.kind.toUpperCase();
-  }
-  const asCourse = item as unknown as { categoryName?: string };
-  if (asCourse.categoryName && asCourse.categoryName.trim()) {
-    return normalizeCourseLabel(asCourse.categoryName);
-  }
-  const fallback = item.tags.find((tag) => !['course', 'moodle', 'synced'].includes(tag.toLowerCase()));
-  return fallback ? normalizeCourseLabel(fallback) : 'Sin categoría';
-}
-
-function getAssetMoodleCourseId(item: ContentAsset): number | null {
-  const value = Number((item as unknown as { moodleCourseId?: string | number }).moodleCourseId);
-  return Number.isInteger(value) && value > 0 ? value : null;
+/**
+ * El área del programa: `tags[0]`, que es de donde tira el filtro del catálogo.
+ *
+ * El área viene del primer curso del programa en Moodle, así que un programa
+ * cuyas aulas no estén categorizadas puede llegar sin ella. Se devuelve cadena
+ * vacía en ese caso y quien la pinta la omite, en vez de escribir «Sin
+ * categoría» en la tarjeta, que es texto que nadie ha decidido mostrar.
+ */
+function areaDelPrograma(programa: ProgramaPublico): string {
+  const area = programa.tags.find((tag) => tag.trim().length > 0);
+  return area ? normalizarEtiquetaArea(area) : '';
 }
 
 function isMoodleProtectedFileUrl(url: string): boolean {
@@ -642,28 +606,34 @@ function PasswordToggleIcon({ visible }: { visible: boolean }) {
   );
 }
 
-function ContentCard({
-  item,
-  onOpen,
-  lang
+/**
+ * Tarjeta de programa de las filas de la portada.
+ *
+ * Abre la ficha del programa, nunca un curso: los cursos de un programa no
+ * tienen página propia. Bajo el nombre indica cuántos cursos incluye, que es
+ * lo que antes ocupaban las horas del curso.
+ */
+function TarjetaPrograma({
+  programa,
+  onAbrir,
+  etiquetaCursos
 }: {
-  item: ContentAsset;
-  onOpen: (item: ContentAsset) => void;
-  lang: string;
+  programa: ProgramaPublico;
+  onAbrir: (programa: ProgramaPublico) => void;
+  etiquetaCursos: (total: number) => string;
 }) {
-  const category = getCourseCategoryLabel(item);
-  const duration = durationLabel(item, lang);
+  const area = areaDelPrograma(programa);
   return (
     <button
       className="content-tile"
-      data-accent={categoryAccentKey(category)}
-      onClick={() => onOpen(item)}
+      data-accent={categoryAccentKey(area)}
+      onClick={() => onAbrir(programa)}
     >
-      <img src={item.heroImage} alt={item.title} loading="lazy" />
+      {programa.heroImage ? <img src={programa.heroImage} alt={programa.title} loading="lazy" /> : null}
       <div className="tile-overlay">
-        <span className="category-chip">{category}</span>
-        <h4>{item.title}</h4>
-        {duration ? <p className="tile-meta">{duration}</p> : null}
+        {area ? <span className="category-chip">{area}</span> : null}
+        <h4>{programa.title}</h4>
+        {programa.courseCount > 0 ? <p className="tile-meta">{etiquetaCursos(programa.courseCount)}</p> : null}
       </div>
     </button>
   );
@@ -674,15 +644,14 @@ export function PublicApp() {
   const currentLang = i18nInstance.language?.startsWith('en') ? 'en' : 'es';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [home, setHome] = useState<HomeResponse | null>(null);
-  const [catalog, setCatalog] = useState<ContentAsset[]>([]);
+  const [home, setHome] = useState<PublicHomeResponse | null>(null);
+  const [catalog, setCatalog] = useState<ProgramaPublico[]>([]);
   const [webinars, setWebinars] = useState<WebinarRecord[]>([]);
   const [podcasts, setPodcasts] = useState<PodcastRecord[]>([]);
   const [view, setView] = useState<ViewState>({ type: 'home' });
   const [search, setSearch] = useState('');
   const [catalogGroupFilter, setCatalogGroupFilter] = useState('all');
-  const [catalogEnrollmentFilter, setCatalogEnrollmentFilter] = useState<'all' | 'enrolled' | 'not-enrolled'>('all');
-  const [catalogSort, setCatalogSort] = useState<'default' | 'newest' | 'az'>('default');
+  const [catalogSort, setCatalogSort] = useState<'default' | 'az'>('default');
   const [catalogVisibleCount, setCatalogVisibleCount] = useState(24);
 
   const [publicSession, setPublicSession] = useState<PublicSession | null>(() => {
@@ -695,7 +664,6 @@ export function PublicApp() {
   });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
-  const [pendingCourseSlug, setPendingCourseSlug] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [registerForm, setRegisterForm] = useState({
@@ -871,22 +839,25 @@ export function PublicApp() {
     });
   }, [publicSession?.user.fullName, publicSession?.user.email, publicSession?.user.locale, publicSession]);
 
-  const localizedCatalog = useMemo(
-    () => catalog.map((item) => localizeAsset(item, currentLang)),
+  const programasLocalizados = useMemo(
+    () => catalog.map((programa) => localizarPrograma(programa, currentLang)),
     [catalog, currentLang]
   );
 
+  /**
+   * Plural de «curso» para las tarjetas. Se envuelve aquí porque lo piden la
+   * tarjeta de portada, la del catálogo y la de programas similares, y así el
+   * contador de cursos se escribe en un solo sitio.
+   */
+  const etiquetaCursosIncluidos = (total: number) => t('catalog.includesCourses', { count: total });
+
   const heroItems = useMemo(() => {
-    if (!home) {
-      return [] as ContentAsset[];
+    if (!home || programasLocalizados.length === 0) {
+      return [] as ProgramaPublico[];
     }
-    const courseItems = localizedCatalog.filter((item) => item.kind === 'course');
-    if (courseItems.length === 0) {
-      return [] as ContentAsset[];
-    }
-    const shuffled = [...courseItems].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 5);
-  }, [home, localizedCatalog]);
+    const mezclados = [...programasLocalizados].sort(() => Math.random() - 0.5);
+    return mezclados.slice(0, 5);
+  }, [home, programasLocalizados]);
 
   useEffect(() => {
     setHeroIndex(0);
@@ -905,26 +876,24 @@ export function PublicApp() {
   const activeHero = heroItems[heroIndex] ?? null;
 
   useEffect(() => {
-    if (view.type !== 'detail' && view.type !== 'course') {
+    if (view.type !== 'detail') {
       setSelectedDetail(null);
       return;
     }
 
-    const loadDetail = async () => {
+    const cargarFicha = async () => {
       setLoadingDetail(true);
       setError(null);
       try {
-        const detail = await api.catalogBySlug(view.slug);
-        // La ficha se pide por su cuenta, fuera del catálogo, así que no pasaba
-        // por localizeAsset: el portal salía en inglés y el programa en español.
+        // El idioma va en la petición porque el plan de ocho semanas lo traduce
+        // la API; el resto del programa se localiza aquí.
+        const detail = await api.catalogBySlug(view.slug, currentLang);
+        const programa = localizarPrograma(detail.program ?? detail.content, currentLang);
         setSelectedDetail({
           ...detail,
-          // El tipo de la respuesta lleva Record<string, unknown> para los
-          // campos extra del payload (moodleCourseId, categoryName...), y
-          // localizeAsset devuelve el ContentAsset estricto; el cast reconstruye
-          // ese índice sin perder ninguno de los campos extra, que se copian en
-          // el spread de dentro.
-          content: localizeAsset(detail.content, currentLang) as typeof detail.content
+          content: programa,
+          program: programa,
+          related: (detail.related ?? []).map((item) => localizarPrograma(item, currentLang))
         });
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : 'Error cargando detalle');
@@ -933,21 +902,20 @@ export function PublicApp() {
       }
     };
 
-    void loadDetail();
+    void cargarFicha();
   }, [view, currentLang]);
 
   useEffect(() => {
+    // Al aula sólo se llega desde «Mis cursos», que ya exige sesión; si la
+    // sesión caducó mientras el aula estaba abierta, se pide de nuevo.
     if (view.type !== 'course' || publicSession?.token) {
       return;
-    }
-    if (pendingCourseSlug !== view.slug) {
-      setPendingCourseSlug(view.slug);
     }
     if (!showAuthModal) {
       setAuthMode('login');
       setShowAuthModal(true);
     }
-  }, [view, publicSession?.token, pendingCourseSlug, showAuthModal]);
+  }, [view, publicSession?.token, showAuthModal]);
 
   const loadMyCourses = async (token: string) => {
     setMyCoursesLoading(true);
@@ -1029,9 +997,16 @@ export function PublicApp() {
     void loadPage();
   }, [view, currentLang, sitePages]);
 
+  /**
+   * Curso del aula abierta. Sale de la vista y no de la ficha del programa:
+   * la ficha es pública y sus cursos no llevan identificador de Moodle, así
+   * que la única fuente del id es la matrícula con la que se abrió el aula.
+   */
+  const cursoAbiertoId = view.type === 'course' ? view.moodleCourseId : null;
+
   useEffect(() => {
-    const moodleCourseId = Number(selectedDetail?.content?.moodleCourseId);
-    if (!selectedDetail || !Number.isInteger(moodleCourseId) || moodleCourseId <= 0) {
+    const moodleCourseId = Number(cursoAbiertoId);
+    if (!Number.isInteger(moodleCourseId) || moodleCourseId <= 0) {
       setCourseContent(null);
       setCourseContentError(null);
       setActiveModuleId(null);
@@ -1074,10 +1049,12 @@ export function PublicApp() {
       } catch (reason) {
         const message = reason instanceof Error ? reason.message : 'Error cargando contenido del curso';
         setCourseContentError(message);
-        if (message.includes('401') && selectedDetail?.content?.slug) {
+        if (message.includes('401')) {
+          // La sesión caducó dentro del aula: se limpia y se vuelve a pedir.
           setPublicSession(null);
           localStorage.removeItem(PUBLIC_SESSION_STORAGE);
-          requestAuthForCourse(selectedDetail.content.slug);
+          setAuthMode('login');
+          setShowAuthModal(true);
         }
       } finally {
         setLoadingCourseContent(false);
@@ -1085,71 +1062,58 @@ export function PublicApp() {
     };
 
     void loadCourseContent();
-  }, [selectedDetail, publicSession?.token]);
+  }, [cursoAbiertoId, publicSession?.token]);
 
-  const filteredCatalog = useMemo(() => {
+  /**
+   * La búsqueda mira también los cursos del temario: alguien que busca
+   * «objeciones» espera encontrar el programa que lo enseña, aunque esa palabra
+   * sólo aparezca en el nombre de uno de sus cursos y no en el del programa.
+   */
+  const programasFiltrados = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) {
-      return localizedCatalog;
+      return programasLocalizados;
     }
-    return localizedCatalog.filter((item) => {
+    return programasLocalizados.filter((programa) => {
       return (
-        item.title.toLowerCase().includes(query) ||
-        toPlainText(item.summary).toLowerCase().includes(query) ||
-        item.tags.some((tag) => tag.toLowerCase().includes(query))
+        programa.title.toLowerCase().includes(query) ||
+        toPlainText(programa.summary ?? '').toLowerCase().includes(query) ||
+        programa.tags.some((tag) => tag.toLowerCase().includes(query)) ||
+        programa.courses.some(
+          (curso) =>
+            curso.titulo.toLowerCase().includes(query) ||
+            toPlainText(curso.resumen ?? '').toLowerCase().includes(query)
+        )
       );
     });
-  }, [localizedCatalog, search]);
+  }, [programasLocalizados, search]);
 
-  const catalogGroups = useMemo(() => {
+  /** Las áreas presentes en el catálogo, para el filtro. */
+  const areasDelCatalogo = useMemo(() => {
     const values = new Set<string>();
-    for (const item of localizedCatalog) {
-      values.add(getCourseCategoryLabel(item));
+    for (const programa of programasLocalizados) {
+      const area = areaDelPrograma(programa);
+      if (area) {
+        values.add(area);
+      }
     }
     return [...values].sort((a, b) => a.localeCompare(b, 'es'));
-  }, [localizedCatalog]);
+  }, [programasLocalizados]);
 
   const catalogViewItems = useMemo(() => {
-    const enrolledIds = new Set<number>(
-      (myCourses?.localCourses ?? [])
-        .filter((course) => String(course.status) === 'active')
-        .map((course) => Number(course.moodle_course_id))
-        .filter((courseId) => Number.isInteger(courseId) && courseId > 0)
+    const filtered = programasFiltrados.filter(
+      (programa) => catalogGroupFilter === 'all' || areaDelPrograma(programa) === catalogGroupFilter
     );
 
-    const filtered = filteredCatalog.filter((item) => {
-      if (catalogGroupFilter !== 'all' && getCourseCategoryLabel(item) !== catalogGroupFilter) {
-        return false;
-      }
-
-      if (item.kind === 'course' && catalogEnrollmentFilter !== 'all') {
-        const moodleCourseId = getAssetMoodleCourseId(item);
-        const isEnrolled = Boolean(moodleCourseId && enrolledIds.has(moodleCourseId));
-        if (catalogEnrollmentFilter === 'enrolled' && !isEnrolled) {
-          return false;
-        }
-        if (catalogEnrollmentFilter === 'not-enrolled' && isEnrolled) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    const withIndex = filtered.map((item, index) => ({ item, index }));
+    const withIndex = filtered.map((programa, index) => ({ programa, index }));
     withIndex.sort((a, b) => {
       if (catalogSort === 'az') {
-        return a.item.title.localeCompare(b.item.title, 'es');
-      }
-      if (catalogSort === 'newest') {
-        const aDateRaw = Number((a.item as unknown as { updatedAt?: string; moodleCourseId?: string }).moodleCourseId ?? 0);
-        const bDateRaw = Number((b.item as unknown as { updatedAt?: string; moodleCourseId?: string }).moodleCourseId ?? 0);
-        return bDateRaw - aDateRaw;
+        return a.programa.title.localeCompare(b.programa.title, 'es');
       }
       return a.index - b.index;
     });
-    return withIndex.map((entry) => entry.item);
-  }, [filteredCatalog, catalogGroupFilter, catalogEnrollmentFilter, catalogSort, myCourses]);
+    return withIndex.map((entry) => entry.programa);
+  }, [programasFiltrados, catalogGroupFilter, catalogSort]);
 
   const catalogShownItems = useMemo(
     () => catalogViewItems.slice(0, Math.max(1, catalogVisibleCount)),
@@ -1158,40 +1122,37 @@ export function PublicApp() {
 
   useEffect(() => {
     setCatalogVisibleCount(24);
-  }, [search, catalogGroupFilter, catalogEnrollmentFilter, catalogSort]);
+  }, [search, catalogGroupFilter, catalogSort]);
 
   const rows = useMemo<ContentRow[]>(() => {
     if (!home) {
       return [];
     }
 
-    const courseItems = localizedCatalog.filter((item) => item.kind === 'course');
-    const liveItems = localizedCatalog.filter((item) => item.kind === 'live');
-
-    const categoryCounter = new Map<string, ContentAsset[]>();
-    for (const course of courseItems) {
-      const category = getCourseCategoryLabel(course).trim();
-      if (!category) {
+    const porArea = new Map<string, ProgramaPublico[]>();
+    for (const programa of programasLocalizados) {
+      const area = areaDelPrograma(programa);
+      if (!area) {
         continue;
       }
-      if (!categoryCounter.has(category)) {
-        categoryCounter.set(category, []);
+      if (!porArea.has(area)) {
+        porArea.set(area, []);
       }
-      categoryCounter.get(category)?.push(course);
+      porArea.get(area)?.push(programa);
     }
 
-    const categoryRows = [...categoryCounter.entries()]
+    const filasPorArea = [...porArea.entries()]
       .sort((a, b) => b[1].length - a[1].length)
-      .map(([category, items]) => ({
-        id: toCategoryRowId(category),
-        title: normalizeCourseLabel(category),
+      .map(([area, items]) => ({
+        id: toCategoryRowId(area),
+        title: area,
         items
       }));
 
-    const bestSellersRow = categoryRows.find((row) => row.title === 'Más vendidos');
-    const categoryRowsOrdered = categoryRows.filter((row) => row.title !== 'Más vendidos');
-    if (bestSellersRow) {
-      categoryRowsOrdered.push(bestSellersRow);
+    const filaMasVendidos = filasPorArea.find((row) => row.title === 'Más vendidos');
+    const filasOrdenadas = filasPorArea.filter((row) => row.title !== 'Más vendidos');
+    if (filaMasVendidos) {
+      filasOrdenadas.push(filaMasVendidos);
     }
 
     const base: ContentRow[] = [
@@ -1201,19 +1162,19 @@ export function PublicApp() {
         subtitle: t('home.continueLearningSubtitle'),
         items:
           home.continueLearning.length > 0
-            ? home.continueLearning.map((item) => localizeAsset(item, currentLang))
-            : courseItems
+            ? home.continueLearning.map((programa) => localizarPrograma(programa, currentLang))
+            : programasLocalizados
       },
       {
-        id: 'all-courses',
-        title: t('home.allCourses'),
-        subtitle: t('home.allCoursesSubtitle'),
-        items: courseItems
+        id: 'all-programs',
+        title: t('home.allPrograms'),
+        subtitle: t('home.allProgramsSubtitle'),
+        items: programasLocalizados
       }
     ];
 
-    return [...base, ...categoryRowsOrdered].filter((row) => row.items.length > 0);
-  }, [home, localizedCatalog, t]);
+    return [...base, ...filasOrdenadas].filter((row) => row.items.length > 0);
+  }, [home, programasLocalizados, currentLang, t]);
 
   const topMenuCategories = useMemo(() => {
     return rows
@@ -1221,17 +1182,24 @@ export function PublicApp() {
       .map((row) => ({ id: row.id, title: row.title }));
   }, [rows]);
 
-  const enrolledCourseIds = useMemo(() => {
-    const ids = (myCourses?.localCourses ?? [])
-      .filter((course) => String(course.status) === 'active')
-      .map((course) => Number(course.moodle_course_id))
-      .filter((courseId) => Number.isInteger(courseId) && courseId > 0);
-    return new Set<number>(ids);
+  /**
+   * Los cursos del estudiante salen de sus matrículas, no del catálogo público.
+   *
+   * Antes se cruzaba la matrícula con el catálogo para sacar la portada y el
+   * título de cada curso. Ya no se puede ni se debe: el catálogo devuelve
+   * programas y sus cursos no llevan identificador de Moodle. La matrícula trae
+   * el nombre del aula, que es el dato autoritativo de todas formas.
+   */
+  const misCursos = useMemo(() => {
+    return (myCourses?.localCourses ?? [])
+      .filter((curso) => String(curso.status) === 'active')
+      .map((curso) => ({
+        moodleCourseId: Number(curso.moodle_course_id),
+        titulo: curso.full_name ?? curso.short_name ?? '',
+        matriculadoEn: curso.enrolled_at
+      }))
+      .filter((curso) => Number.isInteger(curso.moodleCourseId) && curso.moodleCourseId > 0);
   }, [myCourses]);
-
-  const myCourseItems = useMemo(() => {
-    return localizedCatalog.filter((item) => item.kind === 'course' && enrolledCourseIds.has(getAssetMoodleCourseId(item) ?? -1));
-  }, [localizedCatalog, enrolledCourseIds]);
 
   const flatModules = useMemo<FlatModule[]>(() => {
     if (!courseContent?.available) {
@@ -1310,33 +1278,19 @@ export function PublicApp() {
     return flatModules.findIndex((row) => row.module.id === activeModuleId);
   }, [flatModules, activeModuleId]);
 
-  const currentCourseId = Number(selectedDetail?.content?.moodleCourseId);
-  const isCurrentCourseAssigned =
-    Number.isInteger(currentCourseId) && currentCourseId > 0 ? enrolledCourseIds.has(currentCourseId) : false;
-  const isPreviewOnly = view.type === 'course' && !isCurrentCourseAssigned;
-  const firstModuleId = flatModules[0]?.module.id ?? null;
-  const isModuleLocked = (moduleId: number) => Boolean(isPreviewOnly && firstModuleId !== null && moduleId !== firstModuleId);
+  /*
+   * Ya no hay modo preview.
+   *
+   * Existía para quien llegaba al aula sin matrícula: le abría el primer módulo
+   * y candaba el resto. Al aula sólo se llega desde «Mis cursos», que son las
+   * matrículas activas, y la API responde 403 a cualquier otro; un visitante no
+   * puede entrar a un curso suelto, así que no queda nadie a quien mostrarle
+   * media aula.
+   */
 
   useEffect(() => {
-    if (!isPreviewOnly) {
-      return;
-    }
-    setProgress({ ...DEFAULT_PROGRESS });
-  }, [isPreviewOnly, currentCourseId]);
-
-  useEffect(() => {
-    if (!isPreviewOnly || !firstModuleId) {
-      return;
-    }
-    if (activeModuleId !== firstModuleId) {
-      setActiveModuleId(firstModuleId);
-      setActiveFileUrl(null);
-    }
-  }, [isPreviewOnly, firstModuleId, activeModuleId]);
-
-  useEffect(() => {
-    const moodleCourseId = Number(selectedDetail?.content?.moodleCourseId);
-    if (!Number.isInteger(moodleCourseId) || moodleCourseId <= 0 || flatModules.length === 0 || isPreviewOnly) {
+    const moodleCourseId = Number(cursoAbiertoId);
+    if (!Number.isInteger(moodleCourseId) || moodleCourseId <= 0 || flatModules.length === 0) {
       return;
     }
     const next = {
@@ -1344,7 +1298,7 @@ export function PublicApp() {
       totalModules: flatModules.length
     };
     persistProgress(next);
-  }, [flatModules.length, selectedDetail?.content?.moodleCourseId, isPreviewOnly]);
+  }, [flatModules.length, cursoAbiertoId]);
 
   const completedCount = progress.completedModuleIds.filter((id) => flatModules.some((row) => row.module.id === id)).length;
   const progressPercent = flatModules.length > 0 ? Math.round((completedCount / flatModules.length) * 100) : 0;
@@ -1400,9 +1354,6 @@ export function PublicApp() {
   }, [victoryState]);
 
   const persistProgress = (next: CourseProgress) => {
-    if (isPreviewOnly) {
-      return;
-    }
     const totalModules = Math.max(next.totalModules, flatModules.length);
     const progressPercent = totalModules > 0 ? Math.min(100, Math.round((next.completedModuleIds.length / totalModules) * 100)) : 0;
     const normalized = {
@@ -1410,7 +1361,7 @@ export function PublicApp() {
       totalModules,
       progressPercent
     };
-    const moodleCourseId = Number(selectedDetail?.content?.moodleCourseId);
+    const moodleCourseId = Number(cursoAbiertoId);
     setProgress(normalized);
     if (Number.isInteger(moodleCourseId) && moodleCourseId > 0) {
       setProgressByCourseId((current) => ({
@@ -1424,30 +1375,23 @@ export function PublicApp() {
     }
   };
 
-  const requestAuthForCourse = (slug: string) => {
-    setPendingCourseSlug(slug);
-    setAuthMode('login');
-    setShowAuthModal(true);
+  /**
+   * Abrir un programa es abrir su ficha, y nunca nada más.
+   *
+   * Antes esta función saltaba al aula del curso cuando había sesión abierta.
+   * Ya no existe ese salto: el programa es lo que se navega, y a los cursos
+   * sólo se entra desde «Mis cursos», que son las matrículas.
+   */
+  const abrirPrograma = (programa: ProgramaPublico) => {
+    setView({ type: 'detail', slug: programa.slug });
   };
 
-  const openItem = (item: ContentAsset) => {
-    // Un curso llevaba directo al modal de registro, así que un visitante no
-    // podía leer de qué iba el programa sin antes crear una cuenta: la ficha
-    // pública existía y no se alcanzaba nunca. Ahora todo pasa por ella, que ya
-    // trae el botón de entrar con su propia comprobación de sesión; el salto
-    // directo al aula se mantiene para quien ya tiene sesión abierta.
-    if (item.kind === 'course' && publicSession?.token) {
-      setView({ type: 'course', slug: item.slug });
-      return;
-    }
-    setView({ type: 'detail', slug: item.slug });
+  /** Entrar al aula de un curso matriculado. Sólo se llama desde «Mis cursos». */
+  const abrirAula = (moodleCourseId: number, titulo: string) => {
+    setView({ type: 'course', moodleCourseId, titulo });
   };
 
   const markModuleComplete = async () => {
-    if (isPreviewOnly) {
-      setInteractionMessage(t('course.previewNoSave'));
-      return;
-    }
     if (!activeModule) {
       return;
     }
@@ -1461,7 +1405,7 @@ export function PublicApp() {
       lastActivityAt: new Date().toISOString()
     };
     persistProgress(next);
-    const moodleCourseId = Number(selectedDetail?.content?.moodleCourseId);
+    const moodleCourseId = Number(cursoAbiertoId);
     if (!publicSession?.token || !Number.isInteger(moodleCourseId) || moodleCourseId <= 0) {
       setInteractionMessage('Módulo completado. +50 XP');
       return;
@@ -1492,14 +1436,10 @@ export function PublicApp() {
   };
 
   const onSubmitInteraction = async () => {
-    if (isPreviewOnly) {
-      setInteractionMessage('El modo preview no guarda actividades. Desbloquea el curso para continuar.');
-      return;
-    }
     if (!activeModule || !interactionText.trim() || !publicSession?.token) {
       return;
     }
-    const moodleCourseId = Number(selectedDetail?.content?.moodleCourseId);
+    const moodleCourseId = Number(cursoAbiertoId);
     if (!Number.isInteger(moodleCourseId) || moodleCourseId <= 0) {
       return;
     }
@@ -1546,7 +1486,7 @@ export function PublicApp() {
       } else {
         persistProgress(next);
       }
-      const moodleCourseIdNum = Number(selectedDetail?.content?.moodleCourseId);
+      const moodleCourseIdNum = Number(cursoAbiertoId);
       if (publicSession?.token && Number.isInteger(moodleCourseIdNum) && moodleCourseIdNum > 0) {
         try {
           const latest = await api.courseInteractions(moodleCourseIdNum, publicSession.token);
@@ -1570,10 +1510,6 @@ export function PublicApp() {
     }
     const nextIndex = activeModuleIndex + direction;
     if (nextIndex < 0 || nextIndex >= flatModules.length) {
-      return;
-    }
-    if (isModuleLocked(flatModules[nextIndex].module.id)) {
-      setInteractionMessage(t('course.moduleLocked'));
       return;
     }
     setActiveModuleId(flatModules[nextIndex].module.id);
@@ -1616,7 +1552,6 @@ export function PublicApp() {
       localStorage.setItem(PUBLIC_SESSION_STORAGE, JSON.stringify(session));
       void hydrateAuthenticatedData(session);
       setShowAuthModal(false);
-      setPendingCourseSlug(null);
       setView({ type: 'home' });
     } catch (reason) {
       setAuthError(reason instanceof Error ? reason.message : 'No se pudo registrar');
@@ -1650,7 +1585,6 @@ export function PublicApp() {
       localStorage.setItem(PUBLIC_SESSION_STORAGE, JSON.stringify(session));
       void hydrateAuthenticatedData(session);
       setShowAuthModal(false);
-      setPendingCourseSlug(null);
       setView({ type: 'home' });
     } catch (reason) {
       setAuthError(reason instanceof Error ? reason.message : 'No se pudo iniciar sesión');
@@ -1908,6 +1842,14 @@ export function PublicApp() {
   const bestSellersRowIndex = rows.findIndex((row) => row.title === 'Más vendidos');
   const rowsBeforeBestSellers = bestSellersRowIndex >= 0 ? rows.slice(1, bestSellersRowIndex) : rows.slice(1);
   const rowsFromBestSellers = bestSellersRowIndex >= 0 ? rows.slice(bestSellersRowIndex) : [];
+  /**
+   * Cursos que el departamento tiene habilitados pero desactivados.
+   *
+   * Es la única lista de cursos con id de Moodle a la que el portal público
+   * tiene acceso legítimo, y sólo la ve el representante de la empresa sobre
+   * los cursos de su propio departamento.
+   */
+  const cursosDepartamentoInactivos = (enterpriseOverview?.courseAccess ?? []).filter((curso) => !curso.is_active);
   const enterpriseAvailable = Boolean(enterpriseOverview?.available);
   const enterpriseIsRepresentative = enterpriseOverview?.role === 'representative';
   return (
@@ -2116,7 +2058,7 @@ export function PublicApp() {
           {activeHero ? (
             <section
               className="hero hero-netflix"
-              data-accent={categoryAccentKey(getCourseCategoryLabel(activeHero))}
+              data-accent={categoryAccentKey(areaDelPrograma(activeHero))}
             >
               {/* Una capa por diapositiva, encadenadas por opacidad.
                   Antes la imagen era el fondo de la propia sección y cambiarla
@@ -2134,16 +2076,19 @@ export function PublicApp() {
               <div className="hero-backdrop" />
               <div className="hero-content">
                 <div className="hero-meta-row">
-                  <ContentBadge kind={activeHero.kind} />
-                  <span className="category-chip">{getCourseCategoryLabel(activeHero)}</span>
-                  {durationLabel(activeHero, currentLang) ? (
-                    <span className="hero-duration">{durationLabel(activeHero, currentLang)}</span>
+                  <span className="public-badge kind-program">{t('badges.program')}</span>
+                  {areaDelPrograma(activeHero) ? (
+                    <span className="category-chip">{areaDelPrograma(activeHero)}</span>
+                  ) : null}
+                  {activeHero.courseCount > 0 ? (
+                    <span className="hero-duration">{etiquetaCursosIncluidos(activeHero.courseCount)}</span>
                   ) : null}
                 </div>
                 <h1>{activeHero.title}</h1>
-                <p>{snippet(activeHero.summary, activeHero.title, 260)}</p>
+                <p>{snippet(activeHero.summary ?? '', activeHero.title, 260)}</p>
                 <div className="hero-actions">
-                  <button onClick={() => openItem(activeHero)}>{activeHero.kind === 'course' ? t('hero.enterCourse') : t('hero.watchNow')}</button>
+                  {/* Lleva a la ficha del programa, que es lo que se navega. */}
+                  <button onClick={() => abrirPrograma(activeHero)}>{t('hero.viewProgram')}</button>
                   <button className="ghost-btn" onClick={() => setView({ type: 'catalog' })}>
                     {t('hero.exploreCatalog')}
                   </button>
@@ -2212,7 +2157,7 @@ export function PublicApp() {
                 </button>
               </div>
               {myCoursesLoading ? <p>{t('home.loadingCourses')}</p> : null}
-              {!myCoursesLoading && myCourseItems.length === 0 ? (
+              {!myCoursesLoading && misCursos.length === 0 ? (
                 <div className="my-courses-empty">
                   <p>{t('home.noCoursesEnrolled')}</p>
                   <button className="go-course-btn" onClick={() => setView({ type: 'catalog' })}>
@@ -2220,16 +2165,13 @@ export function PublicApp() {
                   </button>
                 </div>
               ) : null}
-              {myCourseItems.length > 0 ? (
-                <div className={`content-row-scroll my-courses-scroll ${myCourseItems.length <= 2 ? 'few-courses' : ''}`}>
-                  {myCourseItems.map((item) => {
-                    const moodleCourseId = getAssetMoodleCourseId(item);
+              {misCursos.length > 0 ? (
+                <div className={`content-row-scroll my-courses-scroll ${misCursos.length <= 2 ? 'few-courses' : ''}`}>
+                  {/* Tarjeta de aula del estudiante matriculado: entra a su
+                      curso. No es catálogo, es su matrícula. */}
+                  {misCursos.map((curso) => {
                     const savedProgress =
-                      moodleCourseId && progressByCourseId[moodleCourseId]
-                        ? progressByCourseId[moodleCourseId]
-                        : moodleCourseId
-                          ? loadCourseProgress(moodleCourseId)
-                          : DEFAULT_PROGRESS;
+                      progressByCourseId[curso.moodleCourseId] ?? loadCourseProgress(curso.moodleCourseId);
                     const totalModules = savedProgress.totalModules;
                     const completed = savedProgress.completedModuleIds.length;
                     const percent =
@@ -2237,8 +2179,17 @@ export function PublicApp() {
                         ? Math.min(100, Math.round((completed / totalModules) * 100))
                         : savedProgress.progressPercent;
                     return (
-                      <article key={`my-${item.id}`} className="my-course-card-wrap">
-                        <ContentCard item={item} onOpen={openItem} lang={currentLang} />
+                      <article key={`my-${curso.moodleCourseId}`} className="my-course-card-wrap">
+                        <button
+                          className="content-tile aula-tile"
+                          onClick={() => abrirAula(curso.moodleCourseId, curso.titulo)}
+                        >
+                          <div className="tile-overlay">
+                            <span className="category-chip">{t('myCourses.myClassroom')}</span>
+                            <h4>{curso.titulo}</h4>
+                            <p className="tile-meta">{t('myCourses.continueCourse')}</p>
+                          </div>
+                        </button>
                         <p className="my-course-progress-text">{t('home.progress')}: {percent}%</p>
                         <div className="my-course-progress-track" aria-hidden="true">
                           <div className="my-course-progress-fill" style={{ width: `${percent}%` }} />
@@ -2248,7 +2199,7 @@ export function PublicApp() {
                   })}
                   <button className="content-tile promo-more-courses" onClick={() => setView({ type: 'my-courses' })}>
                     <div className="promo-more-inner">
-                      <span className="public-badge kind-bundle">{t('home.suggested')}</span>
+                      <span className="public-badge kind-program">{t('home.suggested')}</span>
                       <h4>{t('home.viewAllMyCourses')}</h4>
                       <p>{t('home.myCoursesSubtitle')}</p>
                       <span className="promo-link">{t('course.goMyCourses')}</span>
@@ -2278,8 +2229,13 @@ export function PublicApp() {
                   </div>
                 </div>
                 <div className="content-row-scroll" ref={row.id === 'continue-learning' ? continueLearningRowRef : undefined}>
-                  {row.items.map((item) => (
-                    <ContentCard key={`${row.id}-${item.id}`} item={item} onOpen={openItem} lang={currentLang} />
+                  {row.items.map((programa) => (
+                    <TarjetaPrograma
+                      key={`${row.id}-${programa.id}`}
+                      programa={programa}
+                      onAbrir={abrirPrograma}
+                      etiquetaCursos={etiquetaCursosIncluidos}
+                    />
                   ))}
                 </div>
               </section>
@@ -2376,8 +2332,13 @@ export function PublicApp() {
                   </div>
                 </div>
                 <div className="content-row-scroll">
-                  {row.items.map((item) => (
-                    <ContentCard key={`${row.id}-${item.id}`} item={item} onOpen={openItem} lang={currentLang} />
+                  {row.items.map((programa) => (
+                    <TarjetaPrograma
+                      key={`${row.id}-${programa.id}`}
+                      programa={programa}
+                      onAbrir={abrirPrograma}
+                      etiquetaCursos={etiquetaCursosIncluidos}
+                    />
                   ))}
                 </div>
               </section>
@@ -2447,8 +2408,13 @@ export function PublicApp() {
                 </div>
               </div>
               <div className="content-row-scroll">
-                {row.items.map((item) => (
-                  <ContentCard key={`${row.id}-${item.id}`} item={item} onOpen={openItem} lang={currentLang} />
+                {row.items.map((programa) => (
+                  <TarjetaPrograma
+                    key={`${row.id}-${programa.id}`}
+                    programa={programa}
+                    onAbrir={abrirPrograma}
+                    etiquetaCursos={etiquetaCursosIncluidos}
+                  />
                 ))}
               </div>
             </section>
@@ -2474,34 +2440,27 @@ export function PublicApp() {
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
+            {/* Se quitaron dos filtros. El de matrícula cruzaba el catálogo con
+                los cursos del estudiante, y el catálogo ya no tiene cursos ni
+                expone matrícula de programa. El de «más nuevos» ordenaba por id
+                de Moodle del curso, que ya no viaja y que tampoco era una
+                fecha. Quedan el área y la A-Z, que sí salen del dato. */}
             <div className="catalog-filters">
               <label>
-                {t('catalog.group')}
+                {t('catalog.area')}
                 <select value={catalogGroupFilter} onChange={(event) => setCatalogGroupFilter(event.target.value)}>
                   <option value="all">{t('catalog.all')}</option>
-                  {catalogGroups.map((group) => (
-                    <option key={group} value={group}>
-                      {group}
+                  {areasDelCatalogo.map((area) => (
+                    <option key={area} value={area}>
+                      {area}
                     </option>
                   ))}
                 </select>
               </label>
               <label>
-                {t('nav.myCourses')}
-                <select
-                  value={catalogEnrollmentFilter}
-                  onChange={(event) => setCatalogEnrollmentFilter(event.target.value as 'all' | 'enrolled' | 'not-enrolled')}
-                >
-                  <option value="all">{t('catalog.all')}</option>
-                  <option value="enrolled">{t('catalog.myCoursesFilter')}</option>
-                  <option value="not-enrolled">{t('catalog.notEnrolledFilter')}</option>
-                </select>
-              </label>
-              <label>
                 {t('catalog.order')}
-                <select value={catalogSort} onChange={(event) => setCatalogSort(event.target.value as 'default' | 'newest' | 'az')}>
+                <select value={catalogSort} onChange={(event) => setCatalogSort(event.target.value as 'default' | 'az')}>
                   <option value="default">{t('catalog.relevance')}</option>
-                  <option value="newest">{t('catalog.newest')}</option>
                   <option value="az">A-Z</option>
                 </select>
               </label>
@@ -2511,7 +2470,6 @@ export function PublicApp() {
                 onClick={() => {
                   setSearch('');
                   setCatalogGroupFilter('all');
-                  setCatalogEnrollmentFilter('all');
                   setCatalogSort('default');
                 }}
               >
@@ -2519,60 +2477,42 @@ export function PublicApp() {
               </button>
             </div>
           </div>
+          {/* Tarjetas de PROGRAMA. Antes llevaban el estado de matrícula y la
+              barra de avance del curso; ambos eran del curso y no del programa,
+              y el catálogo público ya no sabe de matrículas. Lo que queda es lo
+              que el programa sí trae: su área y cuántos cursos incluye. */}
           <div className="catalog-grid">
-            {catalogShownItems.map((item) => {
-              const moodleCourseId = item.kind === 'course' ? getAssetMoodleCourseId(item) : null;
-              const isEnrolled = Boolean(moodleCourseId && enrolledCourseIds.has(moodleCourseId));
-              const savedProgress =
-                moodleCourseId && progressByCourseId[moodleCourseId]
-                  ? progressByCourseId[moodleCourseId]
-                  : moodleCourseId
-                    ? loadCourseProgress(moodleCourseId)
-                    : DEFAULT_PROGRESS;
-              const totalModules = Math.max(savedProgress.totalModules, 1);
-              const percent =
-                item.kind === 'course'
-                  ? Math.min(100, Math.max(0, Math.round((savedProgress.completedModuleIds.length / totalModules) * 100)))
-                  : 0;
-
+            {catalogShownItems.map((programa) => {
+              const area = areaDelPrograma(programa);
               return (
-                // `data-enrolled` expone el estado de matrícula al estilo, que
-                // así puede ocultar la barra de progreso de quien no está
-                // matriculado en vez de pintarle un 0%.
                 <button
-                  key={item.id}
+                  key={programa.id}
                   className="content-tile catalog-tile"
-                  data-accent={categoryAccentKey(getCourseCategoryLabel(item))}
-                  data-enrolled={item.kind === 'course' ? String(isEnrolled) : undefined}
-                  onClick={() => openItem(item)}
+                  data-accent={categoryAccentKey(area)}
+                  onClick={() => abrirPrograma(programa)}
                 >
-                  <img src={item.heroImage} alt={item.title} loading="lazy" />
+                  {programa.heroImage ? (
+                    <img src={programa.heroImage} alt={programa.title} loading="lazy" />
+                  ) : null}
                   <div className="tile-overlay catalog-tile-overlay">
                     <div className="catalog-tile-head">
-                      <span className="category-chip">{getCourseCategoryLabel(item)}</span>
-                      {item.kind === 'course' ? (
-                        <span className={`catalog-status-pill ${isEnrolled ? 'enrolled' : 'locked'}`}>
-                          {isEnrolled ? t('catalog.enrolled') : t('catalog.notEnrolled')}
+                      {area ? <span className="category-chip">{area}</span> : null}
+                      {programa.courseCount > 0 ? (
+                        <span className="catalog-status-pill programa">
+                          {etiquetaCursosIncluidos(programa.courseCount)}
                         </span>
                       ) : null}
                     </div>
-                    <h4>{item.title}</h4>
-                    {durationLabel(item, currentLang) ? (
-                      <p className="tile-meta">{durationLabel(item, currentLang)}</p>
-                    ) : null}
-                    {item.kind === 'course' ? (
-                      <div className="catalog-progress-wrap">
-                        <div className="catalog-progress-track" aria-hidden="true">
-                          <div className="catalog-progress-fill" style={{ width: `${isEnrolled ? percent : 0}%` }} />
-                        </div>
-                        <span>{isEnrolled ? t('catalog.advancePercent', { percent }) : t('catalog.previewAvailable')}</span>
-                      </div>
+                    <h4>{programa.title}</h4>
+                    {programa.summary ? (
+                      <p className="tile-meta">{snippet(programa.summary, programa.title, 110)}</p>
                     ) : null}
                   </div>
                 </button>
               );
             })}
           </div>
+          {catalogShownItems.length === 0 ? <p className="catalog-empty">{t('catalog.noResults')}</p> : null}
           {catalogShownItems.length < catalogViewItems.length ? (
             <div className="catalog-load-more-wrap">
               <button
@@ -2601,12 +2541,12 @@ export function PublicApp() {
           {loadingDetail || !selectedDetail ? (
             <p className="program-loading">{t('course.contentLoading')}</p>
           ) : (
-            <article data-accent={categoryAccentKey(getCourseCategoryLabel(selectedDetail.content))}>
+            <article data-accent={categoryAccentKey(areaDelPrograma(selectedDetail.program))}>
               <header
                 className="program-hero"
                 style={
-                  selectedDetail.content.heroImage
-                    ? { backgroundImage: `url(${selectedDetail.content.heroImage})` }
+                  selectedDetail.program.heroImage
+                    ? { backgroundImage: `url(${selectedDetail.program.heroImage})` }
                     : undefined
                 }
               >
@@ -2616,17 +2556,31 @@ export function PublicApp() {
                     <button onClick={() => setView({ type: 'home' })}>{t('program.breadcrumbHome')}</button>
                     <span aria-hidden="true">/</span>
                     <button onClick={() => setView({ type: 'catalog' })}>{t('program.breadcrumbPrograms')}</button>
-                    <span aria-hidden="true">/</span>
-                    <span className="program-breadcrumb-current">{getCourseCategoryLabel(selectedDetail.content)}</span>
+                    {areaDelPrograma(selectedDetail.program) ? (
+                      <>
+                        <span aria-hidden="true">/</span>
+                        <span className="program-breadcrumb-current">{areaDelPrograma(selectedDetail.program)}</span>
+                      </>
+                    ) : null}
                   </nav>
                   <p className="program-eyebrow">{t('program.eyebrow')}</p>
-                  <h1>{selectedDetail.content.title}</h1>
-                  <p className="program-lead">
-                    {snippet(selectedDetail.content.summary, selectedDetail.content.title, 300)}
-                  </p>
-                  {durationLabel(selectedDetail.content, currentLang) ? (
+                  <h1>{selectedDetail.program.title}</h1>
+                  {selectedDetail.program.summary ? (
+                    <p className="program-lead">
+                      {snippet(selectedDetail.program.summary, selectedDetail.program.title, 300)}
+                    </p>
+                  ) : null}
+                  {/* Datos del programa que SÍ vienen de la API. Los que no
+                      vengan se omiten, y si no viene ninguno no se pinta ni el
+                      párrafo: un <p> vacío deja un hueco en el hero. */}
+                  {selectedDetail.program.courseCount > 0 || selectedDetail.program.creditHours ? (
                     <p className="program-hours">
-                      {t('program.formatHours')}: <strong>{durationLabel(selectedDetail.content, currentLang)}</strong>
+                      {selectedDetail.program.courseCount > 0 ? (
+                        <strong>{etiquetaCursosIncluidos(selectedDetail.program.courseCount)}</strong>
+                      ) : null}
+                      {selectedDetail.program.creditHours ? (
+                        <span>{t('program.creditHours', { count: selectedDetail.program.creditHours })}</span>
+                      ) : null}
                     </p>
                   ) : null}
                 </div>
@@ -2635,8 +2589,8 @@ export function PublicApp() {
               <nav className="program-section-nav" aria-label={t('nav.sections')}>
                 <div className="program-section-nav-inner">
                   <a href="#programa-sobre">{t('program.navAbout')}</a>
-                  {splitProgramHtml(selectedDetail.content.summaryHtml).practice ? (
-                    <a href="#programa-aprender">{t('program.navLearn')}</a>
+                  {selectedDetail.program.courses.length > 0 ? (
+                    <a href="#programa-temario">{t('program.navSyllabus')}</a>
                   ) : null}
                   {(selectedDetail.outline?.length ?? 0) > 0 ? (
                     <a href="#programa-plan">{t('program.navPlan')}</a>
@@ -2652,56 +2606,60 @@ export function PublicApp() {
                 <div className="program-band-inner program-about">
                   <div>
                     <h2 className="program-h2">{t('program.aboutTitle')}</h2>
-                    {splitProgramHtml(selectedDetail.content.summaryHtml).about ? (
-                      // El HTML viene del catálogo versionado, no de entrada de
-                      // usuario: trae lema y entradilla.
-                      <div
-                        className="program-prose"
-                        dangerouslySetInnerHTML={{
-                          __html: splitProgramHtml(selectedDetail.content.summaryHtml).about
-                        }}
-                      />
-                    ) : (
-                      <p className="program-prose">{selectedDetail.content.summary}</p>
-                    )}
+                    {/* Texto plano del registro del programa, que es el dato
+                        institucional. Ya no se inyecta HTML: el resumen
+                        enriquecido era del curso de Moodle. */}
+                    {selectedDetail.program.summary ? (
+                      <p className="program-prose">{selectedDetail.program.summary}</p>
+                    ) : null}
                   </div>
                   <aside className="program-cta-card">
                     <p className="program-cta-kicker">{t('program.ctaTitle')}</p>
                     <p className="program-cta-body">{t('program.ctaBody')}</p>
+                    {/* Un único destino: admisiones. Aquí había un segundo
+                        botón que abría el aula del curso —o su vista previa— y
+                        era justamente la puerta al curso suelto que se cierra.
+                        Quien ya está matriculado entra desde «Mis cursos». */}
                     <button
                       className="program-cta-btn"
                       onClick={() => setView({ type: 'page', slug: 'admissions' })}
                     >
                       {t('program.ctaButton')}
                     </button>
-                    {'moodleCourseId' in selectedDetail.content ? (
-                      <button
-                        className="program-cta-secondary"
-                        onClick={() => {
-                          if (!publicSession?.token) {
-                            requestAuthForCourse(selectedDetail.content.slug);
-                            return;
-                          }
-                          setView({ type: 'course', slug: selectedDetail.content.slug });
-                        }}
-                      >
-                        {isCurrentCourseAssigned ? t('catalog.enterFullCourse') : t('catalog.viewPreview')}
-                      </button>
-                    ) : null}
                   </aside>
                 </div>
               </section>
 
-              {splitProgramHtml(selectedDetail.content.summaryHtml).practice ? (
-                <section className="program-band alt" id="programa-aprender">
+              {/* TEMARIO: los cursos que incluye el programa.
+                  Se lee como un índice y no como una lista de accesos. Cada
+                  entrada es un <li> con texto: ni enlace, ni botón, ni nada
+                  pulsable, porque un curso no se cursa por separado y ofrecer
+                  algo que lleva a una puerta cerrada es peor que no ofrecerlo.
+                  Quien quiera cursarlo se matricula en el programa. */}
+              {selectedDetail.program.courses.length > 0 ? (
+                <section className="program-band alt" id="programa-temario">
                   <div className="program-band-inner">
-                    <h2 className="program-h2">{t('program.learnTitle')}</h2>
-                    <div
-                      className="program-practice"
-                      dangerouslySetInnerHTML={{
-                        __html: splitProgramHtml(selectedDetail.content.summaryHtml).practice
-                      }}
-                    />
+                    <h2 className="program-h2">{t('program.syllabusTitle')}</h2>
+                    <p className="program-band-lead">{t('program.syllabusLead')}</p>
+                    <ol className="programa-temario">
+                      {selectedDetail.program.courses.map((curso: CursoDelPrograma, indice: number) => (
+                        <li key={`${curso.titulo}-${indice}`}>
+                          <span className="temario-n" aria-hidden="true">
+                            {String(indice + 1).padStart(2, '0')}
+                          </span>
+                          <div className="temario-cuerpo">
+                            <h3 className="temario-titulo">{curso.titulo}</h3>
+                            {curso.resumen ? <p className="temario-resumen">{curso.resumen}</p> : null}
+                            {/* `modulos` es null cuando el aula no está
+                                montada; en ese caso no se escribe nada. */}
+                            {curso.modulos ? (
+                              <p className="temario-modulos">{t('program.courseModules', { count: curso.modulos })}</p>
+                            ) : null}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                    <p className="programa-temario-nota">{t('program.syllabusNoAccess')}</p>
                   </div>
                 </section>
               ) : null}
@@ -2753,20 +2711,20 @@ export function PublicApp() {
                   <div className="program-band-inner">
                     <h2 className="program-h2">{t('program.similarTitle')}</h2>
                     <div className="program-similar">
-                      {selectedDetail.related?.map((item) => {
-                        const localizado = localizeAsset(item, currentLang) as typeof item;
+                      {selectedDetail.related?.map((similar) => {
+                        const area = areaDelPrograma(similar);
                         return (
                           <button
-                            key={localizado.id}
+                            key={similar.id}
                             className="program-similar-card"
-                            data-accent={categoryAccentKey(getCourseCategoryLabel(localizado))}
-                            onClick={() => openItem(localizado)}
+                            data-accent={categoryAccentKey(area)}
+                            onClick={() => abrirPrograma(similar)}
                           >
-                            <img src={localizado.heroImage} alt="" loading="lazy" />
-                            <span className="program-similar-cat">{getCourseCategoryLabel(localizado)}</span>
-                            <span className="program-similar-title">{localizado.title}</span>
-                            {durationLabel(localizado, currentLang) ? (
-                              <span className="program-similar-meta">{durationLabel(localizado, currentLang)}</span>
+                            {similar.heroImage ? <img src={similar.heroImage} alt="" loading="lazy" /> : null}
+                            {area ? <span className="program-similar-cat">{area}</span> : null}
+                            <span className="program-similar-title">{similar.title}</span>
+                            {similar.courseCount > 0 ? (
+                              <span className="program-similar-meta">{etiquetaCursosIncluidos(similar.courseCount)}</span>
                             ) : null}
                           </button>
                         );
@@ -2783,14 +2741,10 @@ export function PublicApp() {
       {view.type === 'course' ? (
         <section className="course-layout course-layout-modern">
           <div className="course-header course-header-modern">
-            <div
-              className="course-header-surface"
-              style={
-                selectedDetail?.content?.heroImage
-                  ? { backgroundImage: `url(${selectedDetail.content.heroImage})` }
-                  : undefined
-              }
-            >
+            {/* El aula ya no tiene portada ni entradilla: salían de la ficha
+                del curso en el catálogo público, que ahora es de programas. El
+                título es el de la matrícula, que es el dato autoritativo. */}
+            <div className="course-header-surface">
               <div className="course-header-backdrop" />
               <div className="course-header-content">
                 <div className="course-header-top">
@@ -2801,17 +2755,9 @@ export function PublicApp() {
                     {t('course.goMyCourses')}
                   </button>
                 </div>
-                <h1>{selectedDetail?.content?.title ?? t('course.enterCourse')}</h1>
-                <p>{snippet(selectedDetail?.content?.summary, selectedDetail?.content?.title, 260)}</p>
+                <h1>{view.titulo || t('course.enterCourse')}</h1>
               </div>
             </div>
-            {!isCurrentCourseAssigned ? (
-              <div className="course-preview-banner">
-                <strong>{t('course.previewMode')}</strong>
-                <span>{t('course.previewDesc')}</span>
-                <button onClick={() => setView({ type: 'catalog' })}>{t('course.unlockCourse')}</button>
-              </div>
-            ) : null}
             <div className="progress-row progress-row-modern">
               <div className="progress-pill">
                 <span>{t('course.progressLabel')}</span>
@@ -2847,19 +2793,16 @@ export function PublicApp() {
                 <div className="learning-section" key={`${sectionName}-${sectionIndex}`}>
                   <div className="learning-section-title">{sectionName}</div>
                   <div className="learning-section-list">
+                    {/* Sin módulos candados: al aula se entra con matrícula
+                        activa, así que todos los módulos están disponibles. */}
                     {modules.map((row) => {
                       const isActive = row.module.id === activeModuleId;
                       const isDone = progress.completedModuleIds.includes(row.module.id);
-                      const locked = isModuleLocked(row.module.id);
                       return (
                         <button
                           key={row.module.id}
-                          className={`module-nav-btn module-nav-modern ${isActive ? 'active' : ''} ${locked ? 'locked' : ''}`}
+                          className={`module-nav-btn module-nav-modern ${isActive ? 'active' : ''}`}
                           onClick={() => {
-                            if (locked) {
-                              setInteractionMessage(t('course.locked'));
-                              return;
-                            }
                             setActiveModuleId(row.module.id);
                             setActiveFileUrl(null);
                           }}
@@ -2868,7 +2811,7 @@ export function PublicApp() {
                             <strong>{row.module.name}</strong>
                             <span>{row.module.modname}</span>
                           </div>
-                          <em>{locked ? t('course.moduleLocked') : isDone ? t('course.moduleDone') : t('course.modulePending')}</em>
+                          <em>{isDone ? t('course.moduleDone') : t('course.modulePending')}</em>
                         </button>
                       );
                     })}
@@ -2880,15 +2823,6 @@ export function PublicApp() {
             <article className="course-main course-main-modern">
               {!activeModule ? (
                 <p>{t('course.selectModule')}</p>
-              ) : isModuleLocked(activeModule.module.id) ? (
-                <section className="course-paywall-card">
-                  <h3>{t('course.continueFullPath')}</h3>
-                  <p>{t('course.sawFirstModule')}</p>
-                  <div className="interaction-actions">
-                    <button onClick={() => setView({ type: 'catalog' })}>{t('course.seeCatalog')}</button>
-                    <button className="ghost-btn" onClick={() => setView({ type: 'my-courses' })}>{t('course.goMyCourses')}</button>
-                  </div>
-                </section>
               ) : (
                 <>
                   <header className="module-headline module-headline-modern">
@@ -2946,45 +2880,31 @@ export function PublicApp() {
 
                   <section className="interaction-box interaction-box-modern">
                     <div className="interaction-heading">
-                      <h3>{isPreviewOnly ? t('course.demoView') : t('course.activityDev')}</h3>
-                      {!isPreviewOnly ? <span>{t('course.saveGuide')}</span> : null}
+                      <h3>{t('course.activityDev')}</h3>
+                      <span>{t('course.saveGuide')}</span>
                     </div>
-                    {isPreviewOnly ? (
-                      <div className="preview-readonly-box">
-                        <p>{t('course.previewReadonly')}</p>
-                        <button className="go-course-btn" onClick={() => setView({ type: 'catalog' })}>
-                          {t('course.requestAccess')}
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <textarea
-                          value={interactionText}
-                          onChange={(event) => setInteractionText(event.target.value)}
-                          placeholder={t('course.writeHere')}
-                        />
-                        <div className="interaction-actions">
-                          <button onClick={() => void onSubmitInteraction()} disabled={interactionSaving || !interactionText.trim()}>
-                            {interactionSaving ? t('course.saving') : t('course.saveProgress')}
-                          </button>
-                          <button
-                            className={`completion-inline-btn ${activeModuleCompleted ? 'done' : ''}`}
-                            onClick={markModuleComplete}
-                            disabled={activeModuleCompleted}
-                          >
-                            {activeModuleCompleted ? `${t('course.completed')} ✓` : t('course.markComplete')}
-                          </button>
-                        </div>
-                        <p className={`completion-inline-hint ${activeModuleCompleted ? 'done' : ''}`}>
-                          {activeModuleCompleted
-                            ? t('course.alreadyCompleted')
-                            : t('course.completeWhenDone')}
-                        </p>
-                      </>
-                    )}
+                    <textarea
+                      value={interactionText}
+                      onChange={(event) => setInteractionText(event.target.value)}
+                      placeholder={t('course.writeHere')}
+                    />
+                    <div className="interaction-actions">
+                      <button onClick={() => void onSubmitInteraction()} disabled={interactionSaving || !interactionText.trim()}>
+                        {interactionSaving ? t('course.saving') : t('course.saveProgress')}
+                      </button>
+                      <button
+                        className={`completion-inline-btn ${activeModuleCompleted ? 'done' : ''}`}
+                        onClick={markModuleComplete}
+                        disabled={activeModuleCompleted}
+                      >
+                        {activeModuleCompleted ? `${t('course.completed')} ✓` : t('course.markComplete')}
+                      </button>
+                    </div>
+                    <p className={`completion-inline-hint ${activeModuleCompleted ? 'done' : ''}`}>
+                      {activeModuleCompleted ? t('course.alreadyCompleted') : t('course.completeWhenDone')}
+                    </p>
                     {interactionMessage ? <p className="interaction-feedback">{interactionMessage}</p> : null}
-                    {!isPreviewOnly ? (
-                      <div className="interaction-history interaction-history-modern">
+                    <div className="interaction-history interaction-history-modern">
                         <h4>{t('course.activityHistory')}</h4>
                         {interactionHistory.length === 0 ? (
                           <p>{t('course.noHistory')}</p>
@@ -3007,8 +2927,7 @@ export function PublicApp() {
                             })}
                           </ul>
                         )}
-                      </div>
-                    ) : null}
+                    </div>
                   </section>
                 </>
               )}
@@ -3068,27 +2987,23 @@ export function PublicApp() {
             <div className="profile-summary-grid">
               <article className="profile-summary-card">
                 <span>{t('myCourses.activeCourses')}</span>
-                <strong>{(myCourses?.localCourses ?? []).filter((course) => course.status === 'active').length}</strong>
+                <strong>{misCursos.length}</strong>
               </article>
               <article className="profile-summary-card">
                 <span>{t('myCourses.avgProgress')}</span>
                 <strong>
                   {(() => {
-                    const active = (myCourses?.localCourses ?? []).filter((course) => course.status === 'active');
-                    if (active.length === 0) {
+                    if (misCursos.length === 0) {
                       return '0%';
                     }
-                    const total = active.reduce((acc, course) => {
-                      const moodleCourseId = Number(course.moodle_course_id);
-                      if (!Number.isInteger(moodleCourseId) || moodleCourseId <= 0) {
-                        return acc;
-                      }
-                      const savedProgress = progressByCourseId[moodleCourseId] ?? loadCourseProgress(moodleCourseId);
+                    const total = misCursos.reduce((acc, curso) => {
+                      const savedProgress =
+                        progressByCourseId[curso.moodleCourseId] ?? loadCourseProgress(curso.moodleCourseId);
                       const modules = Math.max(savedProgress.totalModules, 1);
                       const percent = Math.round((savedProgress.completedModuleIds.length / modules) * 100);
                       return acc + Math.min(100, Math.max(0, percent));
                     }, 0);
-                    return `${Math.round(total / active.length)}%`;
+                    return `${Math.round(total / misCursos.length)}%`;
                   })()}
                 </strong>
               </article>
@@ -3099,49 +3014,35 @@ export function PublicApp() {
             </div>
           ) : null}
           {myCoursesLoading ? <p>{t('home.loadingCourses')}</p> : null}
-          {!myCoursesLoading && (myCourses?.localCourses ?? []).filter((course) => course.status === 'active').length === 0 ? (
-            <p>{t('myCourses.empty')}</p>
-          ) : null}
+          {!myCoursesLoading && misCursos.length === 0 ? <p>{t('myCourses.empty')}</p> : null}
+          {/* Los cursos del estudiante salen de sus matrículas y entran al
+              aula con el id de Moodle. Antes se buscaba el curso en el catálogo
+              público para sacar portada y slug, y si no aparecía la tarjeta se
+              quedaba inerte («No disponible»). El catálogo ya no tiene cursos,
+              y la matrícula trae todo lo que hace falta para entrar. */}
           <div className="profile-courses-grid">
-            {(myCourses?.localCourses ?? []).filter((course) => course.status === 'active').map((course) => {
-              const match = localizedCatalog.find(
-                (item) =>
-                  item.kind === 'course' &&
-                  String((item as unknown as { moodleCourseId?: string }).moodleCourseId) === String(course.moodle_course_id)
-              );
-              const moodleCourseId = Number(course.moodle_course_id);
+            {misCursos.map((curso) => {
               const savedProgress =
-                Number.isInteger(moodleCourseId) && moodleCourseId > 0
-                  ? progressByCourseId[moodleCourseId] ?? loadCourseProgress(moodleCourseId)
-                  : DEFAULT_PROGRESS;
+                progressByCourseId[curso.moodleCourseId] ?? loadCourseProgress(curso.moodleCourseId);
               const modules = Math.max(savedProgress.totalModules, 1);
               const percent = Math.min(100, Math.max(0, Math.round((savedProgress.completedModuleIds.length / modules) * 100)));
-              const title = course.full_name ?? `Curso ${course.moodle_course_id}`;
+              const titulo = curso.titulo || t('myCourses.myClassroom');
               return (
                 <button
-                  key={`${course.moodle_course_id}-${course.enrolled_at}`}
-                  className="content-tile profile-course-tile"
-                  onClick={() => {
-                    if (!match) {
-                      return;
-                    }
-                    setView({ type: 'course', slug: match.slug });
-                  }}
-                  disabled={!match}
+                  key={`${curso.moodleCourseId}-${curso.matriculadoEn}`}
+                  className="content-tile profile-course-tile aula-tile"
+                  onClick={() => abrirAula(curso.moodleCourseId, titulo)}
                 >
-                  <img src={match?.heroImage ?? 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1200&q=80'} alt={title} />
                   <div className="tile-overlay profile-tile-overlay">
                     <div className="profile-tile-top">
-                      <span className={`public-badge ${match ? 'kind-course' : 'kind-bundle'}`}>
-                        {match ? getCourseCategoryLabel(match) : t('myCourses.syncing')}
-                      </span>
+                      <span className="public-badge kind-course">{t('myCourses.myClassroom')}</span>
                       <span className="profile-progress-pill">{percent}%</span>
                     </div>
-                    <h4>{title}</h4>
+                    <h4>{titulo}</h4>
                     <div className="profile-tile-progress" aria-hidden="true">
                       <div style={{ width: `${percent}%` }} />
                     </div>
-                    <span className="profile-tile-cta">{match ? t('myCourses.continueCourse') : t('myCourses.notAvailable')}</span>
+                    <span className="profile-tile-cta">{t('myCourses.continueCourse')}</span>
                   </div>
                 </button>
               );
@@ -3609,33 +3510,44 @@ export function PublicApp() {
                     </form>
                   </article>
 
+                  {/* Reactivar un curso que el departamento ya tiene habilitado.
+                      Antes este desplegable listaba los trece cursos del
+                      catálogo público, de donde sacaba su id de Moodle. Ese
+                      catálogo ya no tiene cursos, y los programas no traen el
+                      id a propósito, así que la única lista legítima aquí es la
+                      de los cursos que el departamento ya tiene (courseAccess).
+                      Habilitar un curso NUEVO es una operación de la
+                      institución y se hace desde el panel de administración,
+                      que sí lista las aulas de Moodle. */}
                   <article className="card-like enterprise-panel-card">
-                    <h3>{t('enterprise.assignCourses')}</h3>
-                    <form className="profile-editor-form" onSubmit={onEnterpriseAssignCourse}>
-                      <label>
-                        {t('enterprise.course')}
-                        <select
-                          value={enterpriseCourseId}
-                          onChange={(event) => setEnterpriseCourseId(event.target.value)}
-                          required
-                        >
-                          <option value="">{t('enterprise.selectCourse')}</option>
-                          {localizedCatalog
-                            .filter((item) => item.kind === 'course')
-                            .map((item) => {
-                              const courseId = Number((item as { moodleCourseId?: string | number }).moodleCourseId);
-                              return Number.isInteger(courseId) && courseId > 0 ? (
-                                <option key={`enterprise-course-${courseId}`} value={String(courseId)}>
-                                  {item.title}
-                                </option>
-                              ) : null;
-                            })}
-                        </select>
-                      </label>
-                      <button type="submit" className="go-course-btn" disabled={enterpriseSaving}>
-                        {enterpriseSaving ? t('enterprise.assigning') : t('enterprise.assignCourse')}
-                      </button>
-                    </form>
+                    <h3>{t('enterprise.reactivateCourses')}</h3>
+                    {cursosDepartamentoInactivos.length === 0 ? (
+                      <p>{t('enterprise.noInactiveCourses')}</p>
+                    ) : (
+                      <form className="profile-editor-form" onSubmit={onEnterpriseAssignCourse}>
+                        <label>
+                          {t('enterprise.course')}
+                          <select
+                            value={enterpriseCourseId}
+                            onChange={(event) => setEnterpriseCourseId(event.target.value)}
+                            required
+                          >
+                            <option value="">{t('enterprise.selectCourse')}</option>
+                            {cursosDepartamentoInactivos.map((curso) => (
+                              <option
+                                key={`enterprise-course-${curso.moodle_course_id}`}
+                                value={String(curso.moodle_course_id)}
+                              >
+                                {curso.full_name ?? curso.short_name ?? String(curso.moodle_course_id)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button type="submit" className="go-course-btn" disabled={enterpriseSaving}>
+                          {enterpriseSaving ? t('enterprise.assigning') : t('enterprise.activate')}
+                        </button>
+                      </form>
+                    )}
                   </article>
                 </div>
               ) : null}

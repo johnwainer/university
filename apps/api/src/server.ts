@@ -27,6 +27,13 @@ import { registerCieRoutes } from './modules/cie/routes.js';
 import { migrateSitePages } from './modules/pages/schema.js';
 import { registerPagesRoutes } from './modules/pages/routes.js';
 import { migrateIam } from './modules/iam/schema.js';
+import { migratePrograms } from './modules/programs/schema.js';
+import { registerProgramsAdminRoutes } from './modules/programs/routes.js';
+import {
+  listarProgramasPublicos,
+  buscarProgramaPorSlug,
+  cursosDelPrograma
+} from './modules/programs/service.js';
 import { registerIamRoutes } from './modules/iam/routes.js';
 import { sectionForPath, levelForMethod } from './modules/iam/sections.js';
 import {
@@ -373,6 +380,7 @@ await migrateCie(pool);
 await migrateSitePages(pool);
 await migrateCalendar(pool);
 await migrateIam(pool);
+await migratePrograms(pool);
 await migrateShellAlerts(pool);
 
 async function loadPersistedMoodleConnection(): Promise<void> {
@@ -1077,7 +1085,15 @@ app.get('/health', async () => {
 
 app.get('/v1/home', async () => {
   await ensureFreshPublicData();
-  const [identity, featured, offers] = await Promise.all([getTenantAndUser(), getCatalog(), getOffers()]);
+  // `featured` pasa a ser la lista de programas: es lo que la portada debe
+  // ofrecer. `liveNow` sigue saliendo del catálogo de contenidos, que es donde
+  // viven los seminarios y las sesiones en vivo, y esos sí son piezas sueltas.
+  const [identity, programas, contenidos, offers] = await Promise.all([
+    getTenantAndUser(),
+    listarProgramasPublicos(pool),
+    getCatalog(),
+    getOffers()
+  ]);
 
   if (!identity.tenant || !identity.user) {
     throw app.httpErrors.internalServerError('Tenant or user data not available');
@@ -1086,16 +1102,31 @@ app.get('/v1/home', async () => {
   return {
     tenant: identity.tenant,
     user: identity.user,
-    featured,
-    liveNow: featured.filter((item) => item.kind === 'live'),
-    continueLearning: featured.filter((item) => item.kind === 'course'),
+    featured: programas,
+    programs: programas,
+    liveNow: contenidos.filter((item) => item.kind === 'live'),
+    continueLearning: programas,
     offers
   };
 });
 
+/**
+ * El catálogo público son los PROGRAMAS, no los cursos.
+ *
+ * Antes devolvía los trece cursos de Moodle como elementos sueltos y
+ * matriculables uno a uno. El modelo del producto es el contrario: el programa
+ * es lo que se navega y lo que se cursa, y los cursos viven dentro. Devolver
+ * los cursos aquí era lo que permitía que alguien llegara a uno por su cuenta.
+ */
 app.get('/v1/catalog', async () => {
   await ensureFreshPublicData();
-  return getCatalog();
+  return listarProgramasPublicos(pool);
+});
+
+/** Los programas, por si el cliente prefiere pedirlos por su nombre propio. */
+app.get('/v1/programs/catalog', async () => {
+  await ensureFreshPublicData();
+  return listarProgramasPublicos(pool);
 });
 app.get('/v1/webinars', async () => listWebinars({ activeOnly: true }));
 app.get('/v1/podcasts', async () => listPodcasts({ activeOnly: true, landingOnly: true }));
@@ -1802,42 +1833,49 @@ app.delete('/v1/enterprise/members/:userId/courses/:moodleCourseId', async (requ
   return { removed };
 });
 
+/**
+ * Ficha pública de un PROGRAMA.
+ *
+ * Antes esta ruta resolvía el slug de un curso y devolvía la ficha del curso,
+ * que era la puerta por la que se llegaba a uno suelto. Ahora resuelve un
+ * programa; el slug antiguo del curso sigue funcionando pero resuelve al
+ * programa que lo contiene, para no romper los enlaces ya publicados.
+ *
+ * Los cursos del programa se devuelven como temario: nombre y descripción, sin
+ * identificador de Moodle, así que no hay forma de enlazarlos ni de pedir su
+ * contenido desde aquí.
+ */
 app.get('/v1/catalog/:slug', async (request, reply) => {
   await ensureFreshPublicData();
   const { slug } = request.params as { slug: string };
-  const [content, entitlements] = await Promise.all([getContentBySlug(slug), getEntitlements()]);
-
-  if (!content) {
-    return reply.notFound(`Content with slug ${slug} was not found`);
-  }
-
-  // Esquema público del aula: sólo los títulos de las secciones semanales y
-  // cuántas actividades tiene cada una. No se devuelve ni el contenido ni los
-  // enlaces a los materiales, que siguen exigiendo matrícula; esto es el
-  // índice que cualquier universidad publica de sus programas.
-  // Plan de ocho semanas del programa.
-  //
-  // El temario sale del catálogo versionado (weekly-outline.ts) y NO del aula:
-  // de las trece aulas de Moodle sólo dos tienen montada la malla completa, y
-  // hacer depender la ficha pública de eso dejaría once programas sin plan.
-  // De Moodle se toma únicamente cuántas actividades tiene cada semana, que es
-  // el dato que sólo el aula conoce; donde el aula aún no existe, ese dato se
-  // omite en vez de inventarse.
-  const moodleCourseId = 'moodleCourseId' in content ? Number((content as { moodleCourseId?: number }).moodleCourseId) : NaN;
   const locale = ((request.query as { locale?: string } | undefined)?.locale === 'en' ? 'en' : 'es') as 'es' | 'en';
 
+  const programa = await buscarProgramaPorSlug(pool, slug);
+  if (!programa) {
+    return reply.notFound(`Program with slug ${slug} was not found`);
+  }
+
+  // El temario de ocho semanas sale del catálogo versionado y NO del aula: de
+  // las trece aulas de Moodle sólo dos tienen la malla montada, y hacer
+  // depender la ficha de eso dejaría once programas sin plan. De Moodle se
+  // toma sólo cuántas actividades tiene cada semana, que es lo que únicamente
+  // el aula sabe; donde el aula no existe, ese dato se omite en vez de
+  // inventarse.
+  const idsCursos = await cursosDelPrograma(pool, programa.code);
+  const primerCurso = idsCursos[0];
+
   let shortname: string | null = null;
-  if (Number.isInteger(moodleCourseId) && moodleCourseId > 0) {
+  if (Number.isInteger(primerCurso) && primerCurso > 0) {
     const curso = await pool.query<{ short_name: string }>(
       `SELECT short_name FROM moodle_courses WHERE moodle_course_id = $1 LIMIT 1`,
-      [moodleCourseId]
+      [primerCurso]
     );
     shortname = curso.rows[0]?.short_name ?? null;
   }
 
   const actividadesPorSemana = new Map<number, number>();
-  if (Number.isInteger(moodleCourseId) && moodleCourseId > 0 && hasMoodleConfig()) {
-    const result = await getMoodleCourseContents(moodleCourseId);
+  if (Number.isInteger(primerCurso) && primerCurso > 0 && hasMoodleConfig()) {
+    const result = await getMoodleCourseContents(primerCurso);
     if (result.ok && Array.isArray(result.data)) {
       result.data.forEach((section, index) => {
         // La sección 0 es la de contacto y sílabo, no una semana lectiva.
@@ -1855,18 +1893,21 @@ app.get('/v1/catalog/:slug', async (request, reply) => {
     activities: actividadesPorSemana.get(index + 1) ?? 0
   }));
 
-  // Programas de la misma área, para el bloque de «programas similares».
-  const catalog = await getCatalog();
-  const categoria = (content as { categoryName?: string }).categoryName;
-  const related = catalog
-    .filter((item) => item.id !== content.id && (item as { categoryName?: string }).categoryName === categoria)
+  // Programas de la misma área.
+  const todos = await listarProgramasPublicos(pool);
+  const area = programa.tags[0];
+  const related = todos
+    .filter((p) => p.code !== programa.code && p.tags.includes(area))
     .slice(0, 3);
 
   return {
-    content,
+    // Se mantiene la clave `content` para no romper al cliente de golpe: lo
+    // que cambia es QUÉ hay dentro, que ahora es un programa.
+    content: programa,
+    program: programa,
     outline,
     related,
-    entitlement: entitlements.find((item) => item.contentId === content.id) ?? null
+    entitlement: null
   };
 });
 
@@ -4042,6 +4083,7 @@ registerSisRoutes(app, {
 });
 registerCrmRoutes(app, { pool, ensureAdmin });
 registerIamRoutes(app, { pool, ensureAdmin });
+registerProgramsAdminRoutes(app, { pool, ensureAdmin });
 registerSyllabusRoutes(app, {
   pool,
   ensureAdmin,

@@ -86,7 +86,6 @@
 .program-breadcrumb button:focus-visible,
 .program-section-nav a:focus-visible,
 .program-cta-btn:focus-visible,
-.program-cta-secondary:focus-visible,
 .program-similar-card:focus-visible {
   outline: 3px solid var(--pcl-cyan);
   outline-offset: 3px;
@@ -108,7 +107,7 @@
 .program-hero h1 {
   margin: 0 0 16px;
   font-family: var(--pcl-font-display);
-  font-size: clamp(2.2rem, 4.6vw, 3.9rem);
+  font-size: clamp(1.8rem, 3.7vw, 3.1rem);
   line-height: 1.02;
   letter-spacing: var(--tfu-track-display);
   max-width: 15ch;
@@ -123,8 +122,15 @@
   color: var(--pcl-ice);
 }
 
+/* Los datos del programa del hero: cuántos cursos incluye y las horas
+   crédito. Es `flex` con `gap` y no texto corrido porque cualquiera de los dos
+   puede faltar —se omite el que no venga de la API— y con separadores escritos
+   a mano quedaría una coma suelta delante del único dato que sí viene. */
 .program-hours {
   margin: 18px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
   font-size: 0.8rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -292,66 +298,83 @@
   background: var(--pcl-navy-700);
 }
 
-.program-cta-secondary {
-  background: transparent;
-  color: var(--pcl-navy-900);
-  border: 1px solid rgba(11, 32, 58, 0.45);
-  padding: 13px 18px;
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
+/* ---------------------------------------------------------------- temario */
 
-.program-cta-secondary:hover {
-  border-color: var(--pcl-navy-900);
-}
+/* Los cursos que incluye el programa.
+   Se declara aparte de `.program-weeks` —con el que comparte la retícula de
+   número + cuerpo— porque cada entrada lleva descripción y necesita respirar
+   más; reutilizar la del plan semanal, pensada para una línea por semana,
+   dejaba los párrafos pegados al filo.
 
-/* ----------------------------------------------- lo que se practica */
-
-/* Cada competencia numerada, como el «01 — DESCUBRIMIENTO CONSULTIVO» del
-   corporativo: el número en el acento y el texto en una columna legible. */
-.program-practice ul {
+   Deliberadamente SIN cursor, sin :hover y sin ningún afordance de pulsación:
+   un curso del temario no se abre. Si algún día pareciera pulsable, el visitante
+   haría clic y no pasaría nada, que es peor que leerlo como lo que es: un
+   índice. Por eso son <li> con texto y no botones. */
+.programa-temario {
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
   gap: 2px;
-  counter-reset: competencia;
+  counter-reset: none;
 }
 
-.program-practice li {
-  counter-increment: competencia;
+.programa-temario li {
   display: grid;
-  grid-template-columns: 74px minmax(0, 1fr);
-  gap: 24px;
-  padding: 26px 0;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 20px;
+  padding: 22px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--pcl-ice);
-  font-size: 1.02rem;
-  line-height: 1.65;
 }
 
-.program-practice li:last-child {
+.programa-temario li:last-child {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.program-practice li::before {
-  content: counter(competencia, decimal-leading-zero) ' —';
+.temario-n {
   color: var(--cat-accent, var(--pcl-cyan));
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
-  padding-top: 0.35em;
+  letter-spacing: 0.08em;
+  padding-top: 4px;
 }
 
-.program-practice li strong {
-  display: block;
+.temario-cuerpo {
+  display: grid;
+  gap: 8px;
+}
+
+.temario-titulo {
+  margin: 0;
+  font-family: var(--pcl-font-display);
+  font-size: 1.08rem;
+  line-height: 1.35;
+  letter-spacing: var(--tfu-track-eyebrow);
   color: var(--pcl-white);
-  font-size: 0.8rem;
-  letter-spacing: 0.1em;
-  margin-bottom: 6px;
+}
+
+.temario-resumen {
+  margin: 0;
+  max-width: 70ch;
+  color: var(--pcl-ice);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.temario-modulos {
+  margin: 0;
+  color: var(--pcl-steel);
+  font-size: 0.82rem;
+}
+
+/* La regla del modelo, dicha y no sólo implícita: el visitante que no está
+   matriculado tiene que entender por qué no hay nada en qué pulsar. */
+.programa-temario-nota {
+  margin: 22px 0 0;
+  max-width: 70ch;
+  color: var(--pcl-steel);
+  font-size: 0.88rem;
+  line-height: 1.6;
 }
 
 /* ------------------------------------------------------------ plan semanal */
@@ -506,12 +529,8 @@
     padding: 48px 0;
   }
 
-  .program-practice li {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .program-weeks li {
+  .program-weeks li,
+  .programa-temario li {
     grid-template-columns: 44px minmax(0, 1fr);
   }
 
