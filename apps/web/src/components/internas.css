@@ -403,8 +403,9 @@
   margin: 0 0 22px;
   font-family: var(--pcl-font-display);
   font-size: clamp(1.9rem, 3.4vw, 2.9rem);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--tfu-track-display);
   line-height: 1.08;
+  text-transform: uppercase;
 }
 
 .detail-rich-summary {

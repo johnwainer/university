@@ -1611,3 +1611,21 @@ body:has(.admin-shell) {
 .admin-shell .ad-table td:first-child,
 .admin-shell .ad-table th:first-child { min-width: 120px; }
 .admin-shell .ad-table td .ad-note { max-width: 200px; }
+
+/* Los titulares del panel heredan la caja alta de brand.css, pero este archivo
+   conserva el tracking negativo que tenían en caja mixta. En mayúscula eso
+   aprieta las letras justo al revés de lo que necesitan, así que se iguala a
+   la escala del resto del sitio. La regla va al final para ganar por orden de
+   cascada a la declaración de más arriba, sin tener que tocarla. */
+.admin-shell h1,
+.admin-shell h2,
+.admin-shell h3 {
+  letter-spacing: var(--tfu-track-title);
+}
+
+/* La cifra grande del checklist CIE es un número, no un titular: en cifras el
+   tracking positivo separa los dígitos y estorba la lectura de la magnitud. */
+.admin-shell .cie-percent {
+  letter-spacing: normal;
+  text-transform: none;
+}
