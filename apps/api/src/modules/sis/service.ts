@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { LETRAS_APROBATORIAS } from './calificaciones.js';
 
 /**
  * Lógica de negocio del SIS: balance del ledger y degree audit.
@@ -138,9 +139,15 @@ export async function computeDegreeAudit(
   const degreeProgramId: string | null = programRes.rows[0]?.degree_program_id ?? null;
 
   // 2. Progreso del estudiante: créditos completados, GPA, cursos completados.
+  // Los créditos se ganan APROBANDO, no terminando: `status = 'completed'`
+  // significa que el curso acabó, y una `F` también acaba el curso. Antes esta
+  // suma contaba cualquier matrícula cerrada, lo que con la tabla de notas
+  // vacía nunca se notó y con la primera `F` habría regalado créditos.
   const progressRes = await pool.query(
     `SELECT
-       COALESCE(SUM(CASE WHEN status = 'completed' THEN credit_hours ELSE 0 END), 0) AS completed_credits,
+       COALESCE(SUM(
+         CASE WHEN status = 'completed' AND grade = ANY($2) THEN credit_hours ELSE 0 END
+       ), 0) AS completed_credits,
        ROUND(
          SUM(grade_points * credit_hours) /
          NULLIF(SUM(CASE WHEN grade_points IS NOT NULL THEN credit_hours ELSE 0 END), 0),
@@ -148,7 +155,7 @@ export async function computeDegreeAudit(
        ) AS cumulative_gpa
      FROM student_enrollments
      WHERE user_id = $1`,
-    [studentUserId]
+    [studentUserId, LETRAS_APROBATORIAS]
   );
   const completedCredits = Number(progressRes.rows[0]?.completed_credits ?? 0);
   const cumulativeGpaRaw = progressRes.rows[0]?.cumulative_gpa;
@@ -157,11 +164,12 @@ export async function computeDegreeAudit(
     : Number(cumulativeGpaRaw);
 
   // Conjunto de cursos Moodle completados por el estudiante.
+  // Mismo criterio: un requisito de curso se cumple aprobándolo.
   const completedCoursesRes = await pool.query(
     `SELECT DISTINCT moodle_course_id
      FROM student_enrollments
-     WHERE user_id = $1 AND status = 'completed'`,
-    [studentUserId]
+     WHERE user_id = $1 AND status = 'completed' AND grade = ANY($2)`,
+    [studentUserId, LETRAS_APROBATORIAS]
   );
   const completedCourseIds = new Set<number>(
     completedCoursesRes.rows.map((r) => Number(r.moodle_course_id))
