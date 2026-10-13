@@ -24,14 +24,15 @@
  * ejecucion en cuanto haya acceso, igual que paeu-ajustes-bilingue.php.
  *
  * Uso:
- *   sudo -u www-data php infra/moodle/cli/paeu-cerrar-curso-suelto.php
- *   sudo -u www-data php infra/moodle/cli/paeu-cerrar-curso-suelto.php --dry-run
+ *   sudo -u daemon /opt/bitnami/php/bin/php paeu-cerrar-curso-suelto.php
+ *   sudo -u daemon /opt/bitnami/php/bin/php paeu-cerrar-curso-suelto.php --dry-run
  *
  * Es idempotente: se puede correr las veces que haga falta.
  */
 
 define('CLI_SCRIPT', true);
-require(__DIR__ . '/../../../config.php');
+require_once(__DIR__ . '/../paeu-bootstrap.php');
+require(paeu_config_moodle());
 require_once($CFG->libdir . '/clilib.php');
 require_once($CFG->libdir . '/enrollib.php');
 

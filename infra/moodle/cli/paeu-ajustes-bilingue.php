@@ -25,10 +25,11 @@
  *
  * Idempotente: se puede correr dos veces.
  *
- * Uso: sudo -u www-data php paeu-ajustes-bilingue.php [--dry-run]
+ * Uso: sudo -u daemon /opt/bitnami/php/bin/php paeu-ajustes-bilingue.php [--dry-run]
  */
 define('CLI_SCRIPT', true);
-require('/var/www/moodle/config.php');
+require_once(__DIR__ . '/../paeu-bootstrap.php');
+require(paeu_config_moodle());
 require_once($CFG->libdir . '/clilib.php');
 require_once($CFG->libdir . '/filterlib.php');
 require_once($CFG->dirroot . '/course/lib.php');

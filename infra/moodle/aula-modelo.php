@@ -28,10 +28,11 @@
  *
  * Idempotente: si la seccion ya tiene actividades, el curso se salta entero.
  *
- * Uso: sudo php aula-modelo.php <shortname> [<shortname2> ...]
+ * Uso: sudo -u daemon /opt/bitnami/php/bin/php aula-modelo.php <shortname> [<shortname2> ...]
  */
 define('CLI_SCRIPT', true);
-require('/var/www/moodle/config.php');
+require_once(__DIR__ . '/paeu-bootstrap.php');
+require(paeu_config_moodle());
 require_once($CFG->dirroot . '/course/lib.php');
 require_once($CFG->dirroot . '/course/modlib.php');
 require_once($CFG->libdir . '/gradelib.php');
@@ -40,9 +41,36 @@ require_once($CFG->libdir . '/gradelib.php');
 // en CLI no hay ninguno. Es el patron estandar de los scripts CLI de Moodle.
 \core\session\manager::set_user(get_admin());
 
-$shortnames = array_slice($argv, 1);
+$argumentos = array_slice($argv, 1);
+
+// --inicio=AAAA-MM-DD fija el primer dia del termino. Debe ser el mismo que el
+// del periodo en la plataforma, o los plazos del aula y los del portal no
+// coincidiran.
+$inicioForzado = null;
+$shortnames = [];
+foreach ($argumentos as $arg) {
+    if (strpos($arg, '--inicio=') === 0) {
+        $valor = substr($arg, strlen('--inicio='));
+        $d = DateTime::createFromFormat('Y-m-d', $valor, new DateTimeZone('America/New_York'));
+        if (!$d || $d->format('Y-m-d') !== $valor) {
+            fwrite(STDERR, "Fecha invalida en --inicio: '$valor'. Formato AAAA-MM-DD.\n");
+            exit(1);
+        }
+        if ((int)$d->format('N') !== 2) {
+            fwrite(STDERR, "El inicio del termino debe caer en MARTES (§10 del Master Syllabus): '$valor' es "
+                . $d->format('l') . ".\n");
+            exit(1);
+        }
+        $inicioForzado = $d;
+        continue;
+    }
+    $shortnames[] = $arg;
+}
+
 if (!$shortnames) {
-    fwrite(STDERR, "Uso: php aula-modelo.php <shortname> [...]\n");
+    fwrite(STDERR,
+        "Uso: /opt/bitnami/php/bin/php aula-modelo.php [--inicio=AAAA-MM-DD] <shortname> [...]\n" .
+        "  --inicio  primer dia del termino, en martes. Sin el, el proximo martes.\n");
     exit(1);
 }
 
@@ -91,9 +119,24 @@ foreach ($shortnames as $short) {
     foreach ($modinfo->get_cms() as $cm) { if ($cm->modname !== 'forum' || $cm->sectionnum > 0) { $actividades++; } }
     if ($actividades > 0) { echo "  · $short: ya tiene estructura ($actividades actividades), se omite\n"; continue; }
 
-    // El termino arranca el primer martes a partir de hoy.
-    $inicio = new DateTime('now', $tz);
-    $inicio->modify('next tuesday');
+    // Fecha de inicio del termino.
+    //
+    // Antes era SIEMPRE "el proximo martes a partir de hoy", y eso solo acierta
+    // si el aula se monta la semana justo anterior al arranque. Montando las
+    // once aulas que faltaban el 13 de octubre de 2026 —primer dia del periodo
+    // TERM-2026-FALL, que va del 13 de octubre al 7 de diciembre— habria puesto
+    // las aulas a empezar el 20 de octubre y terminar el 15 de diciembre: una
+    // semana desfasadas respecto al calendario que el estudiante ve en su
+    // portal, y respecto a las aulas 12 y 24 ya montadas.
+    //
+    // El inicio real del periodo se pasa con --inicio=AAAA-MM-DD. Sin el, se
+    // mantiene el comportamiento anterior, que sigue siendo razonable para
+    // montar un aula suelta fuera de un periodo.
+    $inicio = $inicioForzado ? (clone $inicioForzado) : (function () use ($tz) {
+        $d = new DateTime('now', $tz);
+        $d->modify('next tuesday');
+        return $d;
+    })();
     $inicio->setTime(0, 0, 0);
 
     // Ocho secciones semanales mas la cero.

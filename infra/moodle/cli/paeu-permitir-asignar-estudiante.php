@@ -26,14 +26,15 @@
  * puerto 22 cerrado.
  *
  * Uso:
- *   sudo -u www-data php infra/moodle/cli/paeu-permitir-asignar-estudiante.php --dry-run
- *   sudo -u www-data php infra/moodle/cli/paeu-permitir-asignar-estudiante.php
+ *   sudo -u daemon /opt/bitnami/php/bin/php paeu-permitir-asignar-estudiante.php --dry-run
+ *   sudo -u daemon /opt/bitnami/php/bin/php paeu-permitir-asignar-estudiante.php
  *
  * Idempotente.
  */
 
 define('CLI_SCRIPT', true);
-require(__DIR__ . '/../../../config.php');
+require_once(__DIR__ . '/../paeu-bootstrap.php');
+require(paeu_config_moodle());
 require_once($CFG->libdir . '/clilib.php');
 require_once($CFG->libdir . '/accesslib.php');
 
