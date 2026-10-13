@@ -43,15 +43,15 @@
 -- Es idempotente: correrlo dos veces no hace daño.
 --
 -- ANTES DE CORRERLO, volcado de la base (no es opcional):
---   sudo -u postgres pg_dump -d atlas -Fc -f /var/lib/postgresql/pre-retirada.dump
+--   sudo -u postgres pg_dump -d tfu -Fc -f /var/lib/postgresql/pre-retirada.dump
 --   sudo mkdir -p /var/backups/api
 --   sudo mv /var/lib/postgresql/pre-retirada.dump /var/backups/api/
 --
 -- Cómo se corre:
---   sudo -u postgres psql -d atlas -f retirar-ficcion-atlas.sql
+--   sudo -u postgres psql -d tfu -f retirar-ficcion-atlas.sql
 --
 -- Si algo sale mal, se restaura con:
---   sudo -u postgres pg_restore -d atlas --clean /var/backups/api/pre-retirada.dump
+--   sudo -u postgres pg_restore -d tfu --clean /var/backups/api/pre-retirada.dump
 -- =============================================================================
 
 BEGIN;

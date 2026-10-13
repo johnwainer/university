@@ -55,7 +55,7 @@ la instancia de la API y reiniciar el servicio:
 
 ```bash
 sudo nano /opt/plataforma-estudiantil/api/shared/.env   # ADMIN_PASSWORD=...
-pm2 restart atlas-api --update-env
+pm2 restart tfu-api --update-env
 ```
 
 > El servicio **no arranca** si `ADMIN_API_KEY` o `ADMIN_PASSWORD` faltan. Es
@@ -207,8 +207,8 @@ directamente sobre la de producción:
 ```bash
 gzip -dc /var/backups/api/api-2026-10-08.dump.gz > /tmp/api.dump
 pg_restore --list /tmp/api.dump | head          # ver qué contiene
-createdb atlas_restore
-pg_restore --no-owner --no-acl -d atlas_restore /tmp/api.dump
+createdb tfu_restore
+pg_restore --no-owner --no-acl -d tfu_restore /tmp/api.dump
 ```
 
 Para recuperar sólo una tabla, `--table=nombre`.
@@ -251,8 +251,8 @@ sudo php /var/www/moodle/admin/cli/purge_caches.php
 
 ```bash
 pm2 list                      # ¿está viva la API?
-pm2 logs atlas-api --lines 50 # ¿qué dice?
-pm2 restart atlas-api
+pm2 logs tfu-api --lines 50 # ¿qué dice?
+pm2 restart tfu-api
 sudo systemctl status nginx
 curl -s -o /dev/null -w '%{http_code}\n' https://api.portal.thefloridianuniversity.com/api/health
 ```

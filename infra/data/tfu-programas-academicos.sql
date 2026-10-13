@@ -16,7 +16,7 @@
 --     alimenta el degree audit de la Etapa III; hasta entonces no se lee.
 --
 -- Uso:
---   psql -d atlas -f tfu-programas-academicos.sql
+--   psql -d tfu -f tfu-programas-academicos.sql
 --
 -- Es idempotente: se puede correr dos veces sin duplicar.
 

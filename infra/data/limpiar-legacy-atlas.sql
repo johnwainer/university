@@ -18,11 +18,11 @@
 -- Es idempotente: correrlo dos veces no hace daño.
 --
 -- ANTES DE CORRERLO, volcado de la base:
---   sudo -u postgres pg_dump -d atlas -Fc -f /var/lib/postgresql/x.dump
+--   sudo -u postgres pg_dump -d tfu -Fc -f /var/lib/postgresql/x.dump
 --   sudo mv /var/lib/postgresql/x.dump /var/backups/api/
 --
 -- Cómo se corre:
---   sudo -u postgres psql -d atlas -f limpiar-legacy-atlas.sql
+--   sudo -u postgres psql -d tfu -f limpiar-legacy-atlas.sql
 -- =============================================================================
 
 BEGIN;

@@ -1355,10 +1355,8 @@ día se cuela en otro entorno.
 - **`ATLAS_INTERACTION::`** en la lista de prefijos que se leen (§24.3).
 - **El relato histórico de este runbook** (§21, §22, §23). Borrarlo dejaría las
   lecciones sin sentido: explica por qué se retiró cada cosa.
-- **`pm2 restart atlas-api` y `psql -d atlas`** en `guia-administrador.md` y en
-  los encabezados de los guiones SQL. Nombran el proceso y la base **reales**;
-  cambiarlos en la documentación antes de renombrarlos de verdad dejaría una
-  guía que no funciona. Van atados al §24.6.
+(El proceso y la base ya se renombraron, §24.7, así que la documentación y los
+guiones usan los nombres nuevos.)
 
 ### 24.6 Pendiente: necesita decisión o ventana
 
@@ -1368,16 +1366,39 @@ día se cuela en otro entorno.
    guion está escrito, comentado, es idempotente y lleva arriba el volcado
    previo y el comando de restauración. Lo corre una persona.
 
-2. **La base de producción se sigue llamando `atlas`.** Renombrarla
-   (`ALTER DATABASE atlas RENAME TO tfu`) exige que no haya conexiones
-   abiertas: parar el API, renombrar, cambiar `DATABASE_URL` en el `.env` del
-   release y arrancar. Son unos segundos de corte. No se hizo sin avisar.
+2. **La contraseña del estudiante demo** (§23.4), que sigue sin fijar.
 
-3. **El proceso de pm2 se sigue llamando `atlas-api`.** Renombrarlo es
-   `pm2 delete` + `pm2 start --name tfu-api` + `pm2 save`, y hay que cambiarlo
-   a la vez en `guia-administrador.md` y en los guiones de despliegue. También
-   son unos segundos de corte.
+Los nombres de infraestructura ya no están pendientes: se renombraron, §24.7.
 
-Los puntos 2 y 3 son los únicos rastros que quedan en infraestructura, y
-ninguno es visible para un estudiante ni para nadie de fuera: son nombres
-internos de proceso y de base.
+### 24.7 Renombrado de la base y del proceso, hecho
+
+Autorizado por el usuario y ejecutado con ventana corta. Lo que se hizo, en
+orden, con vuelta atrás automática preparada por si la salud no respondía:
+
+1. Volcado previo: `/var/backups/api/pre-rename-20261013T204318.dump`.
+2. Copia del `.env` del release (`.env.bak-rename`, mismo dueño y permisos 0600).
+3. `pm2 stop`, cierre de conexiones sueltas a la base.
+4. `ALTER DATABASE atlas RENAME TO tfu` y `ALTER ROLE atlas RENAME TO tfu`.
+5. Reescritura de `DATABASE_URL` **sólo** en el usuario y el nombre de la base,
+   con el parseo de la URL: la contraseña no se toca ni se imprime.
+6. Comprobación de que las credenciales nuevas conectan de verdad, **antes** de
+   arrancar: `conectado a tfu como tfu`.
+7. `pm2 start --name tfu-api`, salud en 200, retirada de la entrada vieja y
+   `pm2 save`.
+
+**Por qué el rol se podía renombrar sin más.** Porque la contraseña está en
+`scram-sha-256`, que no se sala con el nombre del rol. Con el antiguo `md5` sí
+—se sala con el nombre— y renombrar el rol habría invalidado la contraseña,
+dejando el API sin poder conectar. Se comprobó (`SHOW password_encryption` y el
+prefijo de `pg_authid.rolpassword`) antes de tocar nada; si hubiera dicho md5,
+el renombrado del rol habría exigido además fijar la contraseña de nuevo.
+
+Estado comprobado después: sólo existen las bases `postgres` y `tfu`, ningún rol
+ni proceso de pm2 contiene «atlas», el guardado de pm2 que resucita al reiniciar
+la máquina apunta a `tfu-api`, y por el borde público `/health`, `/v1/catalog`
+y `/v1/programs` responden 200 con los 13 cursos bilingües. Aguanta
+`pm2 restart`.
+
+Queda en el servidor `.env.bak-rename`, a propósito: es la vuelta atrás del
+cambio de `DATABASE_URL`. Conviene retirarlo cuando se haya convivido unos días
+con el nombre nuevo.
