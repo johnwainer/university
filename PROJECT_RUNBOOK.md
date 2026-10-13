@@ -1580,3 +1580,20 @@ prueba de humo.
 - **El LMS sigue enviando `access-control-allow-origin: *`**, que es el otro
   fallo de la prueba de humo. Es anterior a esta tanda y ajeno al aula: toca la
   configuración del servidor web de Moodle. No se tocó.
+
+### 25.8 El ancho: el del contenedor de la plataforma
+
+El aula se extendía a todo el ancho de la ventana, de modo que en una pantalla
+grande no alineaba con la cabecera que tiene justo encima.
+
+El contenedor de la plataforma es **1280px**, y no es una elección nueva: ya lo
+usan `.tfu-main-inner` y `.tfu-utility-inner` (las dos bandas de la cabecera),
+`.hero-content`, `.footer-top`, `.tfu-promise-inner` y las tres reglas de
+`programa.css`. El aula era la excepción.
+
+Se comprobó **midiendo contra producción**, no a ojo: a 1920px de ventana los
+contenedores reales del portal van de x=320 a x=1600. Con
+`max-width: 1280px; margin-inline: auto` dentro de `.public-shell` —que aporta
+sus 20px de margen— el aula cae exactamente en 320→1600. Medido también a
+1440px (80→1360) y a 1280px (20→1260, donde manda el margen del shell).
+

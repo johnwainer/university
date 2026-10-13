@@ -84,6 +84,15 @@
   /* El alto mínimo de cualquier cosa pulsable (punto 3 de la cabecera). */
   --aula-toque: 48px;
 
+  /* El ancho de la plataforma.
+     1280px es el contenedor que ya usan la cabecera (`.tfu-main-inner`), el
+     héroe, el pie y las páginas de programa (`programa.css`). El aula era la
+     excepción: se extendía a todo el ancho de la ventana, de modo que en una
+     pantalla grande no alineaba con la cabecera que tiene justo encima. */
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+
   display: grid;
   gap: var(--aula-e2);
   font-size: 1.0625rem;
