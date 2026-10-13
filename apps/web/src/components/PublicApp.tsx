@@ -358,6 +358,10 @@ function localizarPrograma(programa: ProgramaPublico, lang: string): ProgramaPub
     ...programa,
     title: programa.titleEn ?? programa.title,
     summary: programa.summaryEn ?? programa.summary,
+    // El área del programa salía siempre en español aunque el portal estuviera
+    // en inglés: era el «detalle conocido sin resolver» del §8.5. Venía de la
+    // categoría de Moodle y ahora llega en los dos idiomas.
+    tags: programa.tagsEn?.length ? programa.tagsEn : programa.tags,
     courses: programa.courses.map((curso) => ({
       ...curso,
       titulo: curso.tituloEn ?? curso.titulo,

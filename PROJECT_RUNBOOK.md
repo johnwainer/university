@@ -990,3 +990,128 @@ competencias). Pasa a «Mi expediente» / «My record». El título de la vista 
 otra clave y no se tocó. De paso se unificó la caja de las etiquetas inglesas,
 que mezclaba «My Courses» con «My program»: en el menú superior no se veía
 porque el CSS las pone en caja alta, pero en el pie se renderizan tal cual.
+
+---
+
+## 22) Moodle: resuelto el bloqueante, y lo que se encontró por el camino
+
+El 13 de octubre de 2026 se abrió el puerto 22 y se intervino Moodle. **El
+bloqueante §20.1 está resuelto: la matrícula funciona.** Pero casi nada de lo
+que el traspaso daba por sabido resultó exacto, así que aquí queda lo
+comprobado.
+
+### 22.1 Lo que el traspaso decía mal
+
+| Decía | Es |
+|---|---|
+| Rol del servicio web `paeu_ws_client` | **`tfu_ws`** (id 9, «TFU Web Service») |
+| Instalación Bitnami en `/opt/bitnami/...` (deducido de `00-config.sh`) | **Debian 12, Moodle 4.5.14+ en `/var/www/moodle`**, PHP 8.3 en `/usr/bin/php`, usuario web `www-data` |
+| Automatriculación e invitados pendientes de cerrar | **Ya estaban cerrados** en los 13 cursos; `manual` activa en los 13 |
+| Sólo faltaba una fila en `role_allow_assign` | Faltaba esa **y** una capacidad de lectura (§22.3) |
+
+`00-config.sh` describe un despliegue Bitnami que NO es esta máquina. Al
+preparar la intervención se reescribieron los guiones suponiendo Bitnami; se
+corrigió al entrar. `infra/moodle/paeu-bootstrap.php` resuelve la raíz de Moodle
+por `MOODLE_DIR`, subiendo desde el guion y luego por rutas conocidas, de modo
+que sirve en las dos.
+
+### 22.2 El bloqueante de matrícula
+
+Comprobado antes de tocar nada: se intentó matricular con **los roles 1 al 10** y
+los diez fallaron con `wsusercannotassign`. La tabla `role_allow_assign` tenía 7
+filas y ninguna de `tfu_ws`. Las tres capacidades (`moodle/role:assign`,
+`enrol/manual:enrol`, `enrol/manual:unenrol`) ya estaban concedidas.
+
+```bash
+sudo -u www-data php paeu-permitir-asignar-estudiante.php --role-shortname=tfu_ws --dry-run
+sudo -u www-data php paeu-permitir-asignar-estudiante.php --role-shortname=tfu_ws
+```
+
+**El guion da un aviso al terminar** —«You must not call clear_all_caches outside
+of unit tests»— porque llama a una función que Moodle 4.5 ya no admite por CLI.
+El cambio se aplica igual; purgar después con
+`php /var/www/moodle/admin/cli/purge_caches.php`.
+
+Tras esto, matricular al demo en sus dos programas devolvió `enrolled: true` y
+cero fallos, y `GET /v1/courses/12/content` pasó de 403 a **200 con 9 secciones**.
+
+### 22.3 SEGUNDA capacidad que faltaba: leer las matrículas
+
+Arreglado lo anterior, la plataforma podía DAR DE ALTA pero no RELEER. Al llamar
+a `core_enrol_get_users_courses` recibía `[]` aunque en Moodle las matrículas
+estuvieran activas y con rol `student`, y entonces marcaba
+`user_course_enrollments` como `inactive` y el portal volvía a decir «aula no
+disponible». Se vio porque la comprobación con navegador salió distinta en
+español y en inglés, que es imposible, y resultó ser el orden de las pruebas.
+
+La causa está en `enrol/externallib.php`:
+
+```php
+if (!$sameuser && (!course_can_view_participants($context) || !user_can_view_profile($user, $course))) {
+    continue;   // <- aquí se vaciaba la lista
+}
+```
+
+`course_can_view_participants()` exige **`moodle/course:viewparticipants`**, que
+`tfu_ws` no tenía. Las demás sí. Se concedieron en contexto de sistema
+`moodle/course:viewparticipants` y `moodle/site:viewparticipants`.
+
+**Si alguna vez se recrea el rol del servicio web, estas dos capacidades tienen
+que ir en la lista**, o la plataforma volverá a ver sus matrículas vacías.
+
+### 22.4 Las trece aulas
+
+`aula-modelo.php` fijaba el inicio del término en «el próximo martes a partir de
+hoy». Montando el 13 de octubre —primer día de `TERM-2026-FALL`— habría puesto
+las aulas a empezar el 20 y acabar el 15 de diciembre, una semana desfasadas del
+calendario del portal. Ahora acepta `--inicio=AAAA-MM-DD` y exige que caiga en
+martes (§10 del Master Syllabus). Además sumaba 8×7 días para el fin, que da el 8
+de diciembre; el periodo acaba el **7**, y así lo tenían las aulas 12 y 24. Se
+corrigió a 8×7−1 y se alinearon las once ya montadas.
+
+```bash
+sudo -u www-data php aula-modelo.php --inicio=2026-10-13 PCL-SALES-OPS PCL-CX-SUCCESS ...
+```
+
+Las trece quedan idénticas: 9 secciones, 35 actividades, 13 oct – 7 dic. Y se
+asociaron las trece al periodo: el punto de control vigilaba sólo 3.
+
+### 22.5 El multiidioma: por qué NO se puede usar la sintaxis del núcleo
+
+Este es el hallazgo que más cuesta recordar, así que va entero.
+
+Los nombres de categoría usan `{mlang en}…{mlang}{mlang es}…{mlang}`, que es la
+sintaxis del plugin **multilang2**, de terceros, **que no está instalado**. El
+filtro del núcleo sí está activo pero entiende otra:
+`<span lang="en" class="multilang">…</span>`. Por eso el LMS mostraba el marcado
+crudo en el listado de cursos.
+
+Se convirtieron los cinco nombres a la sintaxis del núcleo y **el LMS quedó
+perfecto… y se rompió el portal**: el servicio web devolvió
+`'AI — Cross-Cutting CapabilityIA — Capacidad Transversal'`, los dos idiomas
+pegados. `external_format_string()` quita el HTML **siempre**, también con
+`moodlewssettingfilter=false` (comprobado).
+
+**Conclusión: `{mlang}` es la sintaxis correcta para esta arquitectura**, porque
+es texto plano y sobrevive al servicio web, que es por donde el portal lee. Se
+revirtió. El precio es que el LMS enseña el marcado crudo en su propio listado
+de categorías.
+
+**Para arreglar también el LMS hace falta instalar el filtro multilang2**
+(`github.com/iarenaza/moodle-filter_multilang2`; GitHub es alcanzable desde la
+máquina). No se instaló: es código de terceros en un Moodle de producción y esa
+decisión es del usuario.
+
+Del lado de la plataforma sí quedó resuelto el §8.5: `parseMultilang` en
+`apps/api/src/db.ts` entiende ahora **las dos** sintaxis, y el payload lleva
+`tagsEn` junto a `tags`, así que el área del programa sale en el idioma del
+visitante: «IA — Capacidad Transversal» / «AI — Cross-Cutting Capability».
+
+### 22.6 Lo que queda
+
+- **Instalar multilang2** en Moodle, si se quiere que el LMS resuelva los nombres
+  de categoría. Decisión pendiente.
+- **«Categoría 1»** no se puede ocultar: contiene 10 cursos heredados de Atlas
+  (Filosofía Moderna, Cálculo, Derecho Constitucional…). **Los diez están ya
+  ocultos** (`visible=0`), así que no los ve ningún estudiante. Borrarlos es
+  decisión del usuario.

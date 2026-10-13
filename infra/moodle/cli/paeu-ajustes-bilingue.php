@@ -25,7 +25,7 @@
  *
  * Idempotente: se puede correr dos veces.
  *
- * Uso: sudo -u daemon /opt/bitnami/php/bin/php paeu-ajustes-bilingue.php [--dry-run]
+ * Uso: sudo -u www-data php paeu-ajustes-bilingue.php [--dry-run]
  */
 define('CLI_SCRIPT', true);
 require_once(__DIR__ . '/../paeu-bootstrap.php');

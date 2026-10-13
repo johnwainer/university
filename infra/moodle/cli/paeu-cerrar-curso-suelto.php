@@ -24,8 +24,8 @@
  * ejecucion en cuanto haya acceso, igual que paeu-ajustes-bilingue.php.
  *
  * Uso:
- *   sudo -u daemon /opt/bitnami/php/bin/php paeu-cerrar-curso-suelto.php
- *   sudo -u daemon /opt/bitnami/php/bin/php paeu-cerrar-curso-suelto.php --dry-run
+ *   sudo -u www-data php paeu-cerrar-curso-suelto.php
+ *   sudo -u www-data php paeu-cerrar-curso-suelto.php --dry-run
  *
  * Es idempotente: se puede correr las veces que haga falta.
  */

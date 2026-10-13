@@ -34,6 +34,8 @@ export type ProgramaPublico = {
   summaryEn: string | null;
   heroImage: string | null;
   tags: string[];
+  /** El área en inglés. El portal elige según el idioma del visitante (§8.5). */
+  tagsEn: string[];
   language: string;
   degreeLevel: string | null;
   creditHours: number | null;
@@ -98,6 +100,11 @@ function construirPrograma(fila: Record<string, any>): ProgramaPublico {
   const tags: string[] = Array.isArray(primero?.tags)
     ? (primero!.tags as string[]).filter((t) => t !== 'Moodle')
     : [];
+  // Si el aula no trajo la versión inglesa se cae a la española, que es
+  // contenido real, antes que dejar un hueco.
+  const tagsEn: string[] = Array.isArray((primero as any)?.tagsEn)
+    ? ((primero as any).tagsEn as string[]).filter((t) => t !== 'Moodle')
+    : tags;
 
   return {
     id: `program-${fila.code}`,
@@ -110,6 +117,7 @@ function construirPrograma(fila: Record<string, any>): ProgramaPublico {
     summaryEn: (primero?.summaryEn as string | undefined) ?? null,
     heroImage: (primero?.heroImage as string | undefined) ?? null,
     tags,
+    tagsEn,
     language: (primero?.language as string | undefined) ?? 'es',
     degreeLevel: fila.degree_level ?? null,
     creditHours: fila.credit_hours_required ?? null,

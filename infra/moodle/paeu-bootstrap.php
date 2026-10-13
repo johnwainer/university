@@ -5,7 +5,7 @@
  * POR QUÉ EXISTE ESTE ARCHIVO
  *
  * Los guiones de `infra/moodle/` resolvían la raíz de Moodle de tres maneras
- * distintas, y dos de ellas no corresponden a este despliegue:
+ * distintas, y una de ellas depende de dónde esté colocado el archivo:
  *
  *   aula-modelo.php                      require('/var/www/moodle/config.php')
  *   paeu-ajustes-bilingue.php            require('/var/www/moodle/config.php')
@@ -13,21 +13,25 @@
  *   paeu-permitir-asignar-estudiante.php require(__DIR__ . '/../../../config.php')
  *   paeu-provision-webservice.php        getenv('MOODLE_DIR')      <- la buena
  *
- * Este Moodle es una imagen **Bitnami** y vive en
- * `/opt/bitnami/projects/lms/moodle` (`MOODLE_DIR` en `infra/deploy/00-config.sh`).
- * O sea que los dos primeros fallaban en la primera línea, y los dos del medio
- * sólo funcionan si el archivo está exactamente tres niveles por debajo de la
- * raíz de Moodle, que es una condición que nadie garantiza al copiar un guion a
- * `/tmp` para ejecutarlo.
+ * COMPROBADO CONTRA LA MÁQUINA (13 oct 2026, al abrirse el puerto 22):
+ * Moodle 4.5.14+ sobre Debian 12, instalado en `/var/www/moodle`, con PHP 8.3
+ * en `/usr/bin/php` y usuario web `www-data`.
  *
- * Se descubrió preparando la intervención, antes de abrir el puerto 22: con las
- * rutas como estaban, el primer comando de la sesión habría fallado.
+ * Es decir: las dos rutas fijas `/var/www/moodle/config.php` eran CORRECTAS
+ * para este servidor. Lo que sí es frágil es `__DIR__ . '/../../../config.php'`,
+ * que sólo funciona si el guion está exactamente tres niveles por debajo de la
+ * raíz de Moodle — condición que se rompe en cuanto lo copias a /tmp o a
+ * /var/www/cli para ejecutarlo, que es justo lo que hay que hacer.
+ *
+ * Nota: `infra/deploy/00-config.sh` describe un despliegue Bitnami en
+ * `/opt/bitnami/projects/lms/moodle`. Esa NO es esta máquina. Se dejan las dos
+ * familias de rutas en la búsqueda para que el guion sirva en ambas.
  *
  * ORDEN DE BÚSQUEDA
  *   1. La variable de entorno MOODLE_DIR, que es lo que ya usa el guion de
  *      aprovisionamiento y lo que fija el despliegue.
  *   2. Subiendo desde la carpeta del guion, por si está dentro del árbol.
- *   3. Las rutas conocidas, Bitnami primero.
+ *   3. Las rutas conocidas, la de esta instalación primero.
  *
  * Si no encuentra ninguna, se para y dice cómo arreglarlo, en vez de reventar
  * con un «failed to open stream» que no orienta a nadie.
@@ -54,12 +58,13 @@ function paeu_config_moodle(): string {
         $dir = $padre;
     }
 
-    // Rutas conocidas. Bitnami primero porque es la de este despliegue.
+    // Rutas conocidas. `/var/www/moodle` primero porque es la de ESTA
+    // instalación; las de Bitnami quedan por si el otro despliegue las usa.
     foreach ([
-        '/opt/bitnami/projects/lms/moodle',
-        '/opt/bitnami/moodle',
         '/var/www/moodle',
         '/var/www/html/moodle',
+        '/opt/bitnami/projects/lms/moodle',
+        '/opt/bitnami/moodle',
     ] as $raiz) {
         $candidatas[] = $raiz . '/config.php';
     }
@@ -73,8 +78,7 @@ function paeu_config_moodle(): string {
     fwrite(STDERR,
         "No encuentro el config.php de Moodle.\n" .
         "Define MOODLE_DIR con la raíz de la instalación y vuelve a ejecutar, por ejemplo:\n" .
-        "  sudo MOODLE_DIR=/opt/bitnami/projects/lms/moodle \\\n" .
-        "       /opt/bitnami/php/bin/php " . basename($_SERVER['argv'][0] ?? 'guion.php') . "\n\n" .
+        "  sudo -u www-data MOODLE_DIR=/var/www/moodle php " . basename($_SERVER['argv'][0] ?? 'guion.php') . "\n\n" .
         "Rutas probadas:\n  - " . implode("\n  - ", $candidatas) . "\n");
     exit(1);
 }

@@ -26,8 +26,8 @@
  * puerto 22 cerrado.
  *
  * Uso:
- *   sudo -u daemon /opt/bitnami/php/bin/php paeu-permitir-asignar-estudiante.php --dry-run
- *   sudo -u daemon /opt/bitnami/php/bin/php paeu-permitir-asignar-estudiante.php
+ *   sudo -u www-data php paeu-permitir-asignar-estudiante.php --dry-run
+ *   sudo -u www-data php paeu-permitir-asignar-estudiante.php
  *
  * Idempotente.
  */

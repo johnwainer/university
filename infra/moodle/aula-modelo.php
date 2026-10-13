@@ -28,7 +28,7 @@
  *
  * Idempotente: si la seccion ya tiene actividades, el curso se salta entero.
  *
- * Uso: sudo -u daemon /opt/bitnami/php/bin/php aula-modelo.php <shortname> [<shortname2> ...]
+ * Uso: sudo -u www-data php aula-modelo.php <shortname> [<shortname2> ...]
  */
 define('CLI_SCRIPT', true);
 require_once(__DIR__ . '/paeu-bootstrap.php');
@@ -69,7 +69,7 @@ foreach ($argumentos as $arg) {
 
 if (!$shortnames) {
     fwrite(STDERR,
-        "Uso: /opt/bitnami/php/bin/php aula-modelo.php [--inicio=AAAA-MM-DD] <shortname> [...]\n" .
+        "Uso: php aula-modelo.php [--inicio=AAAA-MM-DD] <shortname> [...]\n" .
         "  --inicio  primer dia del termino, en martes. Sin el, el proximo martes.\n");
     exit(1);
 }
@@ -232,7 +232,14 @@ foreach ($shortnames as $short) {
     }
 
     $DB->set_field('course', 'startdate', $inicio->getTimestamp(), ['id' => $course->id]);
-    $finCurso = clone $inicio; $finCurso->modify('+' . ($SEMANAS * 7) . ' days');
+    // Fin del curso: el ULTIMO DIA de la semana 8, no el dia siguiente.
+    //
+    // Sumaba 8*7 = 56 dias, que desde el martes 13 de octubre cae en el 8 de
+    // diciembre. El periodo TERM-2026-FALL termina el 7, y es lo que tienen las
+    // dos aulas montadas antes (12 y 24). Un dia de diferencia que habria dejado
+    // once aulas diciendo una fecha de fin distinta de la del periodo y de la de
+    // sus companeras.
+    $finCurso = clone $inicio; $finCurso->modify('+' . ($SEMANAS * 7 - 1) . ' days');
     $DB->set_field('course', 'enddate', $finCurso->getTimestamp(), ['id' => $course->id]);
 
     rebuild_course_cache($course->id, true);

@@ -329,6 +329,8 @@ export type ProgramaPublico = {
   heroImage: string | null;
   /** El área del programa, p. ej. ["Ventas y Crecimiento de Ingresos"]. */
   tags: string[];
+  /** El área en inglés; el portal la elige según el idioma (§8.5). */
+  tagsEn?: string[];
   language: string;
   degreeLevel: string | null;
   creditHours: number | null;

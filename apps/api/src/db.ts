@@ -832,18 +832,41 @@ function decodeMoodleText(value: string): string {
  * que usa Moodle para "cualquier otro idioma" y aquí hace de respaldo.
  */
 function parseMultilang(value: string): { es: string; en: string } {
-  const blocks = [...value.matchAll(/\{\s*mlang\s+([a-zA-Z_-]+)\s*\}([\s\S]*?)\{\s*mlang\s*\}/g)];
-  if (blocks.length === 0) {
+  // Moodle tiene DOS sintaxis de multiidioma y aquí hay que entender las dos.
+  //
+  //   <span lang="en" class="multilang">…</span>   el filtro del NÚCLEO
+  //   {mlang en}…{mlang}                            el plugin multilang2, de terceros
+  //
+  // Esta instalación tenía los nombres de categoría escritos en la segunda y
+  // sólo el filtro del núcleo instalado, así que no los resolvía nadie: salían
+  // crudos en el listado de cursos del LMS. Al convertir los datos a la
+  // sintaxis del núcleo, esta función —que sólo conocía la de multilang2—
+  // dejó de partirlos y devolvía las dos versiones pegadas: «AI — Cross-Cutting
+  // CapabilityIA — Capacidad Transversal».
+  //
+  // Se reconocen las dos para que ni los datos viejos ni los nuevos se rompan.
+  const byLang = new Map<string, string>();
+  let encontrado = false;
+
+  // Sintaxis del núcleo.
+  for (const m of value.matchAll(
+    /<span\s+[^>]*lang\s*=\s*["']([a-zA-Z_-]+)["'][^>]*class\s*=\s*["'][^"']*multilang[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi
+  )) {
+    const lang = m[1].toLowerCase().split(/[_-]/)[0];
+    byLang.set(lang, (byLang.get(lang) ?? '') + m[2]);
+    encontrado = true;
+  }
+  // Y la del plugin, por si queda contenido antiguo.
+  for (const m of value.matchAll(/\{\s*mlang\s+([a-zA-Z_-]+)\s*\}([\s\S]*?)\{\s*mlang\s*\}/g)) {
+    const lang = m[1].toLowerCase().split(/[_-]/)[0];
+    byLang.set(lang, (byLang.get(lang) ?? '') + m[2]);
+    encontrado = true;
+  }
+
+  if (!encontrado) {
     return { es: value, en: value };
   }
-  const byLang = new Map<string, string>();
-  for (const block of blocks) {
-    const lang = block[1].toLowerCase().split(/[_-]/)[0];
-    // Moodle permite partir un idioma en varios bloques; el filtro los
-    // concatena en orden y aquí se hace lo mismo.
-    byLang.set(lang, (byLang.get(lang) ?? '') + block[2]);
-  }
-  const fallback = byLang.get('other') ?? blocks[0][2];
+  const fallback = byLang.get('other') ?? [...byLang.values()][0] ?? value;
   return {
     es: (byLang.get('es') ?? fallback).trim(),
     en: (byLang.get('en') ?? fallback).trim()
@@ -989,6 +1012,9 @@ export async function syncMoodleCoursesWithCategories(
       durationMinutes,
       language: assetLanguage,
       tags: [categoryName, 'Moodle'],
+      // El área en inglés viaja aparte: el portal es bilingüe y hasta ahora el
+      // área del programa salía siempre en español. Ver §8.5.
+      tagsEn: [categoryNameEn, 'Moodle'],
       heroImage,
       categoryName,
       categoryNameEn,
