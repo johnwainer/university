@@ -22,6 +22,7 @@ import { EnterpriseGroupManager } from './EnterpriseGroupManager';
 import { BRAND, BRAND_SHORT } from '../i18n';
 import { INSTITUTION_CONTACTS } from '../institution';
 import { StudentAcademics } from './StudentAcademics';
+import { StudentProgram } from './StudentProgram';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ContactSection } from './public/ContactSection';
 import { AdmissionsForm } from './public/AdmissionsForm';
@@ -47,6 +48,12 @@ type ViewState =
    * de la matrícula; la API de contenido no lo devuelve.
    */
   | { type: 'course'; moodleCourseId: number; titulo: string }
+  /**
+   * Programa del estudiante: la vista con la que se entra a la plataforma.
+   * Es la que faltaba para que el portal hablara de programas, igual que ya
+   * hacen el catálogo y el panel.
+   */
+  | { type: 'my-program' }
   | { type: 'my-courses' }
   | { type: 'academics' }
   | { type: 'profile' }
@@ -1585,7 +1592,10 @@ export function PublicApp() {
       localStorage.setItem(PUBLIC_SESSION_STORAGE, JSON.stringify(session));
       void hydrateAuthenticatedData(session);
       setShowAuthModal(false);
-      setView({ type: 'home' });
+      // Quien inicia sesión aterriza en su programa, que es su plataforma: su
+      // plan de estudios, sus notas y sus plazos. Antes caía en la portada
+      // pública, la misma que ve un visitante sin cuenta.
+      setView({ type: 'my-program' });
     } catch (reason) {
       setAuthError(reason instanceof Error ? reason.message : 'No se pudo iniciar sesión');
     } finally {
@@ -1916,6 +1926,14 @@ export function PublicApp() {
                     <strong>{publicSession.user.fullName}</strong>
                     <span>{publicSession.user.email}</span>
                   </div>
+                  <button
+                    onClick={() => {
+                      setView({ type: 'my-program' });
+                      setAccountMenuOpen(false);
+                    }}
+                  >
+                    {t('nav.myProgram')}
+                  </button>
                   <button
                     onClick={() => {
                       setView({ type: 'my-courses' });
@@ -3049,6 +3067,21 @@ export function PublicApp() {
             })}
           </div>
         </section>
+      ) : null}
+
+      {view.type === 'my-program' ? (
+        publicSession?.token ? (
+          <StudentProgram
+            token={publicSession.token}
+            onAbrirAula={abrirAula}
+            onGoAcademics={() => setView({ type: 'academics' })}
+            onGoCatalog={() => setView({ type: 'catalog' })}
+          />
+        ) : (
+          <section className="section-block">
+            <p>{t('myProgram.loginRequired')}</p>
+          </section>
+        )
       ) : null}
 
       {view.type === 'academics' ? (

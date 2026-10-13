@@ -33,7 +33,8 @@
     "brandTagline": "Rise Fast. Fly Further.",
     "utilityEnterprise": "For business",
     "utilityContact": "Contact",
-    "openMenu": "Open menu"
+    "openMenu": "Open menu",
+    "myProgram": "My program"
   },
   "hero": {
     "exploreCatalog": "Explore Academic Catalog",
@@ -1183,6 +1184,10 @@
       "roles": {
         "label": "Roles & permissions",
         "hint": "Who can view and edit each section"
+      },
+      "registraduria": {
+        "label": "Registrar",
+        "hint": "Term enrollments and grade entry"
       }
     },
     "tituloPanel": "Admin panel",
@@ -2406,6 +2411,124 @@
       "errorGuardar": "Could not save",
       "errorPublicar": "Could not publish"
     },
-    "cuentaArranque": "Administrator (.env)"
+    "cuentaArranque": "Administrator (.env)",
+    "registrar": {
+      "title": "Registrar",
+      "subtitle": "Term enrollments and grade entry.",
+      "term": "Current term",
+      "noTerm": "There is no term in progress.",
+      "filters": {
+        "program": "Program",
+        "student": "Student",
+        "allPrograms": "All programs",
+        "search": "Search by name or email"
+      },
+      "table": {
+        "student": "Student",
+        "program": "Program",
+        "course": "Classroom",
+        "credits": "Credits",
+        "status": "Status",
+        "grade": "Grade",
+        "classroom": "Classroom access",
+        "actions": "Action"
+      },
+      "status": {
+        "enrolled": "In progress",
+        "completed": "Completed",
+        "withdrawn": "Withdrawn",
+        "auditing": "Auditing"
+      },
+      "classroom": {
+        "ok": "Enabled",
+        "blocked": "Not enabled"
+      },
+      "grade": {
+        "none": "Not graded",
+        "clear": "Clear grade",
+        "save": "Record",
+        "saving": "Recording…",
+        "saved": "Grade recorded.",
+        "cleared": "Grade cleared.",
+        "scalePending": "Standard 4.0 scale. TFU has not confirmed its own.",
+        "derived": "Status and points are derived from the letter."
+      },
+      "empty": "No enrollments to show.",
+      "emptyHelp": "Enrollments are created when a student is enrolled in a program, from Users.",
+      "loadError": "Could not load enrollments."
+    }
+  },
+  "myProgram": {
+    "title": "My program",
+    "subtitle": "Your program, your plan of study and this term's deadlines.",
+    "loginRequired": "Sign in to see your program",
+    "loading": "Loading your program…",
+    "empty": "You are not enrolled in a program yet.",
+    "emptyHelp": "Once Admissions completes your enrollment, your program will appear here with its plan of study and calendar.",
+    "exploreCatalog": "See available programs",
+    "term": "Term",
+    "termDates": "{{inicio}} – {{fin}}",
+    "termClosed": "Term closed",
+    "level": "Level",
+    "levels": {
+      "certificate": "Certificate",
+      "associate": "Associate",
+      "bachelor": "Bachelor",
+      "master": "Master",
+      "doctoral": "Doctoral",
+      "professional": "Professional"
+    },
+    "summary": {
+      "courses": "Courses in program",
+      "completed": "Passed",
+      "inProgress": "In progress",
+      "gpa": "GPA",
+      "gpaPending": "No grades yet",
+      "credits": "Credits earned"
+    },
+    "plan": {
+      "title": "Plan of study",
+      "subtitle": "The courses that make up your program, in order.",
+      "course": "Course",
+      "status": "Status",
+      "grade": "Grade",
+      "progress": "Progress",
+      "actions": "Classroom"
+    },
+    "status": {
+      "enrolled": "In progress",
+      "completed": "Completed",
+      "withdrawn": "Withdrawn",
+      "auditing": "Auditing"
+    },
+    "grade": {
+      "pending": "Not graded",
+      "scaleNote": "Standard 4.0 scale. TFU has not yet confirmed its own grading scale.",
+      "points": "{{puntos}} points"
+    },
+    "progress": {
+      "noShell": "Classroom not built",
+      "ofModules": "{{hechos}} of {{total}} activities"
+    },
+    "aula": {
+      "open": "Enter classroom",
+      "blocked": "Classroom not available yet",
+      "blockedHelp": "Your program enrollment is on record. Access to the classroom in the virtual campus is still pending."
+    },
+    "calendar": {
+      "title": "Term calendar",
+      "subtitle": "Eight weeks, with each week's deadlines.",
+      "currentWeek": "Current week",
+      "week": "Week {{n}}",
+      "weekOf": "{{inicio}} to {{fin}}",
+      "closesAt": "Closes {{fecha}}",
+      "noGrid": "No calendar has been generated for this term yet.",
+      "upcoming": "Upcoming deadlines",
+      "noUpcoming": "No deadlines left this week.",
+      "holiday": "Holiday",
+      "shifted": "Deadline moved by a holiday",
+      "past": "Past due"
+    },
+    "goAcademics": "See my full record"
   }
 }

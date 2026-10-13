@@ -732,6 +732,134 @@ export type AvailableProgramCourse = {
   visible: boolean;
 };
 
+/* =============================================================================
+   Mi programa — lo que el estudiante ve al entrar
+   ============================================================================= */
+
+/**
+ * Un curso del plan de estudios con los datos del estudiante encima.
+ *
+ * No confundir con `CursoDelPrograma`, que es el curso tal y como lo publica
+ * el catálogo público: ese no lleva identificador de Moodle a propósito. Este
+ * sí, porque es la matrícula del propio estudiante y es por donde se entra al
+ * aula.
+ */
+/* =============================================================================
+   Registraduría — matrículas del periodo y registro de notas
+   ============================================================================= */
+
+/** Una entrada de la escala de calificación, tal y como la sirve el servidor. */
+export type NotaDeEscala = {
+  letra: string;
+  puntos: number | null;
+  cuentaParaPromedio: boolean;
+  completa: boolean;
+  descripcionEs: string;
+  descripcionEn: string;
+};
+
+export type EscalaResponse = {
+  escala: NotaDeEscala[];
+  /** La escala es la estándar de 4,0; TFU no ha confirmado la suya. */
+  pendienteDeConfirmacion: boolean;
+  notaEs: string;
+  notaEn: string;
+};
+
+/** Una matrícula SIS vista desde el panel: sobre esto se califica. */
+export type MatriculaRegistraduria = {
+  id: string;
+  user_id: string;
+  moodle_course_id: number;
+  status: 'enrolled' | 'withdrawn' | 'completed' | 'auditing';
+  grade: string | null;
+  grade_points: number | null;
+  credit_hours: number;
+  enrolled_at: string;
+  completed_at: string | null;
+  student_name: string;
+  student_email: string;
+  term_code: string;
+  term_name: string;
+  program_code: string | null;
+  program_name: string | null;
+  course_name: string | null;
+  course_short_name: string | null;
+  /** Hecho de Moodle, aparte del estado de la matrícula. */
+  aula_accesible: boolean;
+};
+
+export type CursoMatriculado = {
+  enrollmentId: string;
+  moodleCourseId: number;
+  name: string | null;
+  shortName: string | null;
+  status: 'enrolled' | 'withdrawn' | 'completed' | 'auditing';
+  grade: string | null;
+  gradePoints: number | null;
+  creditHours: number;
+  /**
+   * Si el aula del campus virtual se puede abrir. Va aparte del estado de la
+   * matrícula porque es lo único que depende de Moodle: se puede estar
+   * matriculado en el programa y que el aula todavía no esté habilitada.
+   */
+  aulaAccesible: boolean;
+  /** `null` —no `0`— cuando el aula no está montada: cero se leería como aula vacía. */
+  progressPercent: number | null;
+  totalModules: number | null;
+  completedModules: number;
+  lastActivityAt: string | null;
+  enrolledAt: string;
+  completedAt: string | null;
+};
+
+export type ProgramaDelEstudiante = {
+  programCode: string | null;
+  programName: string | null;
+  programDescription: string | null;
+  degreeLevel: string | null;
+  creditHoursRequired: number;
+  term: {
+    code: string;
+    name: string;
+    startsOn: string | null;
+    endsOn: string | null;
+    isActive: boolean;
+  };
+  courses: CursoMatriculado[];
+};
+
+export type PlazoDeSemana = {
+  key: string;
+  dueAt: string;
+  labelEs: string;
+  labelEn: string;
+};
+
+export type SemanaDelPeriodo = {
+  week: number;
+  startsOn: string;
+  endsOn: string;
+  opensAt: string;
+  closesAt: string;
+  shifted: boolean;
+  holidays: Array<{ name?: string; date?: string } | string>;
+  deadlines: PlazoDeSemana[];
+};
+
+export type MiProgramaResponse = {
+  programs: ProgramaDelEstudiante[];
+  activeTerm: { id: string; code: string; name: string; startDate: string; endDate: string } | null;
+  termGrid?: {
+    revision: number;
+    termStartsOn: string;
+    termEndsOn: string;
+    weeks: SemanaDelPeriodo[];
+  } | null;
+  /** La escala de calificación es la estándar de 4,0 y TFU no ha confirmado la suya. */
+  gradingScalePending: boolean;
+};
+
 export type TranscriptRecord = {
   id: string;
   moodle_course_id: number;
@@ -1082,7 +1210,9 @@ export const api = {
     certificates: (token: string) =>
       fetchJson<CertificateRecord[]>('/v1/me/certificates', { auth: { token } }),
     competencies: (token: string) =>
-      fetchJson<CompetencyRecord[]>('/v1/me/competencies', { auth: { token } })
+      fetchJson<CompetencyRecord[]>('/v1/me/competencies', { auth: { token } }),
+    /** El programa del estudiante con su plan de estudios, notas y plazos. */
+    program: (token: string) => fetchJson<MiProgramaResponse>('/v1/me/program', { auth: { token } })
   },
   courseContent: (moodleCourseId: number, token: string) =>
     fetchJson<MoodleCourseContentResponse>(`/v1/courses/${moodleCourseId}/content`, {
@@ -1163,8 +1293,6 @@ export const api = {
       }
     ),
   offers: () => fetchJson<Offer[]>('/v1/offers'),
-  entitlements: () => fetchJson<Entitlement[]>('/v1/entitlements'),
-  blueprint: () => fetchJson<PlatformBlueprintResponse>('/v1/blueprint'),
   applyToProgram: (payload: {
     fullName: string;
     email: string;
@@ -1709,6 +1837,40 @@ export const api = {
       fetchJson<{ reordered: boolean }>(
         `/admin/degree-programs/${encodeURIComponent(programId)}/courses/order`,
         { method: 'PUT', auth: { token }, body: { moodleCourseIds } }
+      ),
+
+    /* --- Registraduría --- */
+    gradingScale: (token: string) =>
+      fetchJson<EscalaResponse>('/admin/registrar/scale', { auth: { token } }),
+    registrarTerm: (token: string) =>
+      fetchJson<{ term: { id: string; code: string; name: string; startDate: string; endDate: string } | null }>(
+        '/admin/registrar/term',
+        { auth: { token } }
+      ),
+    registrarEnrollments: (
+      token: string,
+      filtros?: { termCode?: string; programCode?: string; studentUserId?: string }
+    ) => {
+      const q = new URLSearchParams();
+      if (filtros?.termCode) q.set('termCode', filtros.termCode);
+      if (filtros?.programCode) q.set('programCode', filtros.programCode);
+      if (filtros?.studentUserId) q.set('studentUserId', filtros.studentUserId);
+      const cola = q.toString();
+      return fetchJson<{ enrollments: MatriculaRegistraduria[] }>(
+        `/admin/registrar/enrollments${cola ? `?${cola}` : ''}`,
+        { auth: { token } }
+      );
+    },
+    /**
+     * Registra la nota de una matrícula. `grade: null` la retira.
+     *
+     * No se mandan ni los puntos ni el estado: los deriva el servidor de la
+     * letra, para que no puedan contradecirse.
+     */
+    setGrade: (token: string, enrollmentId: string, grade: string | null) =>
+      fetchJson<{ enrollment: MatriculaRegistraduria }>(
+        `/admin/registrar/enrollments/${encodeURIComponent(enrollmentId)}`,
+        { method: 'PATCH', auth: { token }, body: { grade } }
       )
   }
 };

@@ -33,7 +33,8 @@
     "brandTagline": "Rise Fast. Fly Further.",
     "utilityEnterprise": "Para empresas",
     "utilityContact": "Contacto",
-    "openMenu": "Abrir menú"
+    "openMenu": "Abrir menú",
+    "myProgram": "Mi programa"
   },
   "hero": {
     "exploreCatalog": "Explorar oferta académica",
@@ -1183,6 +1184,10 @@
       "roles": {
         "label": "Roles y permisos",
         "hint": "Quién puede ver y editar cada sección"
+      },
+      "registraduria": {
+        "label": "Registraduría",
+        "hint": "Matrículas del periodo y registro de calificaciones"
       }
     },
     "tituloPanel": "Panel administrativo",
@@ -2406,6 +2411,124 @@
       "errorGuardar": "No se pudo guardar",
       "errorPublicar": "No se pudo publicar"
     },
-    "cuentaArranque": "Administrador (.env)"
+    "cuentaArranque": "Administrador (.env)",
+    "registrar": {
+      "title": "Registraduría",
+      "subtitle": "Matrículas del periodo y registro de calificaciones.",
+      "term": "Periodo en curso",
+      "noTerm": "No hay ningún periodo en curso.",
+      "filters": {
+        "program": "Programa",
+        "student": "Estudiante",
+        "allPrograms": "Todos los programas",
+        "search": "Buscar por nombre o correo"
+      },
+      "table": {
+        "student": "Estudiante",
+        "program": "Programa",
+        "course": "Aula",
+        "credits": "Créditos",
+        "status": "Estado",
+        "grade": "Nota",
+        "classroom": "Acceso al aula",
+        "actions": "Acción"
+      },
+      "status": {
+        "enrolled": "En curso",
+        "completed": "Completado",
+        "withdrawn": "Retirado",
+        "auditing": "Oyente"
+      },
+      "classroom": {
+        "ok": "Habilitado",
+        "blocked": "Sin habilitar"
+      },
+      "grade": {
+        "none": "Sin calificar",
+        "clear": "Quitar nota",
+        "save": "Registrar",
+        "saving": "Registrando…",
+        "saved": "Nota registrada.",
+        "cleared": "Nota retirada.",
+        "scalePending": "Escala estándar de 4,0. TFU todavía no ha confirmado la suya.",
+        "derived": "El estado y los puntos se derivan de la letra."
+      },
+      "empty": "No hay matrículas que mostrar.",
+      "emptyHelp": "Las matrículas se crean al matricular a un estudiante en un programa, desde Usuarios.",
+      "loadError": "No se pudieron cargar las matrículas."
+    }
+  },
+  "myProgram": {
+    "title": "Mi programa",
+    "subtitle": "Tu programa, tu plan de estudios y tus plazos del periodo.",
+    "loginRequired": "Inicia sesión para ver tu programa",
+    "loading": "Cargando tu programa…",
+    "empty": "Todavía no estás matriculado en ningún programa.",
+    "emptyHelp": "Cuando Admisiones complete tu matrícula, tu programa aparecerá aquí con su plan de estudios y su calendario.",
+    "exploreCatalog": "Ver programas disponibles",
+    "term": "Periodo",
+    "termDates": "{{inicio}} – {{fin}}",
+    "termClosed": "Periodo cerrado",
+    "level": "Nivel",
+    "levels": {
+      "certificate": "Certificado",
+      "associate": "Técnico",
+      "bachelor": "Licenciatura",
+      "master": "Maestría",
+      "doctoral": "Doctorado",
+      "professional": "Profesional"
+    },
+    "summary": {
+      "courses": "Cursos del programa",
+      "completed": "Aprobados",
+      "inProgress": "En curso",
+      "gpa": "Promedio",
+      "gpaPending": "Sin notas todavía",
+      "credits": "Créditos ganados"
+    },
+    "plan": {
+      "title": "Plan de estudios",
+      "subtitle": "Los cursos que componen tu programa, en orden.",
+      "course": "Curso",
+      "status": "Estado",
+      "grade": "Nota",
+      "progress": "Avance",
+      "actions": "Aula"
+    },
+    "status": {
+      "enrolled": "En curso",
+      "completed": "Completado",
+      "withdrawn": "Retirado",
+      "auditing": "Oyente"
+    },
+    "grade": {
+      "pending": "Sin calificar",
+      "scaleNote": "Escala estándar de 4,0. TFU todavía no ha confirmado su propia escala de calificación.",
+      "points": "{{puntos}} puntos"
+    },
+    "progress": {
+      "noShell": "Aula sin montar",
+      "ofModules": "{{hechos}} de {{total}} actividades"
+    },
+    "aula": {
+      "open": "Entrar al aula",
+      "blocked": "Aula no disponible todavía",
+      "blockedHelp": "Tu matrícula en el programa está registrada. El acceso al aula en el campus virtual está pendiente de habilitarse."
+    },
+    "calendar": {
+      "title": "Calendario del periodo",
+      "subtitle": "Ocho semanas, con los plazos de cada una.",
+      "currentWeek": "Semana en curso",
+      "week": "Semana {{n}}",
+      "weekOf": "Del {{inicio}} al {{fin}}",
+      "closesAt": "Cierra {{fecha}}",
+      "noGrid": "Todavía no hay calendario generado para este periodo.",
+      "upcoming": "Próximos plazos",
+      "noUpcoming": "No quedan plazos en esta semana.",
+      "holiday": "Festivo",
+      "shifted": "Plazo movido por festivo",
+      "past": "Vencido"
+    },
+    "goAcademics": "Ver mi expediente completo"
   }
 }

@@ -22,6 +22,7 @@ import './styles.css';
 import './admin-ui.css';
 import { CompaniesView } from './admin/views/CompaniesView';
 import { SisView } from './admin/views/SisView';
+import { RegistrarView } from './admin/views/RegistrarView';
 import { CrmView } from './admin/views/CrmView';
 import { ComplianceView } from './admin/views/ComplianceView';
 import { BackofficeView } from './admin/views/BackofficeView';
@@ -60,6 +61,7 @@ type PanelSection =
   | 'podcasts'
   | 'integrations'
   | 'sis'
+  | 'registraduria'
   | 'programs'
   | 'crm'
   | 'compliance'
@@ -128,6 +130,11 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'admin.nav.grupos.academico',
     items: [
       { id: 'sis', label: 'admin.nav.sis.label', hint: 'admin.nav.sis.hint' },
+      // Registraduría es la sección desde la que se califica. Va pegada al SIS
+      // porque escribe en la misma tabla de matrículas, pero tiene sección
+      // propia en el catálogo del servidor: quien califica no tiene por qué
+      // poder tocar facturas ni bloqueos.
+      { id: 'registraduria', label: 'admin.nav.registraduria.label', hint: 'admin.nav.registraduria.hint' },
       { id: 'calendar', label: 'admin.nav.calendar.label', hint: 'admin.nav.calendar.hint' },
       { id: 'compliance', label: 'admin.nav.compliance.label', hint: 'admin.nav.compliance.hint' }
     ]
@@ -2165,6 +2172,14 @@ export function AdminApp() {
 
           {activeSection === 'sis' ? (
             <SisView sessionToken={sessionToken} setError={setError} setInfo={setInfo} />
+          ) : null}
+
+          {activeSection === 'registraduria' ? (
+            <RegistrarView
+              token={sessionToken}
+              puedeEditar={puedeEditar('registraduria')}
+              locale={i18n.language?.startsWith('en') ? 'en' : 'es'}
+            />
           ) : null}
 
           {/* Las rutas de composición cuelgan de `/admin/degree-programs`, que el

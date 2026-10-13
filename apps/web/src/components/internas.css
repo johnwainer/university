@@ -918,3 +918,363 @@
     align-items: stretch;
   }
 }
+
+/* =========================================================================
+   Mi programa — la plataforma del estudiante
+   =========================================================================
+   Esta vista no existía. El portal tenía «Mis cursos», «Expediente» y
+   «Perfil», y ninguna hablaba del programa, que es la unidad en la que el
+   estudiante se matricula.
+
+   Criterio, el mismo del resto de las internas: sin marcos innecesarios,
+   jerarquía por tamaño y espacio, un solo acento. Las medidas van en rem y no
+   hay alturas fijas de fila: una fila de alto fijo ya costó un defecto de
+   maquetación en este proyecto cuando el contenido creció.
+
+   Los nombres van con prefijo `mp-` porque este archivo se carga antes de
+   `programa.css` y cualquier nombre genérico podría ser redeclarado después.
+   ========================================================================= */
+
+.mi-programa {
+  display: flex;
+  flex-direction: column;
+  gap: 2.75rem;
+}
+
+/* --- Cabecera del programa --- */
+.mp-cabecera h3 {
+  margin: 0 0 0.85rem;
+  font-family: var(--pcl-font-display);
+  font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.1rem);
+  line-height: 1.2;
+  letter-spacing: var(--tfu-track-title);
+  text-transform: uppercase;
+}
+
+.mp-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem 2.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mp-meta li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.mp-meta span {
+  font-size: 0.74rem;
+  letter-spacing: var(--tfu-track-eyebrow);
+  text-transform: uppercase;
+  color: var(--pcl-steel);
+}
+
+.mp-meta strong {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.mp-cerrado {
+  color: var(--pcl-coral);
+}
+
+.mp-descripcion {
+  max-width: 68ch;
+  margin: 1.4rem 0 0;
+  color: var(--pcl-ice);
+}
+
+.mp-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.74rem;
+  letter-spacing: var(--tfu-track-eyebrow);
+  text-transform: uppercase;
+  color: var(--pcl-cyan);
+}
+
+/* --- Plan de estudios --- */
+.mp-tabla-wrap {
+  overflow-x: auto;
+  /* Para que la tabla no quede cortada sin aviso en pantalla estrecha. */
+  -webkit-overflow-scrolling: touch;
+}
+
+.mp-tabla {
+  width: 100%;
+  min-width: 46rem;
+  border-collapse: collapse;
+}
+
+.mp-tabla thead th {
+  padding: 0 0 0.7rem;
+  text-align: left;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: var(--tfu-track-eyebrow);
+  text-transform: uppercase;
+  color: var(--pcl-steel);
+  border-bottom: 1px solid var(--pcl-navy-600);
+}
+
+.mp-tabla tbody td {
+  padding: 1.15rem 1.4rem 1.15rem 0;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(143, 166, 191, 0.18);
+}
+
+.mp-tabla tbody td:last-child {
+  padding-right: 0;
+}
+
+.mp-tabla tbody td strong {
+  display: block;
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+
+.mp-codigo {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--pcl-steel);
+}
+
+.mp-estado {
+  display: inline-block;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(143, 166, 191, 0.16);
+  color: var(--pcl-ice);
+}
+
+.mp-estado.estado-completed {
+  background: rgba(45, 196, 199, 0.16);
+  color: var(--pcl-cyan-100);
+}
+
+.mp-estado.estado-withdrawn {
+  background: rgba(255, 107, 107, 0.15);
+  color: #ffc2c2;
+}
+
+.mp-nota strong {
+  display: inline-block;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.mp-nota em {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.76rem;
+  font-style: normal;
+  color: var(--pcl-steel);
+}
+
+/* Un dato que todavía no existe se dice con palabras, no con un guion ni un
+   cero: cero se leería como un valor real. */
+.mp-sin-dato {
+  font-size: 0.84rem;
+  color: var(--pcl-steel);
+}
+
+.mp-progreso {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 9rem;
+}
+
+.mp-barra {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(143, 166, 191, 0.22);
+  overflow: hidden;
+}
+
+.mp-barra > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--pcl-cyan);
+}
+
+.mp-progreso em {
+  font-size: 0.76rem;
+  font-style: normal;
+  color: var(--pcl-steel);
+}
+
+.mp-entrar {
+  white-space: nowrap;
+}
+
+/* Sin aula habilitada no hay botón: un botón que da 403 es peor que una
+   explicación. */
+.mp-aula-bloqueada {
+  display: inline-block;
+  max-width: 14rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--pcl-steel);
+  border-left: 2px solid var(--pcl-coral);
+  padding-left: 0.6rem;
+}
+
+.mp-nota-escala {
+  margin: 1.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--pcl-steel);
+}
+
+/* --- Calendario del periodo --- */
+.mp-semana-actual {
+  padding: 1.5rem 1.7rem;
+  border: 1px solid var(--pcl-navy-600);
+  border-radius: 10px;
+  background: rgba(22, 50, 79, 0.45);
+}
+
+.mp-semana-actual h4 {
+  margin: 0 0 0.3rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.mp-plazos-titulo {
+  margin: 1.3rem 0 0.6rem;
+  font-size: 0.74rem;
+  letter-spacing: var(--tfu-track-eyebrow);
+  text-transform: uppercase;
+  color: var(--pcl-steel);
+}
+
+.mp-plazos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.mp-plazo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 0.8rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(143, 166, 191, 0.15);
+}
+
+.mp-plazo:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.mp-plazo > span {
+  flex: 1 1 14rem;
+}
+
+.mp-plazo strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.mp-plazo em {
+  font-size: 0.74rem;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: var(--tfu-track-eyebrow);
+  color: var(--pcl-coral);
+}
+
+.mp-plazo.vencido > span,
+.mp-plazo.vencido strong {
+  color: var(--pcl-steel);
+}
+
+.mp-semanas {
+  margin: 1.8rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.mp-semana {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) minmax(10rem, 1fr) auto auto;
+  gap: 0.4rem 1.2rem;
+  align-items: baseline;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid rgba(143, 166, 191, 0.15);
+  font-size: 0.88rem;
+}
+
+.mp-semana.actual {
+  color: var(--pcl-white);
+}
+
+.mp-semana.actual .mp-semana-n {
+  color: var(--pcl-cyan);
+  font-weight: 700;
+}
+
+.mp-semana-n {
+  font-weight: 600;
+}
+
+.mp-semana-fechas,
+.mp-semana-cierre {
+  color: var(--pcl-steel);
+}
+
+.mp-semana-cierre {
+  font-variant-numeric: tabular-nums;
+}
+
+.mp-semana-festivo {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: var(--tfu-track-eyebrow);
+  color: var(--pcl-gold);
+}
+
+@media (max-width: 720px) {
+  .mp-semana {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .mp-semana-actual {
+    padding: 1.2rem 1.1rem;
+  }
+}
+
+/* La rejilla del resumen es de 3 columnas en `public.css` y aquí hay cuatro
+   tarjetas, así que la cuarta caía sola en una fila con un hueco de dos
+   columnas al lado. Se redeclara SÓLO dentro de `.mi-programa`, que se carga
+   después, para no tocar «Mis cursos», que sí tiene tres. */
+.mi-programa .profile-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .mi-programa .profile-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .mi-programa .profile-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
