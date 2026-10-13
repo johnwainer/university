@@ -234,7 +234,10 @@ export function AdminApp() {
    * desaparecen al llegar la respuesta.
    */
   const [identidad, setIdentidad] = useState<AdminIdentity | null>(null);
-  const [loginEmail, setLoginEmail] = useState('admin@atlas.edu');
+  // El campo arrancaba relleno con «admin@atlas.edu», la cuenta de ejemplo del
+  // producto original: la pantalla de entrada del panel de TFU ofrecía un
+  // correo de otra institución ya escrito. Arranca vacío.
+  const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [activeSection, setActiveSection] = useState<PanelSection>('overview');
   const [loadingBase, setLoadingBase] = useState(false);
@@ -1326,7 +1329,7 @@ export function AdminApp() {
               type="email"
               value={loginEmail}
               onChange={(event) => setLoginEmail(event.target.value)}
-              placeholder="admin@atlas.edu"
+              placeholder="nombre@thefloridianuniversity.com"
               required
             />
             <label htmlFor="admin-password">{t('admin.sesion.contrasena')}</label>
@@ -1541,7 +1544,7 @@ export function AdminApp() {
                     onChange={(event) =>
                       setMoodleConnectionForm((current) => ({ ...current, baseUrl: event.target.value }))
                     }
-                    placeholder="http://localhost:8081"
+                    placeholder="https://lms.portal.thefloridianuniversity.com"
                     required
                   />
                   <label htmlFor="moodle-token">{t('admin.shell.conexiones.campoToken')}</label>
@@ -1614,7 +1617,7 @@ export function AdminApp() {
                       type="email"
                       value={newUser.email}
                       onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))}
-                      placeholder="ana@university.edu"
+                      placeholder="nombre@thefloridianuniversity.com"
                       required
                     />
                     <label htmlFor="locale">{t('admin.shell.usuarios.campoIdioma')}</label>

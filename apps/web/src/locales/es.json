@@ -78,7 +78,8 @@
     "purposeWhyTitle": "Por qué lo hacemos",
     "purposeWhyBody": "Porque el talento no debería quedarse atrás: la experiencia tiene valor y reinventarse es posible en cualquier etapa.",
     "allPrograms": "Todos los programas",
-    "allProgramsSubtitle": "La oferta académica completa de {{brandShort}}"
+    "allProgramsSubtitle": "La oferta académica completa de {{brandShort}}",
+    "closePodcast": "Cerrar podcast"
   },
   "catalog": {
     "title": "Catálogo académico",
@@ -155,7 +156,8 @@
     "selectModule": "Selecciona un módulo para iniciar.",
     "moduleDone": "Completado",
     "modulePending": "Pendiente",
-    "noAttachments": "No hay archivos adjuntos en esta actividad."
+    "noAttachments": "No hay archivos adjuntos en esta actividad.",
+    "fileTitle": "Archivo del curso"
   },
   "myCourses": {
     "title": "Mis cursos",
@@ -230,7 +232,6 @@
     "talkToAdvisor": "Hablar con un asesor",
     "goToCourses": "Ir a mis cursos",
     "exploreCatalog": "Explorar oferta académica",
-    "trustStrip": "Instituciones que forman a sus equipos con {{brandShort}}",
     "valueGrid": {
       "programs": "Programas académicos",
       "programsDesc": "Inscripción por departamento y área de estudio",
@@ -321,7 +322,34 @@
     "lastActivity": "Última Actividad",
     "noProgress": "Aún no hay progreso registrado.",
     "reactivateCourses": "Reactivar cursos del departamento",
-    "noInactiveCourses": "No hay cursos desactivados. Para habilitar un curso nuevo, escribe a la institución."
+    "noInactiveCourses": "No hay cursos desactivados. Para habilitar un curso nuevo, escribe a la institución.",
+    "grupos": {
+      "titulo": "Grupos de cursos",
+      "nombreGrupo": "Nombre del grupo",
+      "descripcion": "Descripción",
+      "crearGrupo": "Crear grupo",
+      "cerrar": "Cerrar",
+      "editarCursos": "Editar cursos",
+      "eliminar": "Eliminar",
+      "sinGrupos": "No existen grupos",
+      "cursosEn": "Cursos en: {{grupo}}",
+      "anadirCurso": "Añadir un curso",
+      "anadir": "Añadir",
+      "cursoPorId": "Curso ID: {{id}}",
+      "remover": "Quitar",
+      "sinCursosEnGrupo": "No hay cursos en este grupo",
+      "asignacionTitulo": "Asignación a estudiantes",
+      "asignacionAyuda": "Selecciona un estudiante para inscribirlo en cursos individuales o en grupos completos.",
+      "seleccionaEstudiante": "Selecciona un estudiante",
+      "cargando": "Cargando información…",
+      "asignarCursoIndividual": "Asignar curso individual",
+      "seleccionaCurso": "Selecciona un curso",
+      "asignar": "Asignar",
+      "sinCursosIndividuales": "Sin cursos individuales",
+      "asignarGrupo": "Asignar grupo de cursos",
+      "seleccionaGrupo": "Selecciona un grupo",
+      "sinGruposAsignados": "Sin grupos asignados"
+    }
   },
   "legal": {
     "title": "Centro legal {{brandShort}}",
@@ -1902,7 +1930,7 @@
       "campoEtapa": "Etapa",
       "optionSeleccionaEtapa": "Selecciona etapa",
       "campoOwner": "Owner (email)",
-      "placeholderOwner": "asesor@atlas.edu",
+      "placeholderOwner": "asesor@thefloridianuniversity.com",
       "campoEstado": "Estado",
       "placeholderEstado": "activo, en pausa...",
       "campoNotas": "Notas",

@@ -2963,7 +2963,7 @@ export function PublicApp() {
 
                     {!activeModuleVideoUrl && !activeModuleFileVideoUrl && activeFileUrl ? (
                       <div className="file-viewer">
-                        <iframe src={activeFileUrl} title="Course file" />
+                        <iframe src={activeFileUrl} title={t('course.fileTitle')} />
                       </div>
                     ) : null}
                   </section>
@@ -3267,19 +3267,16 @@ export function PublicApp() {
             </div>
           </article>
 
-          <section className="enterprise-trust-strip">
-            <p>{t('enterprise.trustStrip')}</p>
-            <div className="enterprise-logo-cloud">
-              <span>Retail Corp</span>
-              <span>Realty Group</span>
-              <span>Sales Partners</span>
-              <span>Fintech Hub</span>
-              <span>Health Network</span>
-              <span>Logistics Pro</span>
-              <span>EdTech Labs</span>
-              <span>Service Alliance</span>
-            </div>
-          </section>
+          {/* Aquí había una franja titulada «Instituciones que forman a sus
+              equipos con TFU» con ocho nombres de empresa escritos a mano:
+              Retail Corp, Realty Group, Sales Partners, Fintech Hub, Health
+              Network, Logistics Pro, EdTech Labs y Service Alliance. Ninguna
+              es cliente de TFU: venían de la plantilla del producto original.
+              Era una afirmación de clientela inventada, publicada en el sitio
+              de una universidad real.
+
+              Si TFU llega a tener instituciones cliente que autoricen aparecer,
+              esto vuelve con sus nombres reales y su permiso, no antes. */}
 
           <div className="enterprise-value-grid">
             <article className="enterprise-value-card">
@@ -3816,8 +3813,8 @@ export function PublicApp() {
             <button
               type="button"
               className="auth-close-btn"
-              aria-label="Cerrar podcast"
-              title="Cerrar podcast"
+              aria-label={t('home.closePodcast')}
+              title={t('home.closePodcast')}
               onClick={() => setPodcastPreview(null)}
             >
               ×

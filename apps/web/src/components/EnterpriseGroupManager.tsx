@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     api,
     CompanyCourseGroup,
@@ -16,6 +17,7 @@ export function EnterpriseGroupManager({
     overview: EnterpriseOverviewResponse;
     onRefresh: () => void;
 }) {
+    const { t } = useTranslation();
     const [groups, setGroups] = useState<CompanyCourseGroup[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -199,19 +201,19 @@ export function EnterpriseGroupManager({
     return (
         <div className="grid-like-two">
             <div className="card-like enterprise-panel-card">
-                <h3>Grupos de Cursos</h3>
+                <h3>{t('enterprise.grupos.titulo')}</h3>
                 {error && <p className="public-error">{error}</p>}
                 <form className="profile-editor-form" onSubmit={handleCreateGroup}>
                     <label>
-                        Nombre del grupo
+                        {t('enterprise.grupos.nombreGrupo')}
                         <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} required />
                     </label>
                     <label>
-                        Descripción
+                        {t('enterprise.grupos.descripcion')}
                         <input value={newGroupDescription} onChange={(e) => setNewGroupDescription(e.target.value)} />
                     </label>
                     <button type="submit" className="go-course-btn" disabled={loading}>
-                        Crear Grupo
+                        {t('enterprise.grupos.crearGrupo')}
                     </button>
                 </form>
 
@@ -224,20 +226,20 @@ export function EnterpriseGroupManager({
                                     className="ghost"
                                     onClick={() => setSelectedGroup(g.id === selectedGroup?.id ? null : g)}
                                 >
-                                    {g.id === selectedGroup?.id ? 'Cerrar' : 'Editar cursos'}
+                                    {g.id === selectedGroup?.id ? t('enterprise.grupos.cerrar') : t('enterprise.grupos.editarCursos')}
                                 </button>
                                 <button className="ghost danger" onClick={() => handleDeleteGroup(g.id)}>
-                                    Eliminar
+                                    {t('enterprise.grupos.eliminar')}
                                 </button>
                             </div>
                         </li>
                     ))}
-                    {groups.length === 0 && <p>No existen grupos</p>}
+                    {groups.length === 0 && <p>{t('enterprise.grupos.sinGrupos')}</p>}
                 </ul>
 
                 {selectedGroup && (
                     <div style={{ marginTop: '16px', padding: '16px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-                        <h4>Cursos en: {selectedGroup.name}</h4>
+                        <h4>{t('enterprise.grupos.cursosEn', { grupo: selectedGroup.name })}</h4>
                         <form onSubmit={handleAddCourseToGroup} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                             <select
                                 value={selectedCourseId}
@@ -245,39 +247,39 @@ export function EnterpriseGroupManager({
                                 required
                                 style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
                             >
-                                <option value="">Añadir un curso</option>
+                                <option value="">{t('enterprise.grupos.anadirCurso')}</option>
                                 {availableCourses
                                     .filter((ac) => !selectedGroup.items.some((i) => i.moodle_course_id === ac.moodle_course_id))
                                     .map((ac) => (
                                         <option key={ac.moodle_course_id} value={ac.moodle_course_id}>
-                                            {ac.full_name || `Curso ID: ${ac.moodle_course_id}`}
+                                            {ac.full_name || t('enterprise.grupos.cursoPorId', { id: ac.moodle_course_id })}
                                         </option>
                                     ))}
                             </select>
                             <button type="submit" className="go-course-btn" style={{ padding: '8px 16px' }} disabled={loading}>
-                                Añadir
+                                {t('enterprise.grupos.anadir')}
                             </button>
                         </form>
 
                         <ul className="dashboard-list">
                             {selectedGroup.items.map((item) => (
                                 <li key={item.moodle_course_id} className="list-row flex-spaced">
-                                    <span style={{ fontSize: '0.9rem' }}>{item.full_name || `Curso ID: ${item.moodle_course_id}`}</span>
+                                    <span style={{ fontSize: '0.9rem' }}>{item.full_name || t('enterprise.grupos.cursoPorId', { id: item.moodle_course_id })}</span>
                                     <button className="ghost danger" onClick={() => handleRemoveCourseFromGroup(item.moodle_course_id)}>
-                                        Remover
+                                        {t('enterprise.grupos.remover')}
                                     </button>
                                 </li>
                             ))}
-                            {selectedGroup.items.length === 0 && <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>No hay cursos en este grupo</p>}
+                            {selectedGroup.items.length === 0 && <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{t('enterprise.grupos.sinCursosEnGrupo')}</p>}
                         </ul>
                     </div>
                 )}
             </div>
 
             <div className="card-like enterprise-panel-card">
-                <h3>Asignación a Estudiantes</h3>
+                <h3>{t('enterprise.grupos.asignacionTitulo')}</h3>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                    Selecciona un estudiante para inscribirlo en cursos individuales o grupos completos.
+                    {t('enterprise.grupos.asignacionAyuda')}
                 </p>
 
                 <select
@@ -288,7 +290,7 @@ export function EnterpriseGroupManager({
                     }}
                     style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
                 >
-                    <option value="">Selecciona colaborator</option>
+                    <option value="">{t('enterprise.grupos.seleccionaEstudiante')}</option>
                     {overview.members.filter(m => m.status === 'active').map((m) => (
                         <option key={m.user_id} value={m.user_id}>
                             {m.full_name || m.email}
@@ -299,11 +301,11 @@ export function EnterpriseGroupManager({
                 {assignMemberId && (
                     <div style={{ marginTop: '16px' }}>
                         {loadingMemberData ? (
-                            <p>Cargando información...</p>
+                            <p>{t('enterprise.grupos.cargando')}</p>
                         ) : (
                             <>
                                 <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '16px' }}>
-                                    <h4>Asignar Curso Individual</h4>
+                                    <h4>{t('enterprise.grupos.asignarCursoIndividual')}</h4>
                                     <form onSubmit={handleAssignCourseToMember} style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                                         <select
                                             value={assignCourseId}
@@ -311,32 +313,32 @@ export function EnterpriseGroupManager({
                                             required
                                             style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
                                         >
-                                            <option value="">Selecciona curso</option>
+                                            <option value="">{t('enterprise.grupos.seleccionaCurso')}</option>
                                             {availableCourses
                                                 .filter((ac) => !memberCourses.some((c) => c.moodle_course_id === ac.moodle_course_id))
                                                 .map((ac) => (
                                                     <option key={ac.moodle_course_id} value={ac.moodle_course_id}>
-                                                        {ac.full_name || `Curso ID: ${ac.moodle_course_id}`}
+                                                        {ac.full_name || t('enterprise.grupos.cursoPorId', { id: ac.moodle_course_id })}
                                                     </option>
                                                 ))}
                                         </select>
                                         <button type="submit" className="go-course-btn" style={{ padding: '8px 16px' }} disabled={loading}>
-                                            Asignar
+                                            {t('enterprise.grupos.asignar')}
                                         </button>
                                     </form>
                                     <ul className="dashboard-list" style={{ marginTop: '8px' }}>
                                         {memberCourses.map((c) => (
                                             <li key={c.moodle_course_id} className="list-row flex-spaced">
-                                                <span style={{ fontSize: '0.85rem' }}>{c.full_name || `Curso ID: ${c.moodle_course_id}`}</span>
-                                                <button className="ghost danger" onClick={() => handleRemoveCourseFromMember(c.moodle_course_id)}>Remover</button>
+                                                <span style={{ fontSize: '0.85rem' }}>{c.full_name || t('enterprise.grupos.cursoPorId', { id: c.moodle_course_id })}</span>
+                                                <button className="ghost danger" onClick={() => handleRemoveCourseFromMember(c.moodle_course_id)}>{t('enterprise.grupos.remover')}</button>
                                             </li>
                                         ))}
-                                        {memberCourses.length === 0 && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Sin cursos individuales</span>}
+                                        {memberCourses.length === 0 && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{t('enterprise.grupos.sinCursosIndividuales')}</span>}
                                     </ul>
                                 </div>
 
                                 <div>
-                                    <h4>Asignar Grupo de Cursos</h4>
+                                    <h4>{t('enterprise.grupos.asignarGrupo')}</h4>
                                     <form onSubmit={handleAssignGroupToMember} style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                                         <select
                                             value={assignGroupId}
@@ -344,7 +346,7 @@ export function EnterpriseGroupManager({
                                             required
                                             style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
                                         >
-                                            <option value="">Selecciona grupo</option>
+                                            <option value="">{t('enterprise.grupos.seleccionaGrupo')}</option>
                                             {groups
                                                 .filter((g) => !memberGroups.some((mg) => mg.id === g.id))
                                                 .map((g) => (
@@ -354,17 +356,17 @@ export function EnterpriseGroupManager({
                                                 ))}
                                         </select>
                                         <button type="submit" className="go-course-btn" style={{ padding: '8px 16px' }} disabled={loading}>
-                                            Añadir
+                                            {t('enterprise.grupos.anadir')}
                                         </button>
                                     </form>
                                     <ul className="dashboard-list" style={{ marginTop: '8px' }}>
                                         {memberGroups.map((mg) => (
                                             <li key={mg.id} className="list-row flex-spaced">
                                                 <span style={{ fontSize: '0.85rem' }}>{mg.name}</span>
-                                                <button className="ghost danger" onClick={() => handleRemoveGroupFromMember(mg.id)}>Remover</button>
+                                                <button className="ghost danger" onClick={() => handleRemoveGroupFromMember(mg.id)}>{t('enterprise.grupos.remover')}</button>
                                             </li>
                                         ))}
-                                        {memberGroups.length === 0 && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Sin grupos asignados</span>}
+                                        {memberGroups.length === 0 && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{t('enterprise.grupos.sinGruposAsignados')}</span>}
                                     </ul>
                                 </div>
                             </>

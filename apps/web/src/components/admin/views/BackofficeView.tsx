@@ -316,7 +316,7 @@ export function BackofficeView({
                 type="email"
                 value={staffForm.email}
                 onChange={(e) => setStaffForm((c) => ({ ...c, email: e.target.value }))}
-                placeholder="maria@atlas.edu"
+                placeholder="nombre@thefloridianuniversity.com"
               />
               <label>{t('admin.backoffice.hr.campoRol')}</label>
               <input

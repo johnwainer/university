@@ -45,7 +45,7 @@ export const config = {
   isProduction,
   admin: {
     apiKey: requiredSecret('ADMIN_API_KEY', 'dev-admin-key'),
-    email: process.env.ADMIN_EMAIL ?? 'admin@atlas.edu',
+    email: process.env.ADMIN_EMAIL ?? 'admin@thefloridianuniversity.com',
     password: requiredSecret('ADMIN_PASSWORD', 'AtlasAdmin!2026'),
     sessionTtlMinutes: Number(process.env.ADMIN_SESSION_TTL_MINUTES ?? 720)
   },

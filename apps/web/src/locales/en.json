@@ -78,7 +78,8 @@
     "purposeWhyTitle": "Why we do it",
     "purposeWhyBody": "Because talent should never be left behind: experience has value and reinvention is possible at any stage.",
     "allPrograms": "All programs",
-    "allProgramsSubtitle": "{{brandShort}}'s full academic catalog"
+    "allProgramsSubtitle": "{{brandShort}}'s full academic catalog",
+    "closePodcast": "Close podcast"
   },
   "catalog": {
     "title": "Academic Catalog",
@@ -155,7 +156,8 @@
     "selectModule": "Select a module to start.",
     "moduleDone": "Done",
     "modulePending": "Pending",
-    "noAttachments": "No attachments in this activity."
+    "noAttachments": "No attachments in this activity.",
+    "fileTitle": "Course file"
   },
   "myCourses": {
     "title": "My Courses",
@@ -198,7 +200,7 @@
     "fullName": "Full name",
     "fullNamePlaceholder": "e.g.: María González",
     "email": "Email address",
-    "emailPlaceholder": "email@atlas.edu",
+    "emailPlaceholder": "email@thefloridianuniversity.com",
     "password": "Password",
     "confirmPassword": "Confirm password",
     "showPassword": "Show password",
@@ -230,7 +232,6 @@
     "talkToAdvisor": "Talk to an advisor",
     "goToCourses": "Go to my courses",
     "exploreCatalog": "Explore academic catalog",
-    "trustStrip": "Institutions building their teams with {{brandShort}}",
     "valueGrid": {
       "programs": "Academic Programs",
       "programsDesc": "Enrollment by department and area of study",
@@ -321,7 +322,34 @@
     "lastActivity": "Last Activity",
     "noProgress": "No progress recorded yet.",
     "reactivateCourses": "Reactivate department courses",
-    "noInactiveCourses": "There are no deactivated courses. To enable a new course, contact the institution."
+    "noInactiveCourses": "There are no deactivated courses. To enable a new course, contact the institution.",
+    "grupos": {
+      "titulo": "Course groups",
+      "nombreGrupo": "Group name",
+      "descripcion": "Description",
+      "crearGrupo": "Create group",
+      "cerrar": "Close",
+      "editarCursos": "Edit courses",
+      "eliminar": "Delete",
+      "sinGrupos": "There are no groups",
+      "cursosEn": "Courses in: {{grupo}}",
+      "anadirCurso": "Add a course",
+      "anadir": "Add",
+      "cursoPorId": "Course ID: {{id}}",
+      "remover": "Remove",
+      "sinCursosEnGrupo": "No courses in this group",
+      "asignacionTitulo": "Student assignment",
+      "asignacionAyuda": "Pick a student to enroll them in individual courses or whole groups.",
+      "seleccionaEstudiante": "Pick a student",
+      "cargando": "Loading…",
+      "asignarCursoIndividual": "Assign an individual course",
+      "seleccionaCurso": "Pick a course",
+      "asignar": "Assign",
+      "sinCursosIndividuales": "No individual courses",
+      "asignarGrupo": "Assign a course group",
+      "seleccionaGrupo": "Pick a group",
+      "sinGruposAsignados": "No groups assigned"
+    }
   },
   "legal": {
     "title": "{{brandShort}} Legal Center",
@@ -1902,7 +1930,7 @@
       "campoEtapa": "Stage",
       "optionSeleccionaEtapa": "Select a stage",
       "campoOwner": "Owner (email)",
-      "placeholderOwner": "advisor@atlas.edu",
+      "placeholderOwner": "advisor@thefloridianuniversity.com",
       "campoEstado": "Status",
       "placeholderEstado": "active, on hold...",
       "campoNotas": "Notes",
