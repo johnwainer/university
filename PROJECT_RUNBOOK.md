@@ -949,3 +949,44 @@ producción**, sembrando la malla real del periodo y un programa con su aula:
   desbordamiento horizontal a 1440 ni a 390 px; ninguna clave i18n sin resolver.
 - Paridad i18n comprobada con script: 2.148 claves hoja en cada idioma, ninguna
   apuntando a un objeto.
+
+### 21.10 Con sesión, el portal cambia de piel
+
+El sitio y el portal del estudiante son la misma aplicación (`PublicApp.tsx`), y
+hasta ahora también la misma cabecera. Un estudiante matriculado veía el menú de
+captación —«Acerca de», «Admisiones», «Vida estudiantil», «Atletismo»,
+«Noticias»— y un botón «Postular ahora» para un proceso que ya había terminado.
+Nada de eso le sirve, y encima escondía lo único que viene a hacer.
+
+Con `publicSession`, la cabecera y el pie se cambian enteros:
+
+| | sin sesión | con sesión |
+|---|---|---|
+| Menú | `TOP_NAV` (6 ítems de captación) | `STUDENT_NAV`: Mi programa · Mis cursos · Mi expediente · Mi perfil · Explorar oferta académica |
+| Llamada a la acción | «Postular ahora» | ninguna (ver abajo) |
+| Barra utilitaria | correo · Para empresas · Contacto | rótulo «Portal del estudiante» · correo · Contacto |
+| Cuenta | avatar + «Iniciar sesión» | avatar + nombre de pila |
+| Logotipo lleva a | portada | «Mi programa» |
+| Pie | 3 columnas (académico, institucional, políticas) | 2 columnas (portal, políticas) |
+| Menú móvil | los 6 + Para empresas + Contacto | los 5 + Contacto + Cerrar sesión |
+
+**Por qué no hay llamada a la acción para el estudiante.** Se probó con un botón
+«Ir a mi programa» y se retiró: el logotipo ya lleva ahí y «Mi programa» es el
+primer ítem del menú. Tres controles para el mismo destino en la misma barra.
+Por lo mismo se quitó el botón «Ver mi expediente completo» de la vista de
+programa, que quedaba a dos dedos del ítem «Mi expediente» del menú.
+
+**Una sola lista para los dos menús.** `navActual` resuelve cuál toca y la usan
+la navegación de escritorio y la hoja móvil. Antes la hoja móvil repetía la
+lista a mano, que es como se acaba con dos menús distintos en la misma página.
+
+**Medido, no estimado.** El menú del estudiante cabe en una fila hasta 1024px y
+pasa a hamburguesa en 900px, sin desbordamiento horizontal a ningún ancho entre
+390 y 1440px.
+
+**Vocabulario.** `nav.academics` decía «Mi Universidad» / «My University», que no
+dice lo que hay dentro (expediente, estado de cuenta, certificados y
+competencias). Pasa a «Mi expediente» / «My record». El título de la vista es
+otra clave y no se tocó. De paso se unificó la caja de las etiquetas inglesas,
+que mezclaba «My Courses» con «My program»: en el menú superior no se veía
+porque el CSS las pone en caja alta, pero en el pie se renderizan tal cual.

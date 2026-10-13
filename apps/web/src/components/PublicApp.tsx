@@ -310,6 +310,27 @@ const TOP_NAV: NavItem[] = [
   { key: 'nav.navNews', view: { type: 'page', slug: 'news-events' } }
 ];
 
+/**
+ * La navegación de quien ya está dentro.
+ *
+ * El menú de arriba es el de un visitante que todavía está decidiendo:
+ * «Acerca de», «Admisiones», «Vida estudiantil», «Postular ahora». A un
+ * estudiante matriculado no le sirve ninguno —ya postuló, ya entró— y, peor,
+ * le esconde lo único que viene a hacer: ver su programa, entrar al aula y
+ * mirar sus notas. Con sesión iniciada el menú se cambia entero por el suyo.
+ *
+ * «Oferta académica» se queda al final a propósito: el catálogo sigue siendo
+ * útil dentro —es donde se ve qué más ofrece TFU— y es la puerta de vuelta al
+ * sitio público sin tener que cerrar sesión.
+ */
+const STUDENT_NAV: NavItem[] = [
+  { key: 'nav.myProgram', view: { type: 'my-program' } },
+  { key: 'nav.myCourses', view: { type: 'my-courses' } },
+  { key: 'nav.academics', view: { type: 'academics' } },
+  { key: 'nav.profile', view: { type: 'profile' } },
+  { key: 'nav.catalog', view: { type: 'catalog' } }
+];
+
 function isNavActive(view: ViewState, item: NavItem): boolean {
   if (item.view.type === 'page') {
     return view.type === 'page' && view.slug === item.view.slug;
@@ -1862,8 +1883,18 @@ export function PublicApp() {
   const cursosDepartamentoInactivos = (enterpriseOverview?.courseAccess ?? []).filter((curso) => !curso.is_active);
   const enterpriseAvailable = Boolean(enterpriseOverview?.available);
   const enterpriseIsRepresentative = enterpriseOverview?.role === 'representative';
+
+  /**
+   * El menú que toca: el del visitante o el del estudiante.
+   *
+   * Se resuelve una sola vez y lo usan la navegación de escritorio y la hoja
+   * móvil, para que no puedan discrepar. Antes la hoja móvil repetía la lista
+   * a mano, que es como se acaba con dos menús distintos en la misma página.
+   */
+  const navActual = publicSession ? STUDENT_NAV : TOP_NAV;
+
   return (
-    <main className="public-shell netflix-ui">
+    <main className={`public-shell netflix-ui${publicSession ? ' portal-estudiante' : ''}`}>
       {/* Primer elemento enfocable de la página: deja saltar la barra superior,
           que repite una decena de controles en todas las vistas. */}
       <a className="skip-to-content" href="#contenido-principal">
@@ -1877,18 +1908,27 @@ export function PublicApp() {
       <header className="tfu-header">
         <div className="tfu-utility">
           <div className="tfu-utility-inner">
+            {/* Rótulo del portal. Sin él la cabecera es idéntica a la pública y
+                nada le dice al estudiante en qué sitio está. */}
+            {publicSession ? (
+              <span className="tfu-portal-rotulo">{t('nav.studentPortal')}</span>
+            ) : null}
             <a className="tfu-utility-link" href={`mailto:${INSTITUTION_CONTACTS.general}`}>
               {INSTITUTION_CONTACTS.general}
             </a>
-            <button
-              className="tfu-utility-link"
-              onClick={() => {
-                setView({ type: 'enterprise' });
-                setMobileMenuOpen(false);
-              }}
-            >
-              {t('nav.utilityEnterprise')}
-            </button>
+            {/* «Para empresas» es captación: no se le ofrece a quien ya es
+                estudiante. Contacto sí se queda, que es su vía de soporte. */}
+            {!publicSession ? (
+              <button
+                className="tfu-utility-link"
+                onClick={() => {
+                  setView({ type: 'enterprise' });
+                  setMobileMenuOpen(false);
+                }}
+              >
+                {t('nav.utilityEnterprise')}
+              </button>
+            ) : null}
             <button
               className="tfu-utility-link"
               onClick={() => {
@@ -1918,6 +1958,14 @@ export function PublicApp() {
                   {publicSession?.user?.fullName?.trim().charAt(0).toUpperCase() || '\u{1F464}'}
                 </span>
                 {!publicSession?.token ? <span className="profile-label">{t('nav.login')}</span> : null}
+                {/* Con sesión se muestra el nombre, no sólo la inicial: es lo
+                    que distingue «estoy en mi portal» de «estoy en la web». Se
+                    corta al primer nombre para que la barra no crezca. */}
+                {publicSession?.token ? (
+                  <span className="profile-label profile-nombre">
+                    {publicSession.user.fullName.trim().split(/\s+/)[0]}
+                  </span>
+                ) : null}
                 {publicSession?.token ? <span className={`profile-caret ${accountMenuOpen ? 'open' : ''}`}>▾</span> : null}
               </button>
               {publicSession && accountMenuOpen ? (
@@ -1975,18 +2023,20 @@ export function PublicApp() {
 
         <div className="tfu-main-bar">
           <div className="tfu-main-inner">
+            {/* Con sesión, el logotipo es el «inicio» del portal, que es su
+                programa, no la portada de captación. */}
             <button
               className="tfu-brand"
-              onClick={() => setView({ type: 'home' })}
-              aria-label={`${BRAND} — ${t('nav.home')}`}
+              onClick={() => setView(publicSession ? { type: 'my-program' } : { type: 'home' })}
+              aria-label={`${BRAND} — ${publicSession ? t('nav.myProgram') : t('nav.home')}`}
             >
               {/* El lockup viene del propio manual de marca; el texto queda en
                   `alt` para que el lector de pantalla y el buscador lo lean. */}
               <img src="/brand/tfu-lockup.png" alt={BRAND} className="tfu-lockup" width={382} height={66} />
             </button>
 
-            <nav className="tfu-nav" aria-label={t('nav.menu')}>
-              {TOP_NAV.map((item) => (
+            <nav className="tfu-nav" aria-label={publicSession ? t('nav.studentPortal') : t('nav.menu')}>
+              {navActual.map((item) => (
                 <button
                   key={item.key}
                   className={isNavActive(view, item) ? 'tfu-nav-link active' : 'tfu-nav-link'}
@@ -2001,15 +2051,22 @@ export function PublicApp() {
               ))}
             </nav>
 
-            <button
-              className="tfu-apply"
-              onClick={() => {
-                setView({ type: 'page', slug: 'admissions' });
-                setMobileMenuOpen(false);
-              }}
-            >
-              {t('nav.applyNow')}
-            </button>
+            {/* «Postular ahora» es la llamada a la acción de un visitante y
+                desaparece con la sesión iniciada. No se sustituye por nada: el
+                sitio evidente al que vuelve un estudiante es su programa, y a
+                eso ya llevan el logotipo y el primer ítem del menú. Un tercer
+                control para lo mismo en la misma barra es ruido. */}
+            {!publicSession ? (
+              <button
+                className="tfu-apply"
+                onClick={() => {
+                  setView({ type: 'page', slug: 'admissions' });
+                  setMobileMenuOpen(false);
+                }}
+              >
+                {t('nav.applyNow')}
+              </button>
+            ) : null}
 
             <button
               className={`tfu-burger ${mobileMenuOpen ? 'active' : ''}`}
@@ -2025,7 +2082,7 @@ export function PublicApp() {
 
           {mobileMenuOpen ? (
             <div className="tfu-mobile-sheet">
-              {TOP_NAV.map((item) => (
+              {navActual.map((item) => (
                 <button
                   key={`m-${item.key}`}
                   className={isNavActive(view, item) ? 'active' : ''}
@@ -2037,14 +2094,16 @@ export function PublicApp() {
                   {t(item.key)}
                 </button>
               ))}
-              <button
-                onClick={() => {
-                  setView({ type: 'enterprise' });
-                  setMobileMenuOpen(false);
-                }}
-              >
-                {t('nav.utilityEnterprise')}
-              </button>
+              {!publicSession ? (
+                <button
+                  onClick={() => {
+                    setView({ type: 'enterprise' });
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  {t('nav.utilityEnterprise')}
+                </button>
+              ) : null}
               <button
                 onClick={() => {
                   setView({ type: 'contact' });
@@ -2053,6 +2112,19 @@ export function PublicApp() {
               >
                 {t('nav.utilityContact')}
               </button>
+              {/* Cerrar sesión también desde el móvil: el menú de cuenta es un
+                  desplegable de la barra superior y en móvil queda escondido. */}
+              {publicSession ? (
+                <button
+                  className="mobile-logout"
+                  onClick={() => {
+                    logoutPublic();
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  {t('nav.logout')}
+                </button>
+              ) : null}
               <div className="mobile-lang-switcher">
                 <LanguageSwitcher />
               </div>
@@ -3074,7 +3146,6 @@ export function PublicApp() {
           <StudentProgram
             token={publicSession.token}
             onAbrirAula={abrirAula}
-            onGoAcademics={() => setView({ type: 'academics' })}
             onGoCatalog={() => setView({ type: 'catalog' })}
           />
         ) : (
@@ -4015,37 +4086,59 @@ export function PublicApp() {
           </div>
 
           <nav className="footer-links" aria-label={t('nav.menu')}>
-            <div className="footer-links-col">
-              <h3>{t('nav.navAcademics')}</h3>
-              <button className="footer-link-btn" onClick={() => setView({ type: 'catalog' })}>
-                {t('nav.catalog')}
-              </button>
-              <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'admissions' })}>
-                {t('nav.navAdmissions')}
-              </button>
-              <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'campus-life' })}>
-                {t('nav.navCampusLife')}
-              </button>
-            </div>
+            {/* Las dos primeras columnas son de captación —admisiones, vida
+                estudiantil, noticias, atletismo, para empresas— y no le sirven
+                a quien ya está matriculado. Con sesión, el pie se reduce a lo
+                que sí le corresponde a un estudiante: su portal, el contacto de
+                soporte y las políticas, que son las que le dan derechos (FERPA,
+                Título IX, accesibilidad). */}
+            {!publicSession ? (
+              <>
+                <div className="footer-links-col">
+                  <h3>{t('nav.navAcademics')}</h3>
+                  <button className="footer-link-btn" onClick={() => setView({ type: 'catalog' })}>
+                    {t('nav.catalog')}
+                  </button>
+                  <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'admissions' })}>
+                    {t('nav.navAdmissions')}
+                  </button>
+                  <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'campus-life' })}>
+                    {t('nav.navCampusLife')}
+                  </button>
+                </div>
 
-            <div className="footer-links-col">
-              <h3>{t('nav.navAbout')}</h3>
-              <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'about' })}>
-                {t('nav.navAbout')}
-              </button>
-              <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'news-events' })}>
-                {t('nav.navNews')}
-              </button>
-              <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'athletics' })}>
-                {t('nav.navAthletics')}
-              </button>
-              <button className="footer-link-btn" onClick={() => setView({ type: 'enterprise' })}>
-                {t('nav.utilityEnterprise')}
-              </button>
-              <button className="footer-link-btn" onClick={() => setView({ type: 'contact' })}>
-                {t('nav.utilityContact')}
-              </button>
-            </div>
+                <div className="footer-links-col">
+                  <h3>{t('nav.navAbout')}</h3>
+                  <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'about' })}>
+                    {t('nav.navAbout')}
+                  </button>
+                  <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'news-events' })}>
+                    {t('nav.navNews')}
+                  </button>
+                  <button className="footer-link-btn" onClick={() => setView({ type: 'page', slug: 'athletics' })}>
+                    {t('nav.navAthletics')}
+                  </button>
+                  <button className="footer-link-btn" onClick={() => setView({ type: 'enterprise' })}>
+                    {t('nav.utilityEnterprise')}
+                  </button>
+                  <button className="footer-link-btn" onClick={() => setView({ type: 'contact' })}>
+                    {t('nav.utilityContact')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="footer-links-col">
+                <h3>{t('nav.studentPortal')}</h3>
+                {STUDENT_NAV.map((item) => (
+                  <button key={`f-${item.key}`} className="footer-link-btn" onClick={() => setView(item.view)}>
+                    {t(item.key)}
+                  </button>
+                ))}
+                <button className="footer-link-btn" onClick={() => setView({ type: 'contact' })}>
+                  {t('nav.utilityContact')}
+                </button>
+              </div>
+            )}
 
             <div className="footer-links-col">
               <h3>{t('footer.policies')}</h3>

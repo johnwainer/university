@@ -18,7 +18,7 @@
     "account": "Cuenta",
     "refresh": "Actualizar",
     "sections": "Secciones",
-    "academics": "Mi Universidad",
+    "academics": "Mi expediente",
     "contact": "Contacto",
     "skipToContent": "Saltar al contenido",
     "about": "Quiénes somos",
@@ -34,7 +34,8 @@
     "utilityEnterprise": "Para empresas",
     "utilityContact": "Contacto",
     "openMenu": "Abrir menú",
-    "myProgram": "Mi programa"
+    "myProgram": "Mi programa",
+    "studentPortal": "Portal del estudiante"
   },
   "hero": {
     "exploreCatalog": "Explorar oferta académica",
@@ -2528,7 +2529,6 @@
       "holiday": "Festivo",
       "shifted": "Plazo movido por festivo",
       "past": "Vencido"
-    },
-    "goAcademics": "Ver mi expediente completo"
+    }
   }
 }

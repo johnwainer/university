@@ -7,8 +7,8 @@
     "enterprise": "Departments",
     "podcasts": "Master Classes",
     "liveEvents": "Live Events",
-    "myCourses": "My Courses",
-    "profile": "My Profile",
+    "myCourses": "My courses",
+    "profile": "My profile",
     "legal": "Legal",
     "login": "Sign In",
     "register": "Sign Up",
@@ -18,7 +18,7 @@
     "account": "Account",
     "refresh": "Refresh",
     "sections": "Sections",
-    "academics": "My University",
+    "academics": "My record",
     "contact": "Contact",
     "skipToContent": "Skip to content",
     "about": "About",
@@ -34,7 +34,8 @@
     "utilityEnterprise": "For business",
     "utilityContact": "Contact",
     "openMenu": "Open menu",
-    "myProgram": "My program"
+    "myProgram": "My program",
+    "studentPortal": "Student portal"
   },
   "hero": {
     "exploreCatalog": "Explore Academic Catalog",
@@ -2528,7 +2529,6 @@
       "holiday": "Holiday",
       "shifted": "Deadline moved by a holiday",
       "past": "Past due"
-    },
-    "goAcademics": "See my full record"
+    }
   }
 }

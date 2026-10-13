@@ -1291,3 +1291,54 @@
   padding-top: 2.5rem;
   border-top: 1px solid rgba(143, 166, 191, 0.2);
 }
+
+/* =========================================================================
+   Cabecera y pie en modo portal del estudiante
+   =========================================================================
+   Con sesión iniciada, la cabecera deja de ser la de captación. El menú, la
+   llamada a la acción y el pie cambian en `PublicApp.tsx`; aquí van sólo los
+   estilos de las piezas nuevas.
+
+   Este archivo se carga después de `public.css`, que es donde viven
+   `.tfu-utility`, `.tfu-apply` y `.profile-label`. Redeclarar aquí es
+   deliberado y es la única forma de que gane, por el orden de carga.
+   ========================================================================= */
+
+/* El rótulo va a la izquierda de la barra utilitaria, que por defecto alinea
+   todo a la derecha: `margin-right: auto` empuja el resto sin tocar su regla. */
+.tfu-portal-rotulo {
+  margin-right: auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: var(--tfu-track-eyebrow);
+  text-transform: uppercase;
+  color: var(--pcl-cyan);
+}
+
+/* El nombre no compite con la navegación: va en peso normal, y la inicial del
+   avatar sigue siendo el ancla visual. */
+.profile-nombre {
+  font-weight: 500;
+  color: var(--pcl-ice);
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Cerrar sesión desde el móvil: el menú de cuenta es un desplegable de la barra
+   superior y ahí no se alcanza. */
+.tfu-mobile-sheet .mobile-logout {
+  color: var(--pcl-coral);
+}
+
+@media (max-width: 720px) {
+  /* En móvil la barra utilitaria va muy justa: el rótulo cede su sitio y queda
+     el nombre, que es el que de verdad identifica la sesión. */
+  .tfu-portal-rotulo {
+    display: none;
+  }
+
+  .profile-nombre {
+    max-width: 6rem;
+  }
+}

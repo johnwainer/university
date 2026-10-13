@@ -32,7 +32,6 @@ type Props = {
   token: string;
   /** Abre el aula del campus virtual. La da el contenedor, que es quien navega. */
   onAbrirAula: (moodleCourseId: number, titulo: string) => void;
-  onGoAcademics?: () => void;
   onGoCatalog?: () => void;
 };
 
@@ -82,7 +81,7 @@ function semanaEnCurso(semanas: SemanaDelPeriodo[]): SemanaDelPeriodo | null {
   return vigente ?? null;
 }
 
-export function StudentProgram({ token, onAbrirAula, onGoAcademics, onGoCatalog }: Props) {
+export function StudentProgram({ token, onAbrirAula, onGoCatalog }: Props) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language?.startsWith('en') ? 'en' : 'es';
 
@@ -160,11 +159,9 @@ export function StudentProgram({ token, onAbrirAula, onGoAcademics, onGoCatalog 
           <h2>{t('myProgram.title')}</h2>
           <p className="row-subtitle">{t('myProgram.subtitle')}</p>
         </div>
-        {onGoAcademics ? (
-          <button className="ghost-btn" onClick={onGoAcademics}>
-            {t('myProgram.goAcademics')}
-          </button>
-        ) : null}
+        {/* El enlace al expediente estaba aquí cuando la cabecera no lo tenía.
+            Ahora «Mi expediente» es un ítem del menú del portal, a dos dedos de
+            este botón y haciendo lo mismo, así que se retira. */}
       </div>
 
       {/* Un estudiante puede estar matriculado en más de un programa: los
