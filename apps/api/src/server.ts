@@ -6,7 +6,6 @@ import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from
 import { execFileSync } from 'node:child_process';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { demoBlueprint } from '@atlas/shared';
 import { config, getMoodleConfig, hasMoodleConfig, setMoodleConfig } from './config.js';
 import { weeklyOutline } from './catalog/weekly-outline.js';
 import { htmlToPdf } from './integrations/pdf.js';
@@ -14,6 +13,9 @@ import { sendMail } from './integrations/mailer.js';
 // University OS modules (Fases 1-5) — wired below after initDb() and before app.listen()
 import { migrateSis } from './modules/sis/schema.js';
 import { registerSisRoutes } from './modules/sis/routes.js';
+import { registerRegistraduriaRoutes, matricularEnSis, creditosDelAula } from './modules/sis/registraduria.js';
+import { reconciliarPeriodos, periodoActivo } from './modules/sis/periodos.js';
+import { LETRAS_APROBATORIAS } from './modules/sis/calificaciones.js';
 import { migrateCrm } from './modules/crm/schema.js';
 import { registerCrmRoutes } from './modules/crm/routes.js';
 import { migrateSyllabus } from './modules/syllabus/schema.js';
@@ -63,7 +65,6 @@ import {
   getMoodleCategoryNameMap,
   getCatalog,
   getContentBySlug,
-  getEntitlements,
   getIntegrationSetting,
   getCompanyById,
   getCompanyByMemberUserId,
@@ -73,7 +74,6 @@ import {
   getPlatformUserById,
   getPublicCourseProgress,
   getPublicUserAuthByEmail,
-  getOffers,
   getTenantAndUser,
   initDb,
   listCompanies,
@@ -382,6 +382,13 @@ await migrateCalendar(pool);
 await migrateIam(pool);
 await migratePrograms(pool);
 await migrateShellAlerts(pool);
+
+// Une las dos nociones de «periodo» que el proyecto tenía sin relacionar: el
+// `term_id` de la malla del calendario pasa a ser el código del periodo en
+// `academic_terms`, que es a donde apunta la clave ajena de las matrículas.
+// Va después de `migrateCalendar` porque lee `term_grids`. Ver
+// modules/sis/periodos.ts para el porqué completo.
+await reconciliarPeriodos(pool);
 
 async function loadPersistedMoodleConnection(): Promise<void> {
   const stored = await getIntegrationSetting<{ baseUrl?: string; token?: string }>('moodle.connection');
@@ -1088,25 +1095,30 @@ app.get('/v1/home', async () => {
   // `featured` pasa a ser la lista de programas: es lo que la portada debe
   // ofrecer. `liveNow` sigue saliendo del catálogo de contenidos, que es donde
   // viven los seminarios y las sesiones en vivo, y esos sí son piezas sueltas.
-  const [identity, programas, contenidos, offers] = await Promise.all([
-    getTenantAndUser(),
+  const [programas, contenidos] = await Promise.all([
     listarProgramasPublicos(pool),
-    getCatalog(),
-    getOffers()
+    getCatalog()
   ]);
 
-  if (!identity.tenant || !identity.user) {
-    throw app.httpErrors.internalServerError('Tenant or user data not available');
-  }
-
+  // La identidad sale de la configuración, no de la tabla `tenants`.
+  //
+  // Esta ruta devolvía `getTenantAndUser()`, y eso servía dos mentiras en una
+  // respuesta pública: el `tenant` era la fila heredada del producto original
+  // («Atlas Online University», con un logo de dummyimage.com y una paleta que
+  // no es la de TFU), y el `user` era un usuario de demostración fijo con
+  // nombre y correo inventados, que se devolvía a cualquiera que pidiera la
+  // portada estuviera o no autenticado.
+  //
+  // El front no usaba ninguno de los dos —la marca la trae de sus propias
+  // variables de compilación—, así que no había nada que lo delatara. Ahora la
+  // institución viene de `INSTITUTION_NAME` y el usuario no viaja: quién eres
+  // lo responde `/v1/auth/me`, que para eso está.
   return {
-    tenant: identity.tenant,
-    user: identity.user,
+    institution: { name: config.institution.name },
     featured: programas,
     programs: programas,
     liveNow: contenidos.filter((item) => item.kind === 'live'),
-    continueLearning: programas,
-    offers
+    continueLearning: programas
   };
 });
 
@@ -1130,9 +1142,32 @@ app.get('/v1/programs/catalog', async () => {
 });
 app.get('/v1/webinars', async () => listWebinars({ activeOnly: true }));
 app.get('/v1/podcasts', async () => listPodcasts({ activeOnly: true, landingOnly: true }));
-app.get('/v1/offers', async () => getOffers());
-app.get('/v1/entitlements', async () => getEntitlements());
-app.get('/v1/blueprint', async () => demoBlueprint);
+/*
+ * `/v1/offers` se retira, y `offers` sale de la respuesta de la portada.
+ *
+ * Servían tres planes de precio heredados de Atlas —«Paquete de Certificación»
+ * 199 USD, «Matrícula Anual» 249, «Matrícula Mensual» 29— cuyas descripciones
+ * nombran a «Atlas Online University» y que TFU nunca ha fijado. El front no
+ * los pinta en ninguna parte: el commit 5502e42 quitó del portal el lenguaje de
+ * compra justamente porque esto no es una tienda. Pero la API pública seguía
+ * devolviendo precios inventados a nombre de una institución real, y eso es
+ * exactamente lo que la convención de no inventar contenido institucional
+ * existe para evitar.
+ */
+/*
+ * `/v1/entitlements` y `/v1/blueprint` se retiran aquí.
+ *
+ * Las dos venían del producto original y devolvían datos de demostración de
+ * Atlas a cualquiera sin autenticar: `entitlements` servía una lista de
+ * contenidos `bundle-1`, `course-1`…`course-4` que no existen en TFU, y
+ * `blueprint` un plano de plataforma de ejemplo. Ninguna de las dos la llamaba
+ * nada: estaban declaradas en el cliente del front y sin un solo uso.
+ *
+ * Quien decide de verdad si alguien puede ver un contenido es
+ * `GET /v1/courses/:id/content`, que exige matrícula activa y responde 403 sin
+ * ella. Una lista paralela de permisos que nadie consulta sólo podía
+ * contradecirla.
+ */
 
 
 app.get('/v1/media/demo.mp4', async (request, reply) => {
@@ -1457,6 +1492,140 @@ app.get('/v1/me/courses', async (request) => {
   };
 });
 
+
+/**
+ * El programa del estudiante: lo que ve al entrar a su plataforma.
+ *
+ * Esta ruta no existía, y su ausencia era la contradicción más visible del
+ * proyecto: el modelo dice que el programa es la unidad en la que uno se
+ * matricula (ver §20 del runbook), pero el portal sólo sabía hablar de «mis
+ * cursos». El estudiante no tenía forma de ver su programa, su plan de
+ * estudios, su periodo, sus plazos ni sus notas.
+ *
+ * Lo que devuelve, y de dónde sale cada cosa:
+ *  - el programa y su plan de estudios -> `student_enrollments` + `degree_programs`
+ *  - la nota y el estado de cada curso  -> `student_enrollments` (la escribe la registraduría)
+ *  - el progreso dentro del aula        -> `public_course_progress`
+ *  - si el aula se puede abrir          -> `user_course_enrollments` (espejo de Moodle)
+ *  - el periodo y sus plazos            -> `academic_terms` + `term_grids`
+ *
+ * `aulaAccesible` va por separado del resto a propósito: es lo único que
+ * depende de Moodle, y mientras la matrícula en Moodle siga rota el portal
+ * tiene que poder mostrar el programa completo y decir que el aula todavía no
+ * abre, en vez de aparecer vacío sin explicar nada.
+ *
+ * Sobre el id de Moodle: aquí SÍ viaja, y no contradice la regla del §20.2. Lo
+ * que no lleva id es el catálogo público, porque es público y el id permitiría
+ * construir una ruta a un curso suelto. Esta ruta devuelve las matrículas del
+ * propio estudiante autenticado, que es de donde «Mis cursos» ya sacaba el id
+ * para poder entrar al aula.
+ */
+app.get('/v1/me/program', async (request, reply) => {
+  const session = getPublicSessionFromRequest(request);
+  if (!session) return reply.unauthorized('Not authenticated');
+
+  const { rows: matriculas } = await pool.query(
+    `SELECT se.id, se.moodle_course_id, se.status, se.grade, se.grade_points, se.credit_hours,
+            se.enrolled_at, se.completed_at,
+            t.code AS term_code, t.name AS term_name, t.start_date, t.end_date, t.is_active AS term_active,
+            dp.code AS program_code, dp.name AS program_name, dp.description AS program_description,
+            dp.degree_level, dp.credit_hours_required,
+            mc.full_name AS course_name, mc.short_name AS course_short_name,
+            dr.sort_order,
+            (uce.user_id IS NOT NULL AND uce.status = 'active') AS aula_accesible,
+            pcp.progress_percent, pcp.total_modules, pcp.completed_module_ids,
+            pcp.last_activity_at
+       FROM student_enrollments se
+       JOIN academic_terms t        ON t.id = se.term_id
+       LEFT JOIN degree_programs dp ON dp.id = se.degree_program_id
+       LEFT JOIN moodle_courses mc  ON mc.moodle_course_id = se.moodle_course_id
+       LEFT JOIN degree_requirements dr
+              ON dr.degree_program_id = se.degree_program_id
+             AND dr.moodle_course_id = se.moodle_course_id
+             AND dr.requirement_type = 'course'
+       LEFT JOIN user_course_enrollments uce
+              ON uce.user_id = se.user_id AND uce.moodle_course_id = se.moodle_course_id
+       LEFT JOIN public_course_progress pcp
+              ON pcp.user_id = se.user_id AND pcp.moodle_course_id = se.moodle_course_id
+      WHERE se.user_id = $1
+      ORDER BY t.start_date DESC, dr.sort_order NULLS LAST, se.moodle_course_id`,
+    [session.userId]
+  );
+
+  // Un estudiante sin matrícula no es un error: es alguien a quien admisiones
+  // todavía no ha matriculado. Se responde con la estructura vacía y el portal
+  // lo dice, en vez de un 404 que la interfaz tendría que interpretar.
+  if (!matriculas.length) {
+    return { programs: [], activeTerm: await periodoActivo(pool), gradingScalePending: true };
+  }
+
+  // Se agrupa por programa y periodo, que es la unidad que el estudiante ve.
+  const porPrograma = new Map<string, any>();
+  for (const m of matriculas) {
+    const clave = `${m.program_code ?? 'sin-programa'}::${m.term_code}`;
+    if (!porPrograma.has(clave)) {
+      porPrograma.set(clave, {
+        programCode: m.program_code,
+        programName: m.program_name,
+        programDescription: m.program_description,
+        degreeLevel: m.degree_level,
+        creditHoursRequired: Number(m.credit_hours_required ?? 0),
+        term: {
+          code: m.term_code,
+          name: m.term_name,
+          startsOn: typeof m.start_date === 'string' ? m.start_date.slice(0, 10) : m.start_date?.toISOString?.().slice(0, 10) ?? null,
+          endsOn: typeof m.end_date === 'string' ? m.end_date.slice(0, 10) : m.end_date?.toISOString?.().slice(0, 10) ?? null,
+          isActive: Boolean(m.term_active)
+        },
+        courses: []
+      });
+    }
+    porPrograma.get(clave).courses.push({
+      enrollmentId: m.id,
+      moodleCourseId: Number(m.moodle_course_id),
+      name: m.course_name,
+      shortName: m.course_short_name,
+      status: m.status,
+      grade: m.grade,
+      gradePoints: m.grade_points === null ? null : Number(m.grade_points),
+      creditHours: Number(m.credit_hours),
+      aulaAccesible: Boolean(m.aula_accesible),
+      // `null` y no `0` cuando el aula no está montada: un cero se leería como
+      // «aula vacía», que es distinto de «todavía no hay aula». Es la misma
+      // regla que ya sigue el temario del catálogo público.
+      progressPercent: m.total_modules ? Number(m.progress_percent) : null,
+      totalModules: m.total_modules ? Number(m.total_modules) : null,
+      completedModules: Array.isArray(m.completed_module_ids) ? m.completed_module_ids.length : 0,
+      lastActivityAt: m.last_activity_at,
+      enrolledAt: m.enrolled_at,
+      completedAt: m.completed_at
+    });
+  }
+
+  const programs = [...porPrograma.values()];
+
+  // La malla del periodo activo del estudiante, para los plazos. Se pide sólo
+  // la del periodo en curso: las de periodos cerrados no tienen nada que
+  // recordarle a nadie.
+  const activo = programs.find((p) => p.term.isActive);
+  let termGrid: unknown = null;
+  if (activo) {
+    const { rows } = await pool.query<{ grid: any; revision: number }>(
+      'SELECT grid, revision FROM term_grids WHERE term_id = $1',
+      [activo.term.code]
+    );
+    if (rows.length) termGrid = { revision: rows[0].revision, ...rows[0].grid };
+  }
+
+  return {
+    programs,
+    activeTerm: await periodoActivo(pool),
+    termGrid,
+    // El portal lo rotula: la escala es la estándar de 4,0 y TFU no ha
+    // confirmado la suya.
+    gradingScalePending: true
+  };
+});
 
 app.get('/v1/enterprise/overview', async (request) => {
   const session = getPublicSessionFromRequest(request);
@@ -3747,10 +3916,39 @@ app.post('/admin/users/:userId/program-enrollments', async (request, reply) => {
     return reply.badRequest('Ese programa todavía no tiene ningún curso asignado');
   }
 
+  // La matrícula SIS necesita un periodo al que apuntar. Si hoy no cae dentro
+  // de ninguno se para aquí: matricular en un periodo que no está en curso
+  // produce un expediente que no cuadra, y es mejor decirlo.
+  const periodo = await periodoActivo(pool);
+  if (!periodo) {
+    return reply.badRequest(
+      'No hay ningún periodo académico en curso: genera la malla del periodo antes de matricular'
+    );
+  }
+
   const hechos: number[] = [];
   const fallidos: Array<{ moodleCourseId: number; error: string }> = [];
+  const enSis: number[] = [];
 
   for (const moodleCourseId of cursos) {
+    // Primero la matrícula de la PLATAFORMA, y a propósito antes que Moodle.
+    //
+    // Son dos hechos distintos: estar matriculado en el programa es un hecho
+    // del SIS, y poder entrar al aula es un hecho de Moodle. Antes todo
+    // dependía de que Moodle dijera sí, así que con la matrícula de Moodle
+    // rota no quedaba rastro de nada: ni programa, ni plan de estudios, ni
+    // expediente, ni promedio. Y `student_enrollments` —la tabla de la que se
+    // leen el expediente, el promedio y la auditoría de grado— no la escribía
+    // nadie en ningún camino de producción.
+    await matricularEnSis(pool, {
+      userId,
+      termId: periodo.id,
+      moodleCourseId,
+      degreeProgramId: programa.rows[0].id,
+      creditHours: await creditosDelAula(pool, moodleCourseId)
+    });
+    enSis.push(moodleCourseId);
+
     const r = await enrolMoodleUser({ userId: Number(user.moodle_user_id), courseId: moodleCourseId });
     if (!r.ok) {
       fallidos.push({ moodleCourseId, error: r.error ?? 'error desconocido' });
@@ -3761,12 +3959,18 @@ app.post('/admin/users/:userId/program-enrollments', async (request, reply) => {
   }
 
   // Se informa del parcial en vez de fingir éxito: si un aula falló, alguien
-  // tiene que saber cuál para repararla.
+  // tiene que saber cuál para repararla. `enrolled` sigue significando «entró a
+  // todas las aulas», que es lo que el panel ya mostraba como error cuando no
+  // se cumplía; `sisEnrolled` es lo nuevo y dice que el expediente sí quedó
+  // creado aunque el aula no abriera.
   return {
     enrolled: fallidos.length === 0,
+    sisEnrolled: enSis.length === cursos.length,
     programCode,
     programName: programa.rows[0].name,
+    termCode: periodo.code,
     coursesEnrolled: hechos,
+    coursesInSis: enSis,
     coursesFailed: fallidos
   };
 });
@@ -3822,6 +4026,21 @@ app.delete('/admin/users/:userId/program-enrollments/:programCode', async (reque
     if (!r.ok) fallidos.push({ moodleCourseId, error: r.error ?? 'error desconocido' });
     await upsertUserCourseEnrollment({ userId, moodleCourseId, status: 'inactive' });
   }
+
+  // La matrícula SIS se marca retirada, NO se borra. Un expediente académico no
+  // pierde el rastro de un curso del que alguien se retiró: `W` es una marca
+  // legítima del expediente, y borrar la fila se llevaría además cualquier nota
+  // ya registrada. Sólo se tocan las que siguen cursando: una matrícula ya
+  // calificada no se reescribe al retirar del programa.
+  await pool.query(
+    `UPDATE student_enrollments
+        SET status = 'withdrawn', grade = COALESCE(grade, 'W')
+      WHERE user_id = $1
+        AND moodle_course_id = ANY($2)
+        AND status = 'enrolled'`,
+    [userId, cursos]
+  );
+
   return { unenrolled: fallidos.length === 0, programCode, coursesFailed: fallidos };
 });
 
@@ -4015,17 +4234,24 @@ app.get('/v1/me/transcript', async (request, reply) => {
 app.get('/v1/me/gpa', async (request, reply) => {
   const session = getPublicSessionFromRequest(request);
   if (!session) return reply.unauthorized('Not authenticated');
+  // Los créditos ganados exigen APROBAR, no sólo terminar.
+  //
+  // Esta consulta contaba cualquier matrícula con estado `completed`, y una `F`
+  // también termina el curso: al registrar la primera nota reprobatoria el
+  // expediente del estudiante decía «3 créditos» mientras la auditoría de
+  // grado, que sí mira la nota, decía «0». Dos números de la misma cosa que se
+  // contradecían. Se comprobó con una `F` de prueba antes de arreglarlo.
   const result = await pool.query(
     `SELECT
        ROUND(
          SUM(se.grade_points * se.credit_hours) / NULLIF(SUM(CASE WHEN se.grade_points IS NOT NULL THEN se.credit_hours ELSE 0 END), 0),
          2
        ) AS cumulative_gpa,
-       SUM(CASE WHEN se.status = 'completed' THEN se.credit_hours ELSE 0 END) AS completed_credits,
+       SUM(CASE WHEN se.status = 'completed' AND se.grade = ANY($2) THEN se.credit_hours ELSE 0 END) AS completed_credits,
        COUNT(*) AS total_enrollments
      FROM student_enrollments se
      WHERE se.user_id = $1`,
-    [session.userId]
+    [session.userId, LETRAS_APROBATORIAS]
   );
   return result.rows[0] ?? { cumulative_gpa: null, completed_credits: 0, total_enrollments: 0 };
 });
@@ -4192,6 +4418,7 @@ registerSisRoutes(app, {
     return { userId: s.userId, email: s.email };
   }
 });
+registerRegistraduriaRoutes(app, { pool, ensureAdmin });
 registerCrmRoutes(app, { pool, ensureAdmin });
 registerIamRoutes(app, { pool, ensureAdmin });
 registerProgramsAdminRoutes(app, { pool, ensureAdmin });

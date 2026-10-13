@@ -785,3 +785,167 @@ necesita su alias del index. `PROGRAM_FALLBACK_SLUGS_DEFAULT` en
 propósito, también los trece slugs antiguos de curso (`moodle-pcl-*-<id>`): la
 API los resuelve al programa que contiene ese curso, pero sin su alias el
 enlace directo moriría en un 403 de S3 antes de llegar al SPA.
+
+---
+
+## 21) Plataforma del estudiante: programa, matrícula SIS y calificaciones
+
+Esta sección documenta la tanda de trabajo que hizo funcional la plataforma del
+estudiante. El punto de partida era que el estudiante demo entraba y no veía
+nada, y la causa no era una sino **cinco**, encadenadas. Se describen todas
+porque cada una se puede volver a introducir por separado.
+
+### 21.1 Las cinco causas
+
+**1. Dos nociones de «periodo» que no se hablaban.** `academic_terms` es la
+tabla a la que apunta la clave ajena de `student_enrollments`. Sólo contenía
+tres periodos heredados de Atlas (`DEMO-*`), y el marcado como activo era Spring
+2026, terminado en mayo. El periodo real, `TERM-2026-FALL`, vivía **sólo** en
+`term_grids`, cuyo `term_id` es texto libre sin clave ajena a nada. Es decir:
+**no se podía crear una matrícula SIS para el periodo real**, porque la clave
+ajena no tenía a dónde apuntar.
+
+**2. La matrícula por programa nunca escribía `student_enrollments`.** Escribía
+sólo `user_course_enrollments`, que es el espejo de Moodle. Pero el expediente
+(`/v1/me/transcript`), el promedio (`/v1/me/gpa`) y la auditoría de grado leen
+`student_enrollments`. Aunque §20.1 se arreglara mañana, los tres seguirían
+vacíos.
+
+**3. Las calificaciones no tenían ninguna vía de registro.**
+`student_enrollments.grade` no tenía un solo escritor en todo el código. Y no se
+pueden traer del libro de calificaciones de Moodle: de las 21 funciones del
+servicio web **ninguna es `gradereport_*`**.
+
+**4. El portal no tenía vista de programa.** Tenía «Mis cursos», «Expediente» y
+«Perfil», lo que contradice el modelo del §20, donde el programa es la unidad.
+
+**5. Restos del producto Atlas en rutas públicas.** `/v1/home` devolvía la fila
+`tenants` heredada («Atlas Online University», logo de dummyimage.com) y un
+usuario de demostración fijo —María González, mgonzalez@atlas.edu— a cualquiera
+que pidiera la portada, autenticado o no.
+
+### 21.2 La separación que hay que mantener
+
+```
+matrícula en el PROGRAMA  ->  hecho de la plataforma  ->  student_enrollments
+acceso al AULA            ->  hecho de Moodle         ->  user_course_enrollments
+```
+
+**Son independientes a propósito, y no se deben volver a acoplar.** Antes la
+matrícula entera se caía si Moodle fallaba y no quedaba rastro de nada. Ahora la
+fila del SIS se escribe primero y pase lo que pase con Moodle, de modo que con
+§20.1 todavía sin arreglar el estudiante ve su programa, su plan de estudios, su
+calendario y sus notas, y el portal le dice de frente que el aula no está
+disponible. La respuesta de la matrícula distingue las dos cosas: `sisEnrolled`
+y `coursesInSis` por un lado, `enrolled` y `coursesFailed` por el otro.
+
+### 21.3 La escala de calificación está PENDIENTE de TFU
+
+`apps/api/src/modules/sis/calificaciones.ts` lleva la escala estadounidense
+estándar de 4,0 con tercios, más las marcas no punitivas `P`, `NP`, `I` y `W`.
+**TFU no ha confirmado la suya**, igual que no ha confirmado el nivel ni los
+créditos de los trece programas. Por eso la ruta `/admin/registrar/scale`
+devuelve `pendienteDeConfirmacion: true` y tanto el panel como el portal lo
+rotulan — el mismo criterio con el que las gráficas van rotuladas como vista
+previa de la Etapa V. **Cuando TFU la confirme se cambia en ese archivo, que es
+el único sitio donde vive.**
+
+### 21.4 Terminar un curso no es aprobarlo
+
+`status = 'completed'` significa que el curso ACABÓ, y una `F` también lo acaba.
+Lo que decide si el requisito del programa queda cumplido y si los créditos se
+ganan es **si la nota aprueba**, que es `LETRAS_APROBATORIAS`. Con la tabla de
+notas vacía el error no se veía; al registrar la primera `F` de prueba el
+expediente del estudiante decía «3 créditos» mientras la auditoría de grado
+decía «0». Si alguien vuelve a escribir `WHERE status = 'completed'` para contar
+créditos, reintroduce esa contradicción.
+
+### 21.5 Permisos: dos agujeros que se taparon
+
+- **El rol `superadmin` leía sus permisos de la tabla.** Las secciones nuevas se
+  insertan con nivel `none` para los roles que ya existían, `superadmin`
+  incluido, así que **cada sección nueva dejaba fuera al superadministrador**
+  hasta que alguien se la concediera a mano — incluida, llegado el caso, la
+  pantalla de roles desde la que se arregla. Ahora `permisosDeRol` los CALCULA
+  cuando la clave del rol es `superadmin`, y eso además es lo que de verdad
+  sostiene la invariante del §8.4.
+- **Doce rutas `/admin/*` no estaban en `ROUTE_SECTIONS`**, así que sólo las
+  podía usar el superadministrador, en silencio. Se mapearon
+  `/admin/registrar`, `/admin/students`, `/admin/terms` y `/admin/syllabi`
+  —esta última era un error de plural: el mapa decía `/admin/syllabus` y las
+  rutas reales son `/admin/syllabi`, de modo que el módulo de sílabos entero
+  quedaba fuera del alcance del rol de acreditación.
+  **Siguen sin mapear, a la espera de una decisión organizativa sobre quién es
+  su dueño:** `/admin/contact-messages`, `/admin/pages`, `/admin/pages/:slug` y
+  `/admin/tenants`.
+
+Para comprobarlo en cualquier momento:
+
+```bash
+# Lista las rutas /admin que ningún rol salvo superadmin puede usar.
+node - <<'JS'
+import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+const src = readFileSync('apps/api/src/modules/iam/sections.ts', 'utf8');
+const bloque = src.slice(src.indexOf('export const ROUTE_SECTIONS'), src.indexOf('const ORDENADOS'));
+const pares = [...bloque.matchAll(/\['([^']+)',\s*'([^']+)'\]/g)].map((m) => [m[1], m[2]]);
+const ord = [...pares].sort((a, b) => b[0].length - a[0].length);
+const sec = (p) => ord.find(([x]) => p === x || p.startsWith(x + '/'))?.[1] ?? null;
+const rutas = [...new Set([...execSync(`grep -rhoE "app\\.(get|post|put|patch|delete)\\('/admin[^']*'" apps/api/src --include=*.ts`)
+  .toString().matchAll(/'(\/admin[^']*)'/g)].map((m) => m[1]))].sort();
+const exentas = new Set(['/admin', '/admin/auth/login', '/admin/auth/me', '/admin/auth/logout']);
+console.log(rutas.filter((r) => !exentas.has(r) && !sec(r)));
+JS
+```
+
+### 21.6 Archivos
+
+| Archivo | Para qué |
+|---|---|
+| `apps/api/src/modules/sis/periodos.ts` | reconcilia `term_grids` con `academic_terms`; `periodoActivo()` |
+| `apps/api/src/modules/sis/calificaciones.ts` | la escala, los puntos y qué nota aprueba |
+| `apps/api/src/modules/sis/registraduria.ts` | `matricularEnSis()` y las rutas `/admin/registrar/*` |
+| `apps/web/src/components/StudentProgram.tsx` | la vista «Mi programa» del estudiante |
+| `apps/web/src/components/admin/views/RegistrarView.tsx` | la pantalla de calificaciones del panel |
+| `infra/data/limpiar-legacy-atlas.sql` | retirada de los datos de demostración de Atlas |
+
+### 21.7 Rutas nuevas
+
+| Ruta | Qué devuelve |
+|---|---|
+| `GET /v1/me/program` | el programa del estudiante, su plan con notas y progreso, y la malla del periodo |
+| `GET /admin/registrar/enrollments` | las matrículas SIS, filtrables por periodo, programa o estudiante |
+| `PATCH /admin/registrar/enrollments/:id` | registra la nota; los puntos y el estado los deriva el servidor |
+| `GET /admin/registrar/scale` | la escala, con `pendienteDeConfirmacion` |
+| `GET /admin/registrar/term` | el periodo en curso |
+
+Retiradas: `GET /v1/entitlements`, `GET /v1/blueprint` y `GET /v1/offers`, que
+servían datos de demostración de Atlas y a las que no llamaba nadie.
+
+### 21.8 Los plazos se muestran en hora del Este
+
+El Master Syllabus fija los cierres a las 23:59 ET y la malla ya resuelve el
+cambio de horario de verano. `StudentProgram.tsx` los formatea con
+`timeZone: 'America/New_York'` y la zona escrita. Si se dejara en la zona del
+navegador, el mismo plazo se leería distinto en cada equipo: con el navegador en
+UTC aparecía «14 oct, 03:59», que es el mismo instante que las 23:59 del 13 pero
+no se parece a lo que dice la norma.
+
+### 21.9 Cómo se verificó
+
+Todo se probó con la API corriendo contra una base PostgreSQL local, **no contra
+producción**, sembrando la malla real del periodo y un programa con su aula:
+
+- Matrícula por programa **con Moodle no configurado**, que es la condición
+  exacta de §20.1: respondió `sisEnrolled: true`, `enrolled: false` y
+  `coursesFailed` con el error de Moodle; la fila del SIS quedó escrita y
+  `user_course_enrollments` siguió en cero.
+- Notas `A-`, `F`, `W`, `I` y una fuera de escala: los estados derivados salieron
+  `completed`, `completed`, `withdrawn`, `enrolled` y HTTP 400 respectivamente.
+- Promedio y auditoría de grado comparados con una `F` y con una `A-`: antes se
+  contradecían (3 créditos contra 0), después coinciden.
+- Portal con navegador real en español y en inglés: `requestfailed`, `pageerror`,
+  respuestas `/api/` con error y mensajes de CSP, los cuatro en cero; sin
+  desbordamiento horizontal a 1440 ni a 390 px; ninguna clave i18n sin resolver.
+- Paridad i18n comprobada con script: 2.148 claves hoja en cada idioma, ninguna
+  apuntando a un objeto.
