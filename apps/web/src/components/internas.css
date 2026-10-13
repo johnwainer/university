@@ -1278,3 +1278,16 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Cada programa es un bloque propio, porque el estudiante puede tener más de
+   uno y hay que poder distinguir dónde acaba uno y empieza el siguiente. */
+.mi-programa .mp-programa {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.mi-programa .mp-programa + .mp-programa {
+  padding-top: 2.5rem;
+  border-top: 1px solid rgba(143, 166, 191, 0.2);
+}

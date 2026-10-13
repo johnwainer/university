@@ -24,6 +24,7 @@ import {
   api,
   type CursoMatriculado,
   type MiProgramaResponse,
+  type ProgramaDelEstudiante,
   type SemanaDelPeriodo
 } from '../lib/api';
 
@@ -109,28 +110,7 @@ export function StudentProgram({ token, onAbrirAula, onGoAcademics, onGoCatalog 
     };
   }, [token]);
 
-  const programa = datos?.programs?.[0] ?? null;
-
-  const resumen = useMemo(() => {
-    const cursos = programa?.courses ?? [];
-    const aprobados = cursos.filter((c) => c.status === 'completed' && c.gradePoints !== null && c.gradePoints >= 1.7);
-    const enCurso = cursos.filter((c) => c.status === 'enrolled');
-    const conPuntos = cursos.filter((c) => c.gradePoints !== null);
-    const creditosPonderados = conPuntos.reduce((acc, c) => acc + (c.gradePoints ?? 0) * c.creditHours, 0);
-    const creditosConNota = conPuntos.reduce((acc, c) => acc + c.creditHours, 0);
-    const creditosGanados = cursos
-      .filter((c) => c.status === 'completed' && c.gradePoints !== null && c.gradePoints >= 1.7)
-      .reduce((acc, c) => acc + c.creditHours, 0);
-    return {
-      total: cursos.length,
-      aprobados: aprobados.length,
-      enCurso: enCurso.length,
-      // Se calcula aquí sólo para mostrarlo junto al programa; el promedio
-      // oficial del expediente lo calcula el servidor en /v1/me/gpa.
-      promedio: creditosConNota > 0 ? creditosPonderados / creditosConNota : null,
-      creditosGanados
-    };
-  }, [programa]);
+  const programas = datos?.programs ?? [];
 
   const semanas = datos?.termGrid?.weeks ?? [];
   const semana = useMemo(() => semanaEnCurso(semanas), [semanas]);
@@ -152,7 +132,7 @@ export function StudentProgram({ token, onAbrirAula, onGoAcademics, onGoCatalog 
     );
   }
 
-  if (!programa) {
+  if (programas.length === 0) {
     return (
       <section className="section-block">
         <div className="section-header-row">
@@ -172,12 +152,9 @@ export function StudentProgram({ token, onAbrirAula, onGoAcademics, onGoCatalog 
     );
   }
 
-  const nivel = programa.degreeLevel
-    ? t(`myProgram.levels.${programa.degreeLevel}`, { defaultValue: programa.degreeLevel })
-    : null;
-
   return (
     <section className="section-block mi-programa">
+
       <div className="section-header-row">
         <div>
           <h2>{t('myProgram.title')}</h2>
@@ -190,6 +167,138 @@ export function StudentProgram({ token, onAbrirAula, onGoAcademics, onGoCatalog 
         ) : null}
       </div>
 
+      {/* Un estudiante puede estar matriculado en más de un programa: los
+          certificados de TFU son independientes entre sí. Antes esta vista
+          pintaba `programs[0]` y el resto desaparecía sin decirlo. */}
+      {programas.map((programa) => (
+        <ProgramaBloque
+          key={`${programa.programCode}-${programa.term.code}`}
+          programa={programa}
+          locale={locale}
+          onAbrirAula={onAbrirAula}
+        />
+      ))}
+
+      {/* La nota de la escala es una sola para toda la vista: antes se repetía
+          una vez por programa. */}
+      {datos?.gradingScalePending ? (
+        <p className="mp-nota-escala">{t('myProgram.grade.scaleNote')}</p>
+      ) : null}
+
+      <section className="mp-calendario">
+        <div className="section-header-row">
+          <div>
+            <h3>{t('myProgram.calendar.title')}</h3>
+            <p className="row-subtitle">{t('myProgram.calendar.subtitle')}</p>
+          </div>
+        </div>
+
+        {semanas.length === 0 ? (
+          <p>{t('myProgram.calendar.noGrid')}</p>
+        ) : (
+          <>
+            {semana ? (
+              <article className="mp-semana-actual">
+                <p className="mp-eyebrow">{t('myProgram.calendar.currentWeek')}</p>
+                <h4>{t('myProgram.calendar.week', { n: semana.week })}</h4>
+                <p className="row-subtitle">
+                  {t('myProgram.calendar.weekOf', {
+                    inicio: fecha(semana.startsOn, locale),
+                    fin: fecha(semana.endsOn, locale)
+                  })}
+                  {semana.shifted ? ` · ${t('myProgram.calendar.shifted')}` : ''}
+                </p>
+                <p className="mp-plazos-titulo">{t('myProgram.calendar.upcoming')}</p>
+                {semana.deadlines.length === 0 ? (
+                  <p className="mp-sin-dato">{t('myProgram.calendar.noUpcoming')}</p>
+                ) : (
+                  <ul className="mp-plazos">
+                    {semana.deadlines.map((plazo) => {
+                      const vencido = new Date(plazo.dueAt).getTime() < Date.now();
+                      return (
+                        <li key={plazo.key} className={vencido ? 'mp-plazo vencido' : 'mp-plazo'}>
+                          <span>{locale === 'en' ? plazo.labelEn : plazo.labelEs}</span>
+                          <strong>{fechaHora(plazo.dueAt, locale)}</strong>
+                          {vencido ? <em>{t('myProgram.calendar.past')}</em> : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </article>
+            ) : null}
+
+            <ol className="mp-semanas">
+              {semanas.map((s) => (
+                <li key={s.week} className={semana && s.week === semana.week ? 'mp-semana actual' : 'mp-semana'}>
+                  <span className="mp-semana-n">{t('myProgram.calendar.week', { n: s.week })}</span>
+                  <span className="mp-semana-fechas">
+                    {t('myProgram.calendar.weekOf', {
+                      inicio: fecha(s.startsOn, locale),
+                      fin: fecha(s.endsOn, locale)
+                    })}
+                  </span>
+                  <span className="mp-semana-cierre">
+                    {t('myProgram.calendar.closesAt', { fecha: fechaHora(s.closesAt, locale) })}
+                  </span>
+                  {s.holidays?.length ? <span className="mp-semana-festivo">{t('myProgram.calendar.holiday')}</span> : null}
+                </li>
+              ))}
+            </ol>
+          </>
+        )}
+      </section>
+    </section>
+  );
+}
+
+/** Una fila del plan de estudios. */
+/**
+ * Un programa del estudiante: cabecera, resumen y plan de estudios.
+ *
+ * Está aparte porque el estudiante puede tener varios y cada uno lleva su
+ * propio resumen. El calendario, en cambio, es del periodo y se pinta una sola
+ * vez para toda la vista.
+ */
+function ProgramaBloque({
+  programa,
+  locale,
+  onAbrirAula
+}: {
+  programa: ProgramaDelEstudiante;
+  locale: string;
+  onAbrirAula: (moodleCourseId: number, titulo: string) => void;
+}) {
+  const { t } = useTranslation();
+
+  const resumen = useMemo(() => {
+    const cursos = programa.courses;
+    // Aprobar es lo que cuenta, no terminar: una `F` cierra el curso y no suma.
+    // El umbral es el mismo que usa el servidor en `LETRAS_APROBATORIAS`.
+    const aprobados = cursos.filter(
+      (c) => c.status === 'completed' && c.gradePoints !== null && c.gradePoints >= 1.7
+    );
+    const enCurso = cursos.filter((c) => c.status === 'enrolled');
+    const conPuntos = cursos.filter((c) => c.gradePoints !== null);
+    const ponderados = conPuntos.reduce((acc, c) => acc + (c.gradePoints ?? 0) * c.creditHours, 0);
+    const creditosConNota = conPuntos.reduce((acc, c) => acc + c.creditHours, 0);
+    return {
+      total: cursos.length,
+      aprobados: aprobados.length,
+      enCurso: enCurso.length,
+      // Se calcula aquí sólo para mostrarlo junto a este programa; el promedio
+      // oficial del expediente lo calcula el servidor en /v1/me/gpa sobre todas
+      // las matrículas.
+      promedio: creditosConNota > 0 ? ponderados / creditosConNota : null
+    };
+  }, [programa]);
+
+  const nivel = programa.degreeLevel
+    ? t(`myProgram.levels.${programa.degreeLevel}`, { defaultValue: programa.degreeLevel })
+    : null;
+
+  return (
+    <article className="mp-programa">
       <article className="mp-cabecera">
         <h3>{programa.programName ?? programa.programCode}</h3>
         <ul className="mp-meta">
@@ -270,73 +379,8 @@ export function StudentProgram({ token, onAbrirAula, onGoAcademics, onGoCatalog 
             </tbody>
           </table>
         </div>
-        {datos?.gradingScalePending ? <p className="mp-nota-escala">{t('myProgram.grade.scaleNote')}</p> : null}
       </section>
-
-      <section className="mp-calendario">
-        <div className="section-header-row">
-          <div>
-            <h3>{t('myProgram.calendar.title')}</h3>
-            <p className="row-subtitle">{t('myProgram.calendar.subtitle')}</p>
-          </div>
-        </div>
-
-        {semanas.length === 0 ? (
-          <p>{t('myProgram.calendar.noGrid')}</p>
-        ) : (
-          <>
-            {semana ? (
-              <article className="mp-semana-actual">
-                <p className="mp-eyebrow">{t('myProgram.calendar.currentWeek')}</p>
-                <h4>{t('myProgram.calendar.week', { n: semana.week })}</h4>
-                <p className="row-subtitle">
-                  {t('myProgram.calendar.weekOf', {
-                    inicio: fecha(semana.startsOn, locale),
-                    fin: fecha(semana.endsOn, locale)
-                  })}
-                  {semana.shifted ? ` · ${t('myProgram.calendar.shifted')}` : ''}
-                </p>
-                <p className="mp-plazos-titulo">{t('myProgram.calendar.upcoming')}</p>
-                {semana.deadlines.length === 0 ? (
-                  <p className="mp-sin-dato">{t('myProgram.calendar.noUpcoming')}</p>
-                ) : (
-                  <ul className="mp-plazos">
-                    {semana.deadlines.map((plazo) => {
-                      const vencido = new Date(plazo.dueAt).getTime() < Date.now();
-                      return (
-                        <li key={plazo.key} className={vencido ? 'mp-plazo vencido' : 'mp-plazo'}>
-                          <span>{locale === 'en' ? plazo.labelEn : plazo.labelEs}</span>
-                          <strong>{fechaHora(plazo.dueAt, locale)}</strong>
-                          {vencido ? <em>{t('myProgram.calendar.past')}</em> : null}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </article>
-            ) : null}
-
-            <ol className="mp-semanas">
-              {semanas.map((s) => (
-                <li key={s.week} className={semana && s.week === semana.week ? 'mp-semana actual' : 'mp-semana'}>
-                  <span className="mp-semana-n">{t('myProgram.calendar.week', { n: s.week })}</span>
-                  <span className="mp-semana-fechas">
-                    {t('myProgram.calendar.weekOf', {
-                      inicio: fecha(s.startsOn, locale),
-                      fin: fecha(s.endsOn, locale)
-                    })}
-                  </span>
-                  <span className="mp-semana-cierre">
-                    {t('myProgram.calendar.closesAt', { fecha: fechaHora(s.closesAt, locale) })}
-                  </span>
-                  {s.holidays?.length ? <span className="mp-semana-festivo">{t('myProgram.calendar.holiday')}</span> : null}
-                </li>
-              ))}
-            </ol>
-          </>
-        )}
-      </section>
-    </section>
+    </article>
   );
 }
 
