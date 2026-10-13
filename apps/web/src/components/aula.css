@@ -1,0 +1,1062 @@
+/* =========================================================================
+   El aula — The Floridian University
+   =========================================================================
+
+   POR QUÉ ESTE ARCHIVO EXISTE
+
+   El aula era lo único del portal que nunca recibió el rebrand. Su hoja de
+   estilos venía de la plantilla del producto anterior y fijaba a mano:
+
+       #121212  #111  #0f0f0f  #1a1a1a      grises casi negros
+       #a78bfa  #c4b5fd  #cab8ff  #241247   acentos VIOLETAS
+
+   mientras el resto del portal corre sobre el azul institucional
+   (`--pcl-navy-*`) con el cian Aqua Horizon de acento. Es decir: el estudiante
+   entraba a su aula y aterrizaba en una interfaz de otra marca. Por eso aquí no
+   se parchean las reglas viejas, se sustituyen: el vocabulario `aula-*` se
+   construye sobre los tokens de `brand.css` y no vuelve a escribir un
+   hexadecimal suelto.
+
+   PARA QUIÉN SE DISEÑA
+
+   El encargo es que sea más simple, más moderno y **fácil de usar por personas
+   mayores**, sin salirse del estilo de la plataforma. Eso no es «poner la letra
+   grande»; son decisiones concretas:
+
+   1. DOS COLUMNAS, NO TRES. Antes había plan + contenido + panel de
+      gamificación. Tres columnas obligan a decidir dónde mirar antes de poder
+      leer. Ahora: a la izquierda «dónde estoy», a la derecha «qué hago ahora».
+
+   2. UN SOLO INDICADOR DE AVANCE. Antes el avance aparecía CINCO veces: una
+      píldora con el porcentaje, otra con el recuento, una barra, y el panel
+      derecho repitiendo módulos, interacciones, XP y nivel. Ahora: una línea y
+      una barra. Lo demás no desaparece, se recoge en un desplegable cerrado.
+
+   3. OBJETIVOS GRANDES. Mínimo 48px de alto en cualquier cosa pulsable y 56px
+      en las filas del plan. Es la medida que recomiendan las pautas de
+      accesibilidad para pulsación, y la que agradece una mano con temblor o un
+      ratón poco preciso.
+
+   4. EL COLOR NUNCA LLEVA EL DATO SOLO. El estado de una actividad se lee por
+      icono y por texto («Hecha» con su marca de verificación); el color es
+      refuerzo. Mismo criterio que el semáforo del panel de registraduría.
+
+   5. TIPOGRAFÍA PARA LEER. El cuerpo del aula arranca en 1.0625rem (17px) en
+      vez de los 0.74–0.8rem que tenían las etiquetas, con interlínea 1.7 y la
+      medida limitada a ~68 caracteres, que es donde el renglón deja de
+      cansar. Y los títulos LARGOS van en caja mixta aunque el manual de marca
+      pida mayúsculas: en caja alta desaparecen las ascendentes y descendentes
+      que dan forma a la palabra, y eso frena la lectura justo a quien más le
+      cuesta. La caja alta se conserva donde es un rótulo corto —los
+      antetítulos—, que es donde aporta carácter sin estorbar.
+
+   6. SIN RUIDO. La cabecera ocupaba 300px de alto con un fondo oscuro y una
+      imagen que ya no existe. Ahora es una banda compacta: de dónde vengo, qué
+      curso es y cuánto llevo.
+
+   Las animaciones respetan `prefers-reduced-motion`, y `prefers-contrast: more`
+   sube el grosor de los bordes para quien lo pida en su sistema.
+   ========================================================================= */
+
+.aula {
+  /* --- Tokens del aula, todos derivados de la marca --------------------- */
+  --aula-fondo: var(--pcl-navy-900);
+  --aula-superficie: var(--pcl-navy-800);
+  --aula-superficie-alta: var(--pcl-navy-700);
+  --aula-borde: var(--pcl-navy-600);
+  --aula-texto: var(--pcl-white);
+  --aula-texto-2: var(--pcl-ice);
+  --aula-texto-3: var(--pcl-steel);
+  --aula-acento: var(--pcl-cyan);
+  --aula-acento-apagado: var(--pcl-cyan-700);
+  --aula-exito: var(--pcl-cyan);
+  --aula-oro: var(--pcl-gold);
+
+  /* Escala de espacio: pocos escalones, para que el ritmo sea evidente. */
+  --aula-e1: 8px;
+  --aula-e2: 14px;
+  --aula-e3: 22px;
+  --aula-e4: 32px;
+
+  --aula-radio: 14px;
+  --aula-radio-s: 10px;
+
+  /* El alto mínimo de cualquier cosa pulsable (punto 3 de la cabecera). */
+  --aula-toque: 48px;
+
+  display: grid;
+  gap: var(--aula-e2);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--aula-texto);
+}
+
+/* Los títulos del aula salen de la regla de caja alta del manual: en caja alta
+   desaparecen las ascendentes y descendentes que dan forma a la palabra, y eso
+   frena justo a quien más le cuesta leer. El antetítulo y los títulos de
+   sección del plan sí la conservan, porque son rótulos cortos.
+
+   Y hay un segundo matiz, que es de tipografía y no de accesibilidad: Area
+   Extended Extrabold es una face DISPLAY, muy ancha, dibujada para rótulos
+   breves. Un nombre de actividad de nueve palabras compuesto con ella ocupa el
+   doble de renglón y se lee peor. Por eso el display se reserva para los
+   títulos CORTOS —el del curso, «Plan del curso», «Tu respuesta»— y los
+   títulos largos van en la tipografía de texto con más peso. */
+.aula h1,
+.aula h2,
+.aula h3,
+.aula h4 {
+  font-family: var(--pcl-font-display);
+  text-transform: none;
+  letter-spacing: normal;
+  line-height: 1.25;
+  margin: 0;
+}
+
+/* Los títulos largos: nombre de la actividad y título del curso. */
+.aula-titulo,
+.aula-encabezado-actividad h2 {
+  font-family: var(--pcl-font-body);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+
+/* Un anillo de foco que se ve de verdad, en todo lo que recibe el teclado. */
+.aula :is(a, button, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--aula-acento);
+  outline-offset: 3px;
+  border-radius: var(--aula-radio-s);
+}
+
+/* =========================================================================
+   1. Cabecera compacta
+   ========================================================================= */
+
+.aula-cabecera {
+  display: grid;
+  gap: var(--aula-e2);
+  padding: var(--aula-e3);
+  border: 1px solid var(--aula-borde);
+  border-radius: var(--aula-radio);
+  background: linear-gradient(135deg, var(--pcl-navy-800) 0%, var(--pcl-navy-700) 100%);
+}
+
+/* «Volver» va arriba y a la izquierda, que es donde se busca, y con el tamaño
+   de un botón de verdad: antes era un enlace pequeño perdido a la derecha. */
+.aula-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aula-e1);
+  min-height: var(--aula-toque);
+  padding: 0 var(--aula-e2);
+  border: 1px solid var(--aula-borde);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--aula-texto);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  justify-self: start;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.aula-volver:hover {
+  background: rgba(45, 196, 199, 0.14);
+  border-color: var(--aula-acento);
+}
+
+.aula-volver svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.aula-titulo {
+  font-size: clamp(1.5rem, 2.4vw, 2.1rem);
+  max-width: 28ch;
+}
+
+/* --- El avance, una sola vez --------------------------------------------- */
+
+.aula-avance {
+  display: grid;
+  gap: var(--aula-e1);
+}
+
+.aula-avance-linea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--aula-e1) var(--aula-e2);
+  font-size: 1.0625rem;
+}
+
+.aula-avance-linea strong {
+  font-weight: 700;
+}
+
+.aula-avance-sep {
+  color: var(--aula-texto-3);
+}
+
+.aula-avance-pct {
+  color: var(--aula-acento);
+  font-weight: 700;
+}
+
+.aula-barra {
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.aula-barra-relleno {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--aula-acento) 0%, var(--pcl-cyan-100) 100%);
+  transition: width 0.4s ease;
+}
+
+/* =========================================================================
+   2. Rejilla de dos columnas
+   ========================================================================= */
+
+.aula-rejilla {
+  display: grid;
+  gap: var(--aula-e2);
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  align-items: start;
+}
+
+/* =========================================================================
+   3. El plan del curso
+   ========================================================================= */
+
+/* El plan es un `details`. En escritorio su `summary` sobra —la columna está
+   siempre a la vista— así que se oculta y sólo reaparece en pantalla estrecha,
+   donde sí hace falta poder recogerlo. Sin esta regla quedaría una línea
+   suelta «Ver el plan del curso» encima de la columna. */
+.aula-plan-movil > summary {
+  display: none;
+}
+
+.aula-plan {
+  border: 1px solid var(--aula-borde);
+  border-radius: var(--aula-radio);
+  background: var(--aula-superficie);
+  padding: var(--aula-e2);
+  /* Se queda a la vista al desplazarse: saber dónde estás no debería exigir
+     volver arriba. Se desactiva en pantallas bajas, más abajo. */
+  position: sticky;
+  top: var(--aula-e2);
+  max-height: calc(100vh - var(--aula-e4));
+  overflow-y: auto;
+}
+
+.aula-plan-cabeza {
+  display: grid;
+  gap: 2px;
+  padding-bottom: var(--aula-e2);
+  margin-bottom: var(--aula-e2);
+  border-bottom: 1px solid var(--aula-borde);
+}
+
+.aula-plan-cabeza h2 {
+  font-size: 1.15rem;
+}
+
+.aula-plan-cuenta {
+  color: var(--aula-texto-2);
+  font-size: 0.9375rem;
+}
+
+.aula-seccion + .aula-seccion {
+  margin-top: var(--aula-e3);
+}
+
+/* El antetítulo sí lleva la caja alta del manual: es un rótulo corto. */
+.aula-seccion-titulo {
+  font-family: var(--pcl-font-display);
+  text-transform: uppercase;
+  letter-spacing: var(--tfu-track-eyebrow);
+  font-size: 0.875rem;
+  color: var(--aula-texto-2);
+  margin-bottom: var(--aula-e1);
+}
+
+.aula-seccion-lista {
+  display: grid;
+  gap: 6px;
+}
+
+/* --- La fila de actividad ------------------------------------------------ */
+
+.aula-actividad {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--aula-e2);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--aula-e2);
+  text-align: left;
+  border: 1px solid var(--aula-borde);
+  border-left: 4px solid transparent;
+  border-radius: var(--aula-radio-s);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--aula-texto);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.aula-actividad:hover {
+  background: rgba(45, 196, 199, 0.1);
+  border-color: var(--aula-acento-apagado);
+}
+
+/* El estado activo no se marca sólo con un tinte: barra lateral de acento,
+   borde, fondo y negrita. Cuatro señales, para que no dependa de distinguir
+   dos azules parecidos. */
+.aula-actividad[aria-current='true'] {
+  border-color: var(--aula-acento);
+  border-left-color: var(--aula-acento);
+  background: rgba(45, 196, 199, 0.16);
+}
+
+.aula-actividad[aria-current='true'] .aula-actividad-nombre {
+  font-weight: 700;
+}
+
+.aula-actividad-nombre {
+  display: block;
+  font-size: 1.0625rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.aula-actividad-meta {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.9375rem;
+  color: var(--aula-texto-2);
+}
+
+/* --- La marca de estado: icono MÁS texto, nunca color solo -------------- */
+
+.aula-marca {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--aula-texto-3);
+  flex: none;
+}
+
+.aula-marca svg {
+  width: 16px;
+  height: 16px;
+  display: none;
+}
+
+.aula-marca-hecha {
+  border-color: var(--aula-acento);
+  background: var(--aula-acento);
+  color: var(--pcl-navy-900);
+}
+
+.aula-marca-hecha svg {
+  display: block;
+}
+
+/* =========================================================================
+   4. El contenido
+   ========================================================================= */
+
+.aula-principal {
+  display: grid;
+  gap: var(--aula-e2);
+  min-width: 0;
+}
+
+.aula-tarjeta {
+  border: 1px solid var(--aula-borde);
+  border-radius: var(--aula-radio);
+  background: var(--aula-superficie);
+  padding: var(--aula-e3);
+}
+
+.aula-encabezado-actividad {
+  display: grid;
+  gap: var(--aula-e1);
+}
+
+.aula-antetitulo {
+  font-family: var(--pcl-font-display);
+  text-transform: uppercase;
+  letter-spacing: var(--tfu-track-eyebrow);
+  font-size: 0.875rem;
+  color: var(--aula-acento);
+  margin: 0;
+}
+
+.aula-encabezado-actividad h2 {
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+}
+
+/* La etiqueta del tipo de actividad, en lenguaje humano. Antes aquí salía el
+   nombre técnico de Moodle («page», «assign», «forum»), que no significa nada
+   para quien estudia. */
+.aula-tipo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--aula-borde);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--aula-texto-2);
+  font-size: 0.9375rem;
+}
+
+.aula-tipo svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+
+/* --- El texto que viene de Moodle --------------------------------------- */
+
+.aula-contenido {
+  color: var(--aula-texto);
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  /* La medida tipográfica: ~68 caracteres. Un renglón más largo obliga a
+     buscar el principio de la línea siguiente, que es donde se pierde el
+     punto de lectura. */
+  max-width: 68ch;
+}
+
+.aula-contenido > :first-child { margin-top: 0; }
+.aula-contenido > :last-child { margin-bottom: 0; }
+
+.aula-contenido p,
+.aula-contenido ul,
+.aula-contenido ol {
+  margin: 0 0 1em;
+}
+
+.aula-contenido li { margin-bottom: 0.45em; }
+
+.aula-contenido h1,
+.aula-contenido h2,
+.aula-contenido h3,
+.aula-contenido h4 {
+  margin: 1.5em 0 0.5em;
+  font-size: 1.2rem;
+}
+
+/* Los enlaces van subrayados, no sólo en color: es la señal que no depende de
+   distinguir tonos. */
+.aula-contenido a {
+  color: var(--pcl-cyan-100);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.aula-contenido a:hover { color: var(--aula-acento); }
+
+.aula-contenido img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--aula-radio-s);
+}
+
+.aula-contenido table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+}
+
+.aula-contenido :is(th, td) {
+  border: 1px solid var(--aula-borde);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.aula-contenido th { background: rgba(255, 255, 255, 0.05); }
+
+.aula-video {
+  margin-top: var(--aula-e2);
+}
+
+.aula-video video {
+  width: 100%;
+  max-height: 480px;
+  border-radius: var(--aula-radio-s);
+  background: #000;
+}
+
+/* --- Archivos adjuntos --------------------------------------------------- */
+
+.aula-archivos {
+  display: grid;
+  gap: var(--aula-e1);
+  margin-top: var(--aula-e3);
+}
+
+.aula-archivos-titulo {
+  font-size: 1.05rem;
+  margin-bottom: 2px;
+}
+
+.aula-archivo {
+  display: flex;
+  align-items: center;
+  gap: var(--aula-e2);
+  min-height: var(--aula-toque);
+  padding: var(--aula-e1) var(--aula-e2);
+  border: 1px solid var(--aula-borde);
+  border-radius: var(--aula-radio-s);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--aula-texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.aula-archivo:hover {
+  background: rgba(45, 196, 199, 0.12);
+  border-color: var(--aula-acento-apagado);
+}
+
+.aula-archivo[aria-pressed='true'] {
+  border-color: var(--aula-acento);
+  background: rgba(45, 196, 199, 0.18);
+  font-weight: 600;
+}
+
+.aula-archivo svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  color: var(--aula-acento);
+}
+
+.aula-visor {
+  margin-top: var(--aula-e2);
+  border: 1px solid var(--aula-borde);
+  border-radius: var(--aula-radio-s);
+  overflow: hidden;
+  background: #fff;
+}
+
+.aula-visor iframe {
+  width: 100%;
+  height: 70vh;
+  min-height: 420px;
+  border: 0;
+  display: block;
+}
+
+.aula-nota {
+  color: var(--aula-texto-2);
+  margin: 0;
+}
+
+/* =========================================================================
+   5. La actividad del estudiante
+   ========================================================================= */
+
+.aula-trabajo-cabeza {
+  display: grid;
+  gap: 4px;
+  margin-bottom: var(--aula-e2);
+}
+
+.aula-trabajo-cabeza h2 { font-size: 1.25rem; }
+
+.aula-trabajo-ayuda {
+  color: var(--aula-texto-2);
+  margin: 0;
+  font-size: 1rem;
+}
+
+.aula-area {
+  width: 100%;
+  min-height: 160px;
+  padding: var(--aula-e2);
+  border: 1px solid var(--aula-borde);
+  border-radius: var(--aula-radio-s);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--aula-texto);
+  font: inherit;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.aula-area::placeholder { color: var(--aula-texto-3); }
+
+.aula-area:focus {
+  border-color: var(--aula-acento);
+  outline: none;
+}
+
+/* Las dos acciones quedan separadas y jerarquizadas: guardar el texto es una
+   cosa y dar la actividad por terminada es otra. Antes iban pegadas y con el
+   mismo peso, de modo que no se distinguía cuál cerraba la actividad. */
+.aula-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--aula-e1);
+  margin-top: var(--aula-e2);
+}
+
+.aula-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--aula-e1);
+  min-height: var(--aula-toque);
+  padding: 0 var(--aula-e3);
+  border-radius: var(--aula-radio-s);
+  border: 1px solid var(--aula-borde);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--aula-texto);
+  font: inherit;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.aula-btn:hover:not(:disabled) {
+  background: rgba(45, 196, 199, 0.14);
+  border-color: var(--aula-acento);
+}
+
+.aula-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.aula-btn svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+/* El principal lleva el cian de marca con texto azul profundo encima: ese par
+   da un contraste muy alto, bastante por encima del mínimo exigible. */
+.aula-btn-principal {
+  background: var(--aula-acento);
+  border-color: var(--aula-acento);
+  color: var(--pcl-navy-900);
+}
+
+.aula-btn-principal:hover:not(:disabled) {
+  background: var(--pcl-cyan-100);
+  border-color: var(--pcl-cyan-100);
+}
+
+.aula-btn-hecho {
+  background: transparent;
+  border-color: var(--aula-acento);
+  color: var(--aula-acento);
+}
+
+.aula-aviso {
+  margin: var(--aula-e2) 0 0;
+  padding: var(--aula-e2);
+  border-radius: var(--aula-radio-s);
+  border: 1px solid var(--aula-acento-apagado);
+  background: rgba(45, 196, 199, 0.12);
+  color: var(--aula-texto);
+}
+
+/* --- Histórico, recogido ------------------------------------------------- */
+
+.aula-desplegable {
+  border: 1px solid var(--aula-borde);
+  border-radius: var(--aula-radio);
+  background: var(--aula-superficie);
+}
+
+.aula-desplegable > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--aula-e1);
+  min-height: var(--aula-toque);
+  padding: var(--aula-e1) var(--aula-e3);
+  cursor: pointer;
+  font-family: var(--pcl-font-display);
+  font-size: 1.1rem;
+  list-style: none;
+}
+
+.aula-desplegable > summary::-webkit-details-marker { display: none; }
+
+.aula-desplegable > summary::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  margin-left: auto;
+  border-right: 2px solid var(--aula-texto-2);
+  border-bottom: 2px solid var(--aula-texto-2);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+}
+
+.aula-desplegable[open] > summary::after { transform: rotate(-135deg); }
+
+.aula-desplegable-cuerpo {
+  padding: 0 var(--aula-e3) var(--aula-e3);
+}
+
+.aula-historico {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--aula-e1);
+}
+
+.aula-historico li {
+  padding: var(--aula-e2);
+  border: 1px solid var(--aula-borde);
+  border-radius: var(--aula-radio-s);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.aula-historico-cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--aula-e1);
+  margin-bottom: 6px;
+}
+
+.aula-historico-cabeza time {
+  color: var(--aula-texto-2);
+  font-size: 0.9375rem;
+}
+
+.aula-historico p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================================
+   6. Navegación entre actividades, al final
+   ========================================================================= */
+
+/* Va donde termina la lectura, no arriba a la derecha: al acabar una actividad
+   la mano ya está abajo. Y lleva el NOMBRE de la actividad vecina, para que no
+   haya que pulsar para saber a dónde se va. */
+.aula-navegacion {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--aula-e1);
+}
+
+.aula-nav-btn {
+  display: grid;
+  gap: 2px;
+  min-height: 72px;
+  padding: var(--aula-e2) var(--aula-e3);
+  border: 1px solid var(--aula-borde);
+  border-radius: var(--aula-radio);
+  background: var(--aula-superficie);
+  color: var(--aula-texto);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.aula-nav-btn:hover:not(:disabled) {
+  background: rgba(45, 196, 199, 0.12);
+  border-color: var(--aula-acento);
+}
+
+.aula-nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.aula-nav-btn-sig { text-align: right; }
+
+.aula-nav-rotulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9375rem;
+  color: var(--aula-texto-2);
+}
+
+.aula-nav-btn-sig .aula-nav-rotulo { justify-content: flex-end; }
+
+.aula-nav-rotulo svg { width: 18px; height: 18px; flex: none; }
+
+.aula-nav-nombre {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =========================================================================
+   7. Estados vacíos y de carga
+   ========================================================================= */
+
+.aula-vacio {
+  display: grid;
+  gap: var(--aula-e1);
+  padding: var(--aula-e4) var(--aula-e3);
+  text-align: center;
+  color: var(--aula-texto-2);
+}
+
+.aula-vacio svg {
+  width: 44px;
+  height: 44px;
+  justify-self: center;
+  color: var(--aula-texto-3);
+}
+
+.aula-error {
+  padding: var(--aula-e2);
+  border-radius: var(--aula-radio-s);
+  border: 1px solid var(--pcl-coral);
+  background: rgba(255, 107, 107, 0.12);
+  color: var(--aula-texto);
+  margin: 0;
+}
+
+/* =========================================================================
+   8. El avance detallado, recogido
+   ========================================================================= */
+
+.aula-cifras {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--aula-e1);
+  margin-bottom: var(--aula-e3);
+}
+
+.aula-cifra {
+  padding: var(--aula-e2);
+  border: 1px solid var(--aula-borde);
+  border-radius: var(--aula-radio-s);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.aula-cifra span {
+  display: block;
+  color: var(--aula-texto-2);
+  font-size: 0.9375rem;
+}
+
+.aula-cifra strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 1.45rem;
+  font-family: var(--pcl-font-display);
+}
+
+.aula-logros {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--aula-e1);
+}
+
+.aula-logro {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: var(--aula-e2);
+  align-items: start;
+  padding: var(--aula-e2);
+  border: 1px solid var(--aula-borde);
+  border-radius: var(--aula-radio-s);
+  opacity: 0.55;
+}
+
+.aula-logro-abierto {
+  opacity: 1;
+  border-color: var(--aula-oro);
+  background: rgba(212, 175, 54, 0.1);
+}
+
+.aula-logro svg { width: 26px; height: 26px; color: var(--aula-texto-3); }
+.aula-logro-abierto svg { color: var(--aula-oro); }
+
+.aula-logro span {
+  display: block;
+  color: var(--aula-texto-2);
+  font-size: 0.9375rem;
+}
+
+/* =========================================================================
+   9. Aviso de actividad completada
+   ========================================================================= */
+
+.aula-brindis {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translate(-50%, 140%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: var(--aula-e2);
+  max-width: min(92vw, 460px);
+  padding: var(--aula-e2) var(--aula-e3);
+  border-radius: 999px;
+  border: 1px solid var(--aula-acento);
+  background: var(--pcl-navy-700);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+  transition: transform 0.35s ease, opacity 0.35s ease;
+  opacity: 0;
+}
+
+.aula-brindis-visible {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
+.aula-brindis svg {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  color: var(--aula-acento);
+}
+
+.aula-brindis strong { display: block; }
+
+.aula-brindis span {
+  color: var(--aula-texto-2);
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================================
+   10. Pantallas estrechas
+   ========================================================================= */
+
+@media (max-width: 1040px) {
+  .aula-rejilla {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* El plan deja de ser una columna y pasa a ser un desplegable encima del
+     contenido: en una columna estrecha, una lista de 35 filas antes del
+     contenido obligaría a desplazarse para llegar a lo que se viene a hacer. */
+  .aula-plan {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .aula-plan-movil > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--aula-e2);
+    min-height: var(--aula-toque);
+    cursor: pointer;
+    list-style: none;
+    font-family: var(--pcl-font-display);
+    font-size: 1.1rem;
+  }
+
+  .aula-plan-movil > summary::-webkit-details-marker { display: none; }
+
+  /* El mismo galón que el resto de desplegables, para que se reconozca como
+     algo que se abre y se cierra. */
+  .aula-plan-movil > summary::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    margin-left: auto;
+    border-right: 2px solid var(--aula-texto-2);
+    border-bottom: 2px solid var(--aula-texto-2);
+    transform: rotate(45deg);
+    transition: transform 0.2s ease;
+  }
+
+  .aula-plan-movil[open] > summary::after { transform: rotate(-135deg); }
+
+  /* La cabecera interna repetiría el rótulo que ya da el summary. */
+  .aula-plan-movil[open] > .aula-plan-cabeza {
+    border-top: 1px solid var(--aula-borde);
+    border-bottom: 0;
+    margin: var(--aula-e2) 0 0;
+    padding: 0;
+  }
+
+  .aula-plan-movil > .aula-plan-cabeza > * { display: none; }
+}
+
+@media (max-width: 640px) {
+  .aula {
+    --aula-e3: 16px;
+    --aula-e4: 22px;
+  }
+
+  /* Los separadores quedaban colgando al final del renglón cuando la línea
+     parte en tres. En vertical no hacen falta: cada dato ya es una línea. */
+  .aula-avance-linea {
+    display: grid;
+    gap: 2px;
+  }
+
+  .aula-avance-sep { display: none; }
+
+  .aula-navegacion {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aula-nav-btn-sig { text-align: left; }
+  .aula-nav-btn-sig .aula-nav-rotulo { justify-content: flex-start; }
+
+  .aula-acciones .aula-btn { width: 100%; }
+
+  .aula-visor iframe { height: 60vh; }
+}
+
+/* =========================================================================
+   11. Preferencias del sistema
+   ========================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .aula *,
+  .aula-brindis {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Quien pide más contraste en su sistema recibe bordes más marcados y se
+   queda sin los fondos translúcidos, que son los que achatan la separación
+   entre una fila y la siguiente. */
+@media (prefers-contrast: more) {
+  .aula {
+    --aula-borde: var(--pcl-ice);
+    --aula-texto-2: var(--pcl-white);
+    --aula-texto-3: var(--pcl-ice);
+  }
+
+  .aula-actividad,
+  .aula-archivo,
+  .aula-cifra,
+  .aula-historico li,
+  .aula-logro {
+    background: transparent;
+    border-width: 2px;
+  }
+
+  .aula-contenido a { font-weight: 600; }
+}

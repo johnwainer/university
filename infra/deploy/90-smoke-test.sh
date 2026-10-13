@@ -318,7 +318,12 @@ json_endpoint_check() {
   fi
 }
 
-json_endpoint_check "/v1/home"    "tenant.name"  '.tenant.name'  "d['tenant']['name']" || true
+# `/v1/home` devolvía la fila entera de `tenants`, que era la de la plantilla
+# del producto anterior —con su logo de dummyimage y su usuaria falsa— y la
+# servía a cualquiera SIN autenticar. Se retiró, y ahora la ruta devuelve el
+# nombre de la institución desde la configuración. La prueba seguía buscando
+# `tenant.name` y fallaba contra una API que está bien.
+json_endpoint_check "/v1/home"    "institution.name"  '.institution.name'  "d['institution']['name']" || true
 json_endpoint_check "/v1/catalog" "item count"   'length'        "len(d)" || true
 
 # ---------------------------------------------------------------------------

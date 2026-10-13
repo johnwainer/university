@@ -2558,5 +2558,72 @@
       "shifted": "Plazo movido por festivo",
       "past": "Vencido"
     }
+  },
+  "aula": {
+    "volver": "Mis cursos",
+    "plan": "Plan del curso",
+    "planCuenta_one": "{{count}} actividad",
+    "planCuenta_other": "{{count}} actividades",
+    "verPlan": "Ver el plan del curso",
+    "actividadDe": "Actividad {{actual}} de {{total}}",
+    "hechasCuenta_one": "{{count}} actividad hecha",
+    "hechasCuenta_other": "{{count}} actividades hechas",
+    "porcentaje": "{{percent}} % del curso",
+    "cargandoPlan": "Cargando el plan del curso…",
+    "sinActividad": "Elige una actividad del plan para empezar.",
+    "sinActividadAyuda": "Las actividades están a la izquierda, ordenadas por semana.",
+    "material": "Material de la actividad",
+    "sinMaterial": "Esta actividad no tiene archivos adjuntos.",
+    "archivoAbierto": "Abierto",
+    "visorTitulo": "Archivo de la actividad",
+    "tuRespuesta": "Tu respuesta",
+    "tuRespuestaAyuda": "Escribe aquí tu desarrollo. Puedes guardar y seguir más tarde: no se pierde.",
+    "escribeAqui": "Escribe aquí tu desarrollo, conclusiones o respuestas…",
+    "guardar": "Guardar",
+    "guardando": "Guardando…",
+    "marcarHecha": "Marcar esta actividad como hecha",
+    "yaHecha": "Actividad hecha",
+    "hecha": "Hecha",
+    "pendiente": "Pendiente",
+    "anterior": "Anterior",
+    "siguiente": "Siguiente",
+    "historial": "Historial de tus respuestas",
+    "sinHistorial": "Todavía no has guardado ninguna respuesta.",
+    "avanceDetalle": "Tu avance en detalle",
+    "cifraActividades": "Actividades",
+    "cifraRespuestas": "Respuestas",
+    "cifraPuntos": "Puntos",
+    "cifraNivel": "Nivel",
+    "logros": "Logros",
+    "completada": "Actividad hecha",
+    "tipos": {
+      "lectura": "Lectura",
+      "foro": "Foro",
+      "tarea": "Tarea para entregar",
+      "cuestionario": "Cuestionario",
+      "enlace": "Enlace",
+      "carpeta": "Carpeta de archivos",
+      "archivo": "Archivo",
+      "leccion": "Lección interactiva",
+      "actividad": "Actividad"
+    },
+    "logrosLista": {
+      "primerPaso": {
+        "titulo": "Primer paso",
+        "texto": "Completaste tu primera actividad."
+      },
+      "constante": {
+        "titulo": "Constante",
+        "texto": "Completaste 5 actividades."
+      },
+      "participativo": {
+        "titulo": "Participativo",
+        "texto": "Guardaste 3 respuestas."
+      },
+      "finalizador": {
+        "titulo": "Finalizador",
+        "texto": "Completaste el curso entero."
+      }
+    }
   }
 }

@@ -1447,3 +1447,136 @@ API—, porque es lo que falla callado.
 Quedan en el servidor los `.bak-rename` como vuelta atrás. Conviene retirarlos
 cuando se haya convivido unos días con el nombre nuevo; contienen la URL
 anterior con su contraseña, en ficheros 0600 de `ubuntu`, igual que los `.env`.
+
+## 25) Rediseño del aula
+
+El encargo: que el aula sea más simple, más moderna y **fácil de usar por
+personas mayores**, sin salirse del estilo de la plataforma.
+
+### 25.1 El hallazgo: el aula nunca recibió el rebrand
+
+Antes de rediseñar nada se miró qué había. El aula era **lo único del portal
+que seguía con la línea gráfica de la plantilla del producto anterior**. Sus
+~600 líneas en `public.css` fijaban a mano:
+
+```
+#121212  #111  #0f0f0f  #1a1a1a      grises casi negros
+#a78bfa  #c4b5fd  #cab8ff  #241247   acentos VIOLETAS
+```
+
+mientras el resto del portal corre sobre el azul institucional
+(`--pcl-navy-*`) con el cian Aqua Horizon de acento. Es decir: el estudiante
+entraba a su aula y aterrizaba en una interfaz de otra marca. Mejorar el diseño
+y alinearlo con la plataforma resultaron ser, aquí, la misma tarea.
+
+### 25.2 Qué se cambió y por qué
+
+No es «poner la letra más grande». Son seis decisiones:
+
+1. **Dos columnas, no tres.** Había plan + contenido + panel de gamificación.
+   Tres columnas obligan a decidir dónde mirar antes de poder leer. Ahora: a la
+   izquierda «dónde estoy», a la derecha «qué hago ahora».
+
+2. **Un solo indicador de avance.** Aparecía **cinco veces**: píldora con el
+   porcentaje, píldora con el recuento, píldora de XP, píldora de nivel, barra,
+   y encima el panel derecho repetía módulos, interacciones, XP y nivel. Ahora:
+   una línea y una barra.
+
+3. **La jerga de Moodle, traducida.** Debajo de cada actividad salía el nombre
+   técnico del módulo tal cual lo devuelve el servicio web: `page`, `assign`,
+   `forum`. Ahora: «Lectura», «Tarea para entregar», «Foro», con su icono. Los
+   tipos se consultaron **contra la base de Moodle en producción** —hoy hay
+   `forum` (221), `page` (130) y `assign` (104)— y se cubren además los
+   habituales por si mañana se añade material de otro tipo. Lo desconocido cae
+   en «Actividad», no en el nombre técnico.
+
+4. **Objetivos grandes.** Mínimo 48px de alto en lo pulsable, 56px en las filas
+   del plan.
+
+5. **El color nunca lleva el dato solo.** El estado se lee por icono y por
+   texto («Hecha» con su marca); el color es refuerzo. Y el elemento activo del
+   plan se marca con cuatro señales a la vez —barra lateral, borde, fondo y
+   negrita— para que no dependa de distinguir dos azules parecidos.
+
+6. **Navegación al final y con nombre.** «Anterior» y «Siguiente» eran dos
+   botones pequeños arriba a la derecha. Van donde termina la lectura, que es
+   donde está la mano al acabar, y **dicen a dónde llevan** sin tener que
+   pulsar.
+
+Además: la gamificación no se pierde, se recoge en un desplegable cerrado; las
+dos acciones de la actividad quedan separadas y jerarquizadas (guardar el texto
+es una cosa, darla por terminada es otra); y los logros, que estaban escritos
+en español **dentro del código**, pasan a i18next — un estudiante con el portal
+en inglés los veía en español.
+
+### 25.3 Tipografía: dónde se sale del manual de marca, y por qué
+
+El manual pide titulares en caja alta con la display Area Extended Extrabold.
+En el aula los títulos **largos** salen de esa regla, por dos motivos distintos:
+
+- **Caja alta.** En mayúscula sostenida desaparecen las ascendentes y
+  descendentes que dan forma a la palabra, y eso frena la lectura justo a quien
+  más le cuesta.
+- **La face.** Area Extended es una display muy ancha, dibujada para rótulos
+  breves. Un nombre de actividad de nueve palabras compuesto con ella ocupa el
+  doble de renglón.
+
+Así que la display se reserva para los títulos cortos —el del curso, «Plan del
+curso», «Tu respuesta»— y la caja alta se conserva donde es un rótulo corto:
+los antetítulos y los títulos de sección del plan. El cuerpo arranca en
+1,0625rem (17px) con interlínea 1,7 y la medida limitada a ~68 caracteres.
+
+Esto no es inventar una excepción: `brand.css` ya tenía una lista de selectores
+que se salen de la caja alta por legibilidad (`.row-subtitle`, `.lead`…). Es el
+mismo criterio.
+
+### 25.4 Accesibilidad
+
+Anillo de foco de 3px en todo lo que recibe el teclado; `aria-current` en la
+actividad abierta; `role="progressbar"` con sus valores; el aviso de actividad
+completada se anuncia por `aria-live`; `prefers-reduced-motion` desactiva las
+transiciones; y `prefers-contrast: more` sube los bordes a 2px y retira los
+fondos translúcidos, que son los que achatan la separación entre filas.
+
+### 25.5 Archivos
+
+| archivo | qué es |
+|---|---|
+| `apps/web/src/components/aula.css` | hoja nueva, vocabulario `aula-*` sobre los tokens de marca |
+| `apps/web/src/components/aula-iconos.tsx` | iconos y la traducción de la jerga de Moodle |
+| `apps/web/src/components/PublicApp.tsx` | la vista reescrita |
+| `apps/web/src/locales/{es,en}.json` | 41 claves nuevas bajo `aula`, con paridad comprobada |
+
+Las ~600 líneas del aula vieja **se retiran** de `public.css` en vez de dejarse
+dormidas: CSS muerto que nadie borra es CSS que alguien acaba reutilizando. Lo
+único que se conserva de aquel bloque es `.moodle-html`, porque no era del aula
+—lo usa también el texto legal.
+
+### 25.6 Cómo se comprobó el diseño
+
+Con capturas reales a tres anchos (1440, 900 y 390 px) sobre una maqueta
+estática que carga `brand.css` y `aula.css` **de verdad**, no una aproximación.
+Eso sacó dos fallos antes de tocar el componente: la etiqueta de tipo se
+estiraba a todo el ancho (`align-self` gobierna el eje de bloque; hacía falta
+`justify-self`) y el `summary` del plan quedaba como una línea suelta en
+escritorio.
+
+**Lo que NO se pudo comprobar:** el aula en vivo con una sesión de estudiante,
+porque la contraseña del estudiante demo sigue sin fijar (§23.4). Lo verificado
+es que el CSS y el bundle nuevos se sirven desde el CDN y que el portal pasa la
+prueba de humo.
+
+### 25.7 Dos cosas que salieron por el camino
+
+- **Al rol de instancia le falta `lightsail:ResetDistributionCache`.** La
+  subida al bucket funciona, pero el vaciado de la caché del CDN termina en
+  `AccessDeniedException`. Esta vez no bloqueó nada porque `index.html` se sube
+  con `no-cache, no-store, must-revalidate` y el CDN no lo cachea, pero
+  conviene añadir el permiso al rol `plataforma-estudiantil-frontend.obj-mgmt`.
+- **La prueba de humo estaba desactualizada.** Comprobaba `tenant.name` en
+  `/v1/home`, un campo que se retiró a propósito —era la fila de la plantilla
+  filtrándose a una ruta sin autenticar—. Fallaba contra una API que está bien.
+  Corregida a `institution.name`.
+- **El LMS sigue enviando `access-control-allow-origin: *`**, que es el otro
+  fallo de la prueba de humo. Es anterior a esta tanda y ajeno al aula: toca la
+  configuración del servidor web de Moodle. No se tocó.

@@ -32,6 +32,17 @@ import './catalog-system.css';
 // Capa de rediseño de las vistas internas; va la última a propósito.
 import './internas.css';
 import './programa.css';
+import './aula.css';
+import {
+  IconoFlechaIzquierda,
+  IconoFlechaDerecha,
+  IconoVisto,
+  IconoGuardar,
+  IconoArchivo,
+  IconoMedalla,
+  IconoVacio,
+  tipoDeActividad
+} from './aula-iconos';
 
 type ViewState =
   | { type: 'home' }
@@ -732,6 +743,30 @@ export function PublicApp() {
   const [interactionHistory, setInteractionHistory] = useState<PublicCourseInteractionRecord[]>([]);
   const [victoryState, setVictoryState] = useState<{ moduleName: string; xp: number } | null>(null);
 
+  /**
+   * ¿Se muestra desplegado el plan del curso?
+   *
+   * El valor inicial lo decide el ancho de la pantalla y no una constante: en
+   * escritorio el plan es la columna izquierda y tiene que verse; en una
+   * pantalla estrecha la rejilla pasa a una sola columna y una lista de 35
+   * actividades por delante del contenido obligaría a desplazarse mucho para
+   * llegar a lo que uno viene a hacer.
+   *
+   * Se consulta el mismo punto de corte que usa `aula.css` (1040px). El
+   * `typeof window` es por si esto se renderiza alguna vez en el servidor.
+   */
+  const [planAbierto, setPlanAbierto] = useState<boolean>(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 1041px)').matches
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const consulta = window.matchMedia('(min-width: 1041px)');
+    const alCambiar = (e: MediaQueryListEvent) => setPlanAbierto(e.matches);
+    consulta.addEventListener('change', alCambiar);
+    return () => consulta.removeEventListener('change', alCambiar);
+  }, []);
+
   const [progress, setProgress] = useState<CourseProgress>({ ...DEFAULT_PROGRESS });
   const [heroIndex, setHeroIndex] = useState(0);
   const [myCourses, setMyCourses] = useState<PublicMyCoursesResponse | null>(null);
@@ -1339,32 +1374,35 @@ export function PublicApp() {
 
   const achievements = useMemo(() => {
     return [
+      // Los títulos y descripciones salen de i18next: estaban escritos en
+      // español dentro del código, así que un estudiante con el portal en
+      // inglés veía sus logros en español.
       {
         id: 'first-step',
-        title: 'Primer paso',
+        title: t('aula.logrosLista.primerPaso.titulo'),
         unlocked: completedCount >= 1,
-        description: 'Completaste tu primer módulo.'
+        description: t('aula.logrosLista.primerPaso.texto')
       },
       {
         id: 'consistent',
-        title: 'Consistente',
+        title: t('aula.logrosLista.constante.titulo'),
         unlocked: completedCount >= 5,
-        description: 'Completaste 5 módulos.'
+        description: t('aula.logrosLista.constante.texto')
       },
       {
         id: 'engaged',
-        title: 'Participativo',
+        title: t('aula.logrosLista.participativo.titulo'),
         unlocked: progress.interactionsCount >= 3,
-        description: 'Registraste 3 interacciones.'
+        description: t('aula.logrosLista.participativo.texto')
       },
       {
         id: 'finisher',
-        title: 'Finalizador',
+        title: t('aula.logrosLista.finalizador.titulo'),
         unlocked: flatModules.length > 0 && completedCount >= flatModules.length,
-        description: 'Completaste el curso completo.'
+        description: t('aula.logrosLista.finalizador.texto')
       }
     ];
-  }, [completedCount, progress.interactionsCount, flatModules.length]);
+  }, [completedCount, progress.interactionsCount, flatModules.length, t]);
 
   const sectionGroups = useMemo(() => {
     const grouped = new Map<string, FlatModule[]>();
@@ -2833,128 +2871,195 @@ export function PublicApp() {
       ) : null}
 
       {view.type === 'course' ? (
-        <section className="course-layout course-layout-modern">
-          <div className="course-header course-header-modern">
-            {/* El aula ya no tiene portada ni entradilla: salían de la ficha
-                del curso en el catálogo público, que ahora es de programas. El
-                título es el de la matrícula, que es el dato autoritativo. */}
-            <div className="course-header-surface">
-              <div className="course-header-backdrop" />
-              <div className="course-header-content">
-                <div className="course-header-top">
-                  <span className="course-stage-pill">
-                    {activeModuleIndex >= 0 ? t('course.module', { current: activeModuleIndex + 1, total: flatModules.length }) : t('course.learningPath')}
-                  </span>
-                  <button className="back-link" onClick={() => setView({ type: 'my-courses' })}>
-                    {t('course.goMyCourses')}
-                  </button>
-                </div>
-                <h1>{view.titulo || t('course.enterCourse')}</h1>
-              </div>
-            </div>
-            <div className="progress-row progress-row-modern">
-              <div className="progress-pill">
-                <span>{t('course.progressLabel')}</span>
-                <strong>{progressPercent}%</strong>
-              </div>
-              <div className="progress-pill">
-                <span>{t('course.completedLabel')}</span>
-                <strong>{completedCount}/{flatModules.length}</strong>
-              </div>
-              <div className="progress-pill">
-                <span>XP</span>
-                <strong>{progress.xp}</strong>
-              </div>
-              <div className="progress-pill">
-                <span>{t('course.level')}</span>
-                <strong>{level}</strong>
-              </div>
-            </div>
-            <div className="progress-bar-track progress-bar-track-modern">
-              <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }} />
-            </div>
-          </div>
+        <section className="aula">
+          {/* ----------------------------------------------------------------
+              Cabecera compacta.
 
-          <div className="course-grid course-grid-modern">
-            <aside className="course-sidebar course-sidebar-modern">
-              <div className="learning-map-head">
-                <h3>{t('course.plan')}</h3>
-                <span>{t('course.activities', { count: flatModules.length })}</span>
+              Antes ocupaba 300px de alto con un fondo oscuro y una imagen de
+              portada que ya no existe —se quitó cuando el catálogo pasó a ser
+              de programas—, y el avance aparecía CINCO veces: píldora con el
+              porcentaje, píldora con el recuento, píldora de XP, píldora de
+              nivel, barra, y además el panel derecho lo repetía entero.
+
+              Ahora: de dónde vengo, qué curso es, y una sola línea de avance
+              con su barra. XP, nivel y logros no desaparecen, se recogen en un
+              desplegable al final.
+          ---------------------------------------------------------------- */}
+          <header className="aula-cabecera">
+            <button className="aula-volver" onClick={() => setView({ type: 'my-courses' })}>
+              <IconoFlechaIzquierda />
+              {t('aula.volver')}
+            </button>
+
+            <h1 className="aula-titulo">{view.titulo || t('course.enterCourse')}</h1>
+
+            {flatModules.length > 0 ? (
+              <div className="aula-avance">
+                <p className="aula-avance-linea">
+                  {activeModuleIndex >= 0 ? (
+                    <>
+                      <span>
+                        {t('aula.actividadDe', {
+                          actual: activeModuleIndex + 1,
+                          total: flatModules.length
+                        })}
+                      </span>
+                      <span className="aula-avance-sep" aria-hidden="true">·</span>
+                    </>
+                  ) : null}
+                  <span>{t('aula.hechasCuenta', { count: completedCount })}</span>
+                  <span className="aula-avance-sep" aria-hidden="true">·</span>
+                  <span className="aula-avance-pct">{t('aula.porcentaje', { percent: progressPercent })}</span>
+                </p>
+                <div
+                  className="aula-barra"
+                  role="progressbar"
+                  aria-valuenow={progressPercent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={t('course.progressLabel')}
+                >
+                  <div className="aula-barra-relleno" style={{ width: `${progressPercent}%` }} />
+                </div>
               </div>
-              {loadingCourseContent ? <p>{t('course.loadingStructure')}</p> : null}
-              {courseContentError ? <p className="public-error">{courseContentError}</p> : null}
+            ) : null}
+          </header>
+
+          <div className="aula-rejilla">
+            {/* --------------------------------------------------------------
+                El plan.
+
+                Va dentro de un `details` por una razón concreta: en una
+                pantalla estrecha la rejilla pasa a una columna y una lista de
+                35 actividades por delante del contenido obligaría a
+                desplazarse mucho para llegar a lo que uno viene a hacer. El
+                estado inicial lo decide el ancho de la pantalla, no un valor
+                fijo: abierto en escritorio, recogido en móvil.
+            -------------------------------------------------------------- */}
+            <details className="aula-plan aula-plan-movil" open={planAbierto}>
+              {/* Sólo se ve en pantalla estrecha; en escritorio el CSS lo
+                  oculta porque la columna está siempre a la vista. Lleva el
+                  mismo rótulo que la cabecera del plan para que al plegarlo y
+                  desplegarlo no cambie el nombre de lo que se abre. */}
+              <summary onClick={(e) => { e.preventDefault(); setPlanAbierto((v) => !v); }}>
+                <span>{t('aula.plan')}</span>
+                <span className="aula-plan-cuenta">
+                  {t('aula.planCuenta', { count: flatModules.length })}
+                </span>
+              </summary>
+
+              <div className="aula-plan-cabeza">
+                <h2>{t('aula.plan')}</h2>
+                <span className="aula-plan-cuenta">
+                  {t('aula.planCuenta', { count: flatModules.length })}
+                </span>
+              </div>
+
+              {loadingCourseContent ? <p className="aula-nota">{t('aula.cargandoPlan')}</p> : null}
+              {courseContentError ? <p className="aula-error">{courseContentError}</p> : null}
+
               {sectionGroups.map(([sectionName, modules], sectionIndex) => (
-                <div className="learning-section" key={`${sectionName}-${sectionIndex}`}>
-                  <div className="learning-section-title">{sectionName}</div>
-                  <div className="learning-section-list">
-                    {/* Sin módulos candados: al aula se entra con matrícula
-                        activa, así que todos los módulos están disponibles. */}
+                <div className="aula-seccion" key={`${sectionName}-${sectionIndex}`}>
+                  <p className="aula-seccion-titulo">{sectionName}</p>
+                  <div className="aula-seccion-lista">
+                    {/* Sin candados: al aula se entra con matrícula activa, así
+                        que todas las actividades están disponibles. */}
                     {modules.map((row) => {
-                      const isActive = row.module.id === activeModuleId;
-                      const isDone = progress.completedModuleIds.includes(row.module.id);
+                      const esActiva = row.module.id === activeModuleId;
+                      const hecha = progress.completedModuleIds.includes(row.module.id);
+                      const tipo = tipoDeActividad(row.module.modname);
                       return (
                         <button
                           key={row.module.id}
-                          className={`module-nav-btn module-nav-modern ${isActive ? 'active' : ''}`}
+                          className="aula-actividad"
+                          aria-current={esActiva ? 'true' : undefined}
                           onClick={() => {
                             setActiveModuleId(row.module.id);
                             setActiveFileUrl(null);
                           }}
                         >
-                          <div>
-                            <strong>{row.module.name}</strong>
-                            <span>{row.module.modname}</span>
-                          </div>
-                          <em>{isDone ? t('course.moduleDone') : t('course.modulePending')}</em>
+                          {/* El estado se lee por icono Y por texto: el color
+                              es refuerzo, nunca el dato. */}
+                          <span className={hecha ? 'aula-marca aula-marca-hecha' : 'aula-marca'}>
+                            <IconoVisto />
+                          </span>
+                          <span>
+                            <span className="aula-actividad-nombre">{row.module.name}</span>
+                            <span className="aula-actividad-meta">
+                              {t(tipo.clave)} · {hecha ? t('aula.hecha') : t('aula.pendiente')}
+                            </span>
+                          </span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
               ))}
-            </aside>
+            </details>
 
-            <article className="course-main course-main-modern">
+            <div className="aula-principal">
               {!activeModule ? (
-                <p>{t('course.selectModule')}</p>
+                <div className="aula-tarjeta">
+                  <div className="aula-vacio">
+                    <IconoVacio />
+                    <p><strong>{t('aula.sinActividad')}</strong></p>
+                    <p>{t('aula.sinActividadAyuda')}</p>
+                  </div>
+                </div>
               ) : (
                 <>
-                  <header className="module-headline module-headline-modern">
-                    <div>
-                      <p className="module-kicker">{activeModule.sectionName}</p>
+                  <article className="aula-tarjeta">
+                    <div className="aula-encabezado-actividad">
+                      <p className="aula-antetitulo">{activeModule.sectionName}</p>
                       <h2>{activeModule.module.name}</h2>
-                      <p>{t('course.activityType')} {activeModule.module.modname}</p>
+                      {/* Antes aquí salía el nombre técnico de Moodle
+                          («page», «assign», «forum»), que no significa nada
+                          para quien estudia. */}
+                      {(() => {
+                        const tipo = tipoDeActividad(activeModule.module.modname);
+                        return (
+                          <span className="aula-tipo">
+                            <tipo.Icono />
+                            {t(tipo.clave)}
+                          </span>
+                        );
+                      })()}
                     </div>
-                    <div className="module-actions-top">
-                      <button onClick={() => goToNeighborModule(-1)} disabled={activeModuleIndex <= 0}>{t('course.prev')}</button>
-                      <button onClick={() => goToNeighborModule(1)} disabled={activeModuleIndex < 0 || activeModuleIndex >= flatModules.length - 1}>{t('course.next')}</button>
-                    </div>
-                  </header>
 
-                  <section className="module-content-card module-content-modern">
-                    <h3>{t('course.classAndMaterial')}</h3>
-                    <div className="moodle-html" dangerouslySetInnerHTML={{ __html: activeModuleDescriptionHtml }} />
+                    <div
+                      className="aula-contenido"
+                      dangerouslySetInnerHTML={{ __html: activeModuleDescriptionHtml }}
+                    />
+
                     {activeModuleVideoUrl || activeModuleFileVideoUrl ? (
-                      <div className="inline-video-player">
-                        <video controls preload="metadata" src={activeModuleVideoUrl ?? activeModuleFileVideoUrl ?? undefined} />
+                      <div className="aula-video">
+                        <video
+                          controls
+                          preload="metadata"
+                          src={activeModuleVideoUrl ?? activeModuleFileVideoUrl ?? undefined}
+                        />
                       </div>
                     ) : null}
 
                     {!activeModuleVideoUrl && !activeModuleFileVideoUrl && (activeModule.module.contents ?? []).length > 0 ? (
-                      <div className="file-list">
+                      <div className="aula-archivos">
+                        <h3 className="aula-archivos-titulo">{t('aula.material')}</h3>
                         {(activeModule.module.contents ?? []).map((file, index) => {
                           const fileUrl = file.fileurl;
                           if (!fileUrl || !publicSession?.token) {
                             return null;
                           }
                           const proxiedUrl = api.moodleFileUrl(fileUrl, publicSession.token);
+                          const abierto = activeFileUrl === proxiedUrl;
                           return (
                             <button
                               key={`${activeModule.module.id}-${index}`}
-                              className={`file-btn ${activeFileUrl === proxiedUrl ? 'active' : ''}`}
-                              onClick={() => setActiveFileUrl(proxiedUrl)}
+                              className="aula-archivo"
+                              aria-pressed={abierto}
+                              onClick={() => setActiveFileUrl(abierto ? null : proxiedUrl)}
                             >
-                              {file.filename ?? file.filepath ?? `Archivo ${index + 1}`}
+                              <IconoArchivo />
+                              {file.filename ?? file.filepath ?? `${t('aula.tipos.archivo')} ${index + 1}`}
                             </button>
                           );
                         })}
@@ -2962,103 +3067,186 @@ export function PublicApp() {
                     ) : null}
 
                     {!activeModuleVideoUrl && !activeModuleFileVideoUrl && (activeModule.module.contents ?? []).length === 0 ? (
-                      <p className="module-empty-note">{t('course.noAttachments')}</p>
+                      <p className="aula-nota">{t('aula.sinMaterial')}</p>
                     ) : null}
 
                     {!activeModuleVideoUrl && !activeModuleFileVideoUrl && activeFileUrl ? (
-                      <div className="file-viewer">
-                        <iframe src={activeFileUrl} title={t('course.fileTitle')} />
+                      <div className="aula-visor">
+                        <iframe src={activeFileUrl} title={t('aula.visorTitulo')} />
                       </div>
                     ) : null}
-                  </section>
+                  </article>
 
-                  <section className="interaction-box interaction-box-modern">
-                    <div className="interaction-heading">
-                      <h3>{t('course.activityDev')}</h3>
-                      <span>{t('course.saveGuide')}</span>
+                  {/* ----------------------------------------------------------
+                      La respuesta del estudiante.
+
+                      Las dos acciones van separadas y jerarquizadas: guardar
+                      el texto es una cosa y dar la actividad por terminada es
+                      otra. Antes iban pegadas, con el mismo peso visual y con
+                      «Completar módulo +50 XP» como rótulo, de modo que no se
+                      distinguía cuál de las dos cerraba la actividad.
+                  ---------------------------------------------------------- */}
+                  <article className="aula-tarjeta">
+                    <div className="aula-trabajo-cabeza">
+                      <h2>{t('aula.tuRespuesta')}</h2>
+                      <p className="aula-trabajo-ayuda">{t('aula.tuRespuestaAyuda')}</p>
                     </div>
+
                     <textarea
+                      className="aula-area"
                       value={interactionText}
                       onChange={(event) => setInteractionText(event.target.value)}
-                      placeholder={t('course.writeHere')}
+                      placeholder={t('aula.escribeAqui')}
+                      aria-label={t('aula.tuRespuesta')}
                     />
-                    <div className="interaction-actions">
-                      <button onClick={() => void onSubmitInteraction()} disabled={interactionSaving || !interactionText.trim()}>
-                        {interactionSaving ? t('course.saving') : t('course.saveProgress')}
+
+                    <div className="aula-acciones">
+                      <button
+                        className="aula-btn"
+                        onClick={() => void onSubmitInteraction()}
+                        disabled={interactionSaving || !interactionText.trim()}
+                      >
+                        <IconoGuardar />
+                        {interactionSaving ? t('aula.guardando') : t('aula.guardar')}
                       </button>
                       <button
-                        className={`completion-inline-btn ${activeModuleCompleted ? 'done' : ''}`}
+                        className={activeModuleCompleted ? 'aula-btn aula-btn-hecho' : 'aula-btn aula-btn-principal'}
                         onClick={markModuleComplete}
                         disabled={activeModuleCompleted}
                       >
-                        {activeModuleCompleted ? `${t('course.completed')} ✓` : t('course.markComplete')}
+                        <IconoVisto />
+                        {activeModuleCompleted ? t('aula.yaHecha') : t('aula.marcarHecha')}
                       </button>
                     </div>
-                    <p className={`completion-inline-hint ${activeModuleCompleted ? 'done' : ''}`}>
-                      {activeModuleCompleted ? t('course.alreadyCompleted') : t('course.completeWhenDone')}
-                    </p>
-                    {interactionMessage ? <p className="interaction-feedback">{interactionMessage}</p> : null}
-                    <div className="interaction-history interaction-history-modern">
-                        <h4>{t('course.activityHistory')}</h4>
-                        {interactionHistory.length === 0 ? (
-                          <p>{t('course.noHistory')}</p>
-                        ) : (
-                          <ul>
-                            {interactionHistory.slice(0, 10).map((entry) => {
-                              const textValue =
-                                typeof entry.response?.text === 'string'
-                                  ? entry.response.text
-                                  : JSON.stringify(entry.response);
-                              return (
-                                <li key={entry.id}>
-                                  <div>
-                                    <strong>{entry.module_name}</strong>
-                                    <span>{new Date(entry.created_at).toLocaleString()}</span>
-                                  </div>
-                                  <p>{textValue}</p>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
+
+                    {interactionMessage ? <p className="aula-aviso">{interactionMessage}</p> : null}
+                  </article>
+
+                  {/* ----------------------------------------------------------
+                      Navegación, al final y con el nombre de la vecina.
+
+                      Antes eran dos botones pequeños arriba a la derecha del
+                      encabezado, rotulados sólo «Anterior» y «Siguiente». Van
+                      donde termina la lectura, que es donde está la mano al
+                      acabar, y dicen a dónde llevan sin tener que pulsar.
+                  ---------------------------------------------------------- */}
+                  <nav className="aula-navegacion" aria-label={t('aula.plan')}>
+                    <button
+                      className="aula-nav-btn"
+                      onClick={() => goToNeighborModule(-1)}
+                      disabled={activeModuleIndex <= 0}
+                    >
+                      <span className="aula-nav-rotulo">
+                        <IconoFlechaIzquierda />
+                        {t('aula.anterior')}
+                      </span>
+                      <span className="aula-nav-nombre">
+                        {activeModuleIndex > 0 ? flatModules[activeModuleIndex - 1].module.name : '—'}
+                      </span>
+                    </button>
+                    <button
+                      className="aula-nav-btn aula-nav-btn-sig"
+                      onClick={() => goToNeighborModule(1)}
+                      disabled={activeModuleIndex < 0 || activeModuleIndex >= flatModules.length - 1}
+                    >
+                      <span className="aula-nav-rotulo">
+                        {t('aula.siguiente')}
+                        <IconoFlechaDerecha />
+                      </span>
+                      <span className="aula-nav-nombre">
+                        {activeModuleIndex >= 0 && activeModuleIndex < flatModules.length - 1
+                          ? flatModules[activeModuleIndex + 1].module.name
+                          : '—'}
+                      </span>
+                    </button>
+                  </nav>
+
+                  <details className="aula-desplegable">
+                    <summary>{t('aula.historial')}</summary>
+                    <div className="aula-desplegable-cuerpo">
+                      {interactionHistory.length === 0 ? (
+                        <p className="aula-nota">{t('aula.sinHistorial')}</p>
+                      ) : (
+                        <ul className="aula-historico">
+                          {interactionHistory.slice(0, 10).map((entry) => {
+                            const textValue =
+                              typeof entry.response?.text === 'string'
+                                ? entry.response.text
+                                : JSON.stringify(entry.response);
+                            return (
+                              <li key={entry.id}>
+                                <div className="aula-historico-cabeza">
+                                  <strong>{entry.module_name}</strong>
+                                  <time dateTime={entry.created_at}>
+                                    {new Date(entry.created_at).toLocaleString(i18n.language)}
+                                  </time>
+                                </div>
+                                <p>{textValue}</p>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </div>
-                  </section>
+                  </details>
+
+                  {/* La gamificación no se pierde: se recoge. Para quien la
+                      quiera está a un clic; para quien viene a estudiar deja
+                      de competir por la atención con el contenido. */}
+                  <details className="aula-desplegable">
+                    <summary>{t('aula.avanceDetalle')}</summary>
+                    <div className="aula-desplegable-cuerpo">
+                      <div className="aula-cifras">
+                        <div className="aula-cifra">
+                          <span>{t('aula.cifraActividades')}</span>
+                          <strong>{completedCount}/{flatModules.length}</strong>
+                        </div>
+                        <div className="aula-cifra">
+                          <span>{t('aula.cifraRespuestas')}</span>
+                          <strong>{progress.interactionsCount}</strong>
+                        </div>
+                        <div className="aula-cifra">
+                          <span>{t('aula.cifraPuntos')}</span>
+                          <strong>{progress.xp}</strong>
+                        </div>
+                        <div className="aula-cifra">
+                          <span>{t('aula.cifraNivel')}</span>
+                          <strong>{level}</strong>
+                        </div>
+                      </div>
+                      <ul className="aula-logros">
+                        {achievements.map((achievement) => (
+                          <li
+                            key={achievement.id}
+                            className={achievement.unlocked ? 'aula-logro aula-logro-abierto' : 'aula-logro'}
+                          >
+                            <IconoMedalla />
+                            <div>
+                              <strong>{achievement.title}</strong>
+                              <span>{achievement.description}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </details>
                 </>
               )}
-            </article>
-
-            <aside className="gamification-panel gamification-panel-modern">
-              <h3>{t('course.yourProgress')}</h3>
-              <div className="stat-grid">
-                <div><span>{t('course.modules')}</span><strong>{completedCount}/{flatModules.length}</strong></div>
-                <div><span>{t('course.interactions')}</span><strong>{progress.interactionsCount}</strong></div>
-                <div><span>XP</span><strong>{progress.xp}</strong></div>
-                <div><span>{t('course.level')}</span><strong>{level}</strong></div>
-              </div>
-              <h4>{t('course.achievements')}</h4>
-              <ul className="achievement-list">
-                {achievements.map((achievement) => (
-                  <li key={achievement.id} className={achievement.unlocked ? 'unlocked' : ''}>
-                    <strong>{achievement.title}</strong>
-                    <span>{achievement.description}</span>
-                  </li>
-                ))}
-              </ul>
-            </aside>
-          </div>
-          <div className={`victory-toast ${victoryState ? 'show' : ''}`} role="status" aria-live="polite">
-            <div className="victory-toast-body">
-              <strong>{t('course.moduleCompleted')}</strong>
-              <p>{victoryState?.moduleName ?? ''}</p>
-              <span>+{victoryState?.xp ?? 0} XP</span>
             </div>
-            <div className="victory-sparks" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
+          </div>
+
+          {/* El aviso de actividad completada. Sin la lluvia de chispas que
+              tenía antes: la animación respeta `prefers-reduced-motion` y el
+              mensaje se anuncia por `aria-live` para quien usa lector. */}
+          <div
+            className={victoryState ? 'aula-brindis aula-brindis-visible' : 'aula-brindis'}
+            role="status"
+            aria-live="polite"
+          >
+            <IconoVisto />
+            <div>
+              <strong>{t('aula.completada')}</strong>
+              <span>{victoryState?.moduleName ?? ''}</span>
             </div>
           </div>
         </section>

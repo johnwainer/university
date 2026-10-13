@@ -2558,5 +2558,72 @@
       "shifted": "Deadline moved by a holiday",
       "past": "Past due"
     }
+  },
+  "aula": {
+    "volver": "My courses",
+    "plan": "Course plan",
+    "planCuenta_one": "{{count}} activity",
+    "planCuenta_other": "{{count}} activities",
+    "verPlan": "View the course plan",
+    "actividadDe": "Activity {{actual}} of {{total}}",
+    "hechasCuenta_one": "{{count}} activity done",
+    "hechasCuenta_other": "{{count}} activities done",
+    "porcentaje": "{{percent}}% of the course",
+    "cargandoPlan": "Loading the course plan…",
+    "sinActividad": "Pick an activity from the plan to begin.",
+    "sinActividadAyuda": "The activities are on the left, ordered by week.",
+    "material": "Activity material",
+    "sinMaterial": "This activity has no attached files.",
+    "archivoAbierto": "Open",
+    "visorTitulo": "Activity file",
+    "tuRespuesta": "Your response",
+    "tuRespuestaAyuda": "Write your work here. You can save and come back later: nothing is lost.",
+    "escribeAqui": "Write your work, conclusions or answers here…",
+    "guardar": "Save",
+    "guardando": "Saving…",
+    "marcarHecha": "Mark this activity as done",
+    "yaHecha": "Activity done",
+    "hecha": "Done",
+    "pendiente": "Pending",
+    "anterior": "Previous",
+    "siguiente": "Next",
+    "historial": "History of your responses",
+    "sinHistorial": "You haven't saved any responses yet.",
+    "avanceDetalle": "Your progress in detail",
+    "cifraActividades": "Activities",
+    "cifraRespuestas": "Responses",
+    "cifraPuntos": "Points",
+    "cifraNivel": "Level",
+    "logros": "Achievements",
+    "completada": "Activity done",
+    "tipos": {
+      "lectura": "Reading",
+      "foro": "Forum",
+      "tarea": "Assignment to submit",
+      "cuestionario": "Quiz",
+      "enlace": "Link",
+      "carpeta": "File folder",
+      "archivo": "File",
+      "leccion": "Interactive lesson",
+      "actividad": "Activity"
+    },
+    "logrosLista": {
+      "primerPaso": {
+        "titulo": "First step",
+        "texto": "You completed your first activity."
+      },
+      "constante": {
+        "titulo": "Consistent",
+        "texto": "You completed 5 activities."
+      },
+      "participativo": {
+        "titulo": "Engaged",
+        "texto": "You saved 3 responses."
+      },
+      "finalizador": {
+        "titulo": "Finisher",
+        "texto": "You completed the whole course."
+      }
+    }
   }
 }
