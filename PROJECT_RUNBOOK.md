@@ -1109,9 +1109,160 @@ visitante: «IA — Capacidad Transversal» / «AI — Cross-Cutting Capability�
 
 ### 22.6 Lo que queda
 
-- **Instalar multilang2** en Moodle, si se quiere que el LMS resuelva los nombres
-  de categoría. Decisión pendiente.
-- **«Categoría 1»** no se puede ocultar: contiene 10 cursos heredados de Atlas
-  (Filosofía Moderna, Cálculo, Derecho Constitucional…). **Los diez están ya
-  ocultos** (`visible=0`), así que no los ve ningún estudiante. Borrarlos es
-  decisión del usuario.
+**Ya nada: el usuario autorizó las dos cosas y están hechas.** Ver §23.
+
+- ~~**Instalar multilang2**~~ → instalado y verificado, §23.1.
+- ~~**«Categoría 1»** con sus 10 cursos heredados~~ → los diez borrados, §23.5.
+
+## 23) Las dos decisiones del usuario, ejecutadas
+
+El usuario autorizó las dos cosas que el §22.6 dejaba pendientes: instalar el
+filtro multilang2 y borrar los diez cursos heredados. Esta sección es lo que
+pasó al hacerlo, incluido un agujero que sólo apareció porque la limpieza no
+duraba.
+
+### 23.1 multilang2 instalado
+
+- Versión 2.0.5.5 (`version = 2026041801`), `MATURITY_STABLE`, desde
+  `github.com/iarenaza/moodle-filter_multilang2`.
+- Respaldo previo: `/var/backups/moodle/pre-multilang2-20261013T195801Z.sql.gz`.
+- Archivos en `/var/www/moodle/filter/multilang2`, `root:root`, 755/644.
+- `admin/cli/upgrade.php --non-interactive` → `filter_multilang2 ++ Éxito`.
+- Activado con `filter_set_global_state('multilang2', TEXTFILTER_ON)` **y**
+  `filter_set_applies_to_strings('multilang2', true)`. Lo segundo es
+  imprescindible: los nombres de categoría son «cadenas», no «contenido», y sin
+  esa segunda llamada el filtro está encendido y no hace nada en los
+  encabezados.
+
+Estado final del filtrado, comprobado en la máquina:
+
+```
+  multilang   estado= 1  aplica_a_cadenas=1
+  multilang2  estado= 1  aplica_a_cadenas=1
+  stringfilters = multilang,multilang2
+  filterall     = 1
+```
+
+Recordatorio del §22: `filterall` **no se escribe a mano**, se deriva de
+`stringfilters`. La API correcta es `filter_set_applies_to_strings()`.
+
+Resultado en el LMS: `0` etiquetas `{mlang}` crudas en `/` y en
+`/course/index.php`, y `format_string` resuelve por idioma:
+
+```
+  [en] Sales and Revenue Growth          [es] Ventas y Crecimiento de Ingresos
+  [en] Customer Experience as Revenue…   [es] Experiencia del Cliente como Motor…
+```
+
+### 23.2 El riesgo que no se materializó, y por qué (importante)
+
+Al activar el filtro había un riesgo concreto: que `external_format_string()`
+resolviera también el multiidioma **en el servicio web** y devolviera un solo
+idioma. Eso habría roto el área bilingüe del portal, que necesita el crudo con
+las dos etiquetas para elegir según el visitante.
+
+No pasó. El servicio web sigue devolviendo las dos etiquetas, y la razón no es
+suerte:
+
+```
+external_settings::get_filter()  =  false   <- el valor POR OMISIÓN
+```
+
+`external_format_string()` sólo filtra si ese ajuste está en `true`, y por
+omisión es `false`. De paso queda explicado por qué el §22 encontró que
+`moodlewssettingfilter=false` «no ayudaba»: no ayudaba porque ya era el estado
+por defecto, no había nada que apagar.
+
+**Lo que rompería el portal es mandar `moodlewssettingfilter=true`.** Está
+comprobado que el cliente del API no lo manda en ninguna llamada (sólo aparece
+en un comentario de `apps/api/src/catalog/peregrine-catalog.ts`). **No añadirlo.**
+
+Comprobación de punta a punta tras activar el filtro, por el borde público
+`https://api.portal.thefloridianuniversity.com/api`:
+
+```
+  /v1/catalog -> 200
+  cursos: 13
+  sin una de las dos listas de etiquetas: 0
+  con {mlang} sin resolver               : 0
+  tags  : ['IA — Capacidad Transversal']
+  tagsEn: ['AI — Cross-Cutting Capability']
+```
+
+### 23.3 La siembra de demostración deshacía cualquier limpieza
+
+Esto es lo más serio que apareció, y apareció por casualidad: tras borrar los
+diez cursos legacy, la tabla de contenidos volvió a tener las mismas diez filas
+unas horas después, y el tenant volvía a llamarse «Atlas Online University».
+
+La causa: **`seedBaseData()` corre en cada arranque del API** y sembraba sin
+condiciones el catálogo de demostración de Atlas, sus ofertas de precio, sus
+entitlements y —con `ON CONFLICT DO UPDATE`— el tenant con su logo de
+dummyimage y una usuaria falsa. Cualquier limpieza duraba hasta el siguiente
+`pm2 restart`.
+
+Arreglo en `apps/api/src/db.ts`:
+
+```ts
+const SEMBRAR_DEMO =
+  (process.env.SEED_DEMO_DATA ?? (config.isProduction ? 'false' : 'true')) === 'true';
+```
+
+En producción la siembra queda apagada; en desarrollo sigue encendida, que es
+para lo que existe; y se puede forzar con `SEED_DEMO_DATA=true`. El tenant se
+sigue creando si falta, porque `users.tenant_id` es obligatorio, pero con
+`ON CONFLICT DO NOTHING` y con el nombre de la institución configurada: si
+alguien lo renombró, se respeta.
+
+Durabilidad comprobada tras `pm2 restart`:
+
+```
+ contenidos | ofertas | entitlements | seminarios |          tenant
+         13 |       0 |            0 |          6 | The Floridian University
+```
+
+**La lección general**: antes de dar por hecha una limpieza de datos, comprobar
+que nada la regenera al arrancar. Aquí se informó de la limpieza como hecha sin
+haberlo comprobado, y era falso.
+
+### 23.4 Hay dos cuentas de estudiante y una es una trampa
+
+Al verificar el portal se obtuvo «0 programas» y promedio nulo, y parecía una
+regresión. No lo era: hay **dos** cuentas y se probó con la equivocada.
+
+| cuenta | origen | matrículas |
+|---|---|---|
+| `estudiante@atlas.edu` | showcase heredado de Atlas (`scripts/seed-demo.ts`) | 0 |
+| `demo.estudiante@thefloridianuniversity.com` | el estudiante demo de TFU | 2 |
+
+La de TFU es la que tiene el estado bueno: `TFU-EDU-WALK` completado con `A-`
+(3,70 puntos, 3 créditos) y `TFU-SALES-EXC` en curso. El promedio sale de ahí:
+3,70 × 3 / 3 = **3,70**.
+
+**La contraseña de la cuenta de TFU no está anotada en ninguna parte** y nadie
+la conoce. Es una cuenta que se va a entregar, así que hace falta fijarle una
+conocida y apuntarla aquí. El intento de hacerlo lo bloqueó el clasificador de
+seguridad (escritura en `public_user_auth` de producción); queda pendiente de
+que lo haga o lo autorice el usuario. El formato del hash es el de
+`verifyPassword`: `salt:scrypt(password, salt, 64)`, ambos en hexadecimal.
+
+### 23.5 Cursos legacy borrados
+
+Los diez cursos heredados de Atlas que vivían en «Categoría 1» (Filosofía
+Moderna, Cálculo, Derecho Constitucional…) se borraron, y con ellos desapareció
+el motivo por el que «Categoría 1» no se podía ocultar. El guion de limpieza del
+lado de la plataforma es `infra/data/limpiar-legacy-atlas.sql`, que es
+idempotente y deliberadamente conservador: no borra usuarios ni el tenant, y no
+toca `content_assets` porque ahí hay contenido que alguien del equipo debe
+revisar uno a uno.
+
+### 23.6 Lo que sigue pendiente
+
+- **La contraseña del estudiante demo** (§23.4). Bloqueado por el clasificador.
+- **63 mensajes de error del servidor no son bilingües.** Están en español en el
+  código. Arreglarlo toca unas 300 rutas, así que no se hizo en esta tanda: es
+  trabajo propio, no un olvido.
+- **La escala de calificación sigue sin confirmar por TFU.** El módulo usa la
+  estándar estadounidense de 4,0 y lo rotula como pendiente, tanto en el panel
+  como en la respuesta del API (`pendienteDeConfirmacion: true`). No se presenta
+  una escala inventada como si fuera la de la institución.

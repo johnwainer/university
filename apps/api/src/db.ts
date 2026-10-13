@@ -589,7 +589,58 @@ async function upsertEntitlement(entitlement: Entitlement): Promise<void> {
   );
 }
 
+/**
+ * ¿Se siembran los datos de demostración del producto original?
+ *
+ * ESTO ERA UN AGUJERO SERIO Y CONVIENE ENTENDERLO.
+ *
+ * `seedBaseData()` corre en CADA arranque del API, y sembraba sin condiciones
+ * el catálogo de demostración de Atlas, sus ofertas de precio, sus
+ * entitlements, un seminario de ejemplo y —con `ON CONFLICT DO UPDATE`— el
+ * tenant «Atlas Online University» con su logo de dummyimage y la usuaria falsa
+ * María González.
+ *
+ * (Los cuatro seminarios `demo-webinar-*` que hay en la base NO vienen de aquí
+ * sino de `scripts/seed-demo.ts`, que es un guion suelto y no se ejecuta solo.)
+ *
+ * Es decir: cualquier limpieza de esos datos duraba hasta el siguiente
+ * `pm2 restart`. Se descubrió al borrar los cursos legacy de Moodle y ver que
+ * la tabla de contenidos volvía a tener las mismas diez filas que se habían
+ * borrado horas antes, y el tenant volvía a llamarse Atlas.
+ *
+ * Ahora la siembra de demostración está apagada en producción. En desarrollo
+ * sigue encendida, que es para lo que existe, y se puede forzar en cualquier
+ * entorno con SEED_DEMO_DATA=true.
+ */
+const SEMBRAR_DEMO = (process.env.SEED_DEMO_DATA ?? (config.isProduction ? 'false' : 'true')) === 'true';
+
+/**
+ * El tenant tiene que existir: `users.tenant_id` es obligatorio y apunta ahí.
+ * Pero se crea sólo si falta, y con el nombre de la institución configurada.
+ * Nunca se sobrescribe: si alguien lo renombró, se respeta.
+ */
+async function asegurarTenant(): Promise<void> {
+  await pool.query(
+    `INSERT INTO tenants (id, slug, name, locales, currency, branding)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      demoTenant.id,
+      'tfu',
+      config.institution.name,
+      demoTenant.locales,
+      demoTenant.currency,
+      JSON.stringify({ primaryColor: '#0b203a', accentColor: '#2dc4c7', logoUrl: null })
+    ]
+  );
+}
+
 async function seedBaseData(): Promise<void> {
+  if (!SEMBRAR_DEMO) {
+    await asegurarTenant();
+    return;
+  }
+
   await seedTenantAndUser();
 
   for (const asset of demoCatalog) {
