@@ -31,6 +31,7 @@ export const SECTIONS: SectionDef[] = [
   { id: 'courses',      group: 'Operación',    groupEn: 'Operations',    nameEs: 'Cursos',                  nameEn: 'Courses' },
   { id: 'enterprise',   group: 'Operación',    groupEn: 'Operations',    nameEs: 'Departamentos',           nameEn: 'Departments' },
   { id: 'sis',          group: 'Académico',    groupEn: 'Academic',      nameEs: 'SIS / Académico',         nameEn: 'SIS / Academic' },
+  { id: 'registraduria',group: 'Académico',    groupEn: 'Academic',      nameEs: 'Registraduría',           nameEn: 'Registrar' },
   { id: 'calendar',     group: 'Académico',    groupEn: 'Academic',      nameEs: 'Calendario y aulas',      nameEn: 'Calendar & classrooms' },
   { id: 'compliance',   group: 'Académico',    groupEn: 'Academic',      nameEs: 'Sílabos y cumplimiento',  nameEn: 'Syllabi & compliance' },
   { id: 'crm',          group: 'Admisiones',   groupEn: 'Admissions',    nameEs: 'CRM / Admisión',          nameEn: 'CRM / Admissions' },
@@ -70,6 +71,14 @@ export const ROUTE_SECTIONS: Array<[string, string]> = [
   ['/admin/departments',     'sis'],
   ['/admin/holds',           'sis'],
   ['/admin/invoices',        'sis'],
+  ['/admin/registrar',       'registraduria'],
+  ['/admin/students',        'sis'],
+  ['/admin/terms',           'sis'],
+  // `/admin/syllabus` ya estaba mapeado, pero las rutas reales son
+  // `/admin/syllabi` en plural: sin esta línea el módulo de sílabos entero
+  // quedaba fuera del alcance del rol de acreditación y sólo lo veía el
+  // superadministrador, sin que nada lo dijera.
+  ['/admin/syllabi',         'compliance'],
   ['/admin/sis',             'sis'],
   ['/admin/admissions',      'crm'],
   ['/admin/crm',             'crm'],

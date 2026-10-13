@@ -52,7 +52,30 @@ export function permisosSuperadmin(): Record<string, PermissionLevel> {
   return p;
 }
 
-export async function permisosDeRol(pool: Pool, roleId: string): Promise<Record<string, PermissionLevel>> {
+/**
+ * Permisos efectivos de un rol.
+ *
+ * `roleKey` no es decorativo: el rol `superadmin` NO lee sus permisos de la
+ * tabla, se le calculan. La razón la descubrió esta tanda de trabajo al añadir
+ * una sección nueva. Las secciones que aparecen con el tiempo se insertan en
+ * `admin_role_permissions` con nivel `none` para los roles que ya existían
+ * —incluido `superadmin`, que ya existía en producción—, así que el
+ * superadministrador se quedaba fuera de cada sección nueva hasta que alguien
+ * se la concediera a mano. Y como la sección de roles también es una sección,
+ * podía quedarse fuera de la pantalla desde la que se arregla.
+ *
+ * Calcularlo en vez de leerlo es además lo que de verdad sostiene la invariante
+ * que el panel ya anunciaba: los permisos de `superadmin` no se pueden
+ * modificar. Antes se defendía rechazando el PUT; ahora, aunque la fila de la
+ * tabla dijera otra cosa, no se lee.
+ */
+export async function permisosDeRol(
+  pool: Pool,
+  roleId: string,
+  roleKey?: string | null
+): Promise<Record<string, PermissionLevel>> {
+  if (roleKey === 'superadmin') return permisosSuperadmin();
+
   const { rows } = await pool.query(
     'SELECT section, level FROM admin_role_permissions WHERE role_id = $1',
     [roleId]
@@ -97,7 +120,7 @@ export async function autenticar(pool: Pool, email: string, password: string): P
     roleNameEn: u.name_en ?? 'No role',
     locale: (u.locale === 'en' ? 'en' : 'es') as 'es' | 'en',
     isBootstrap: false,
-    permisos: u.role_id ? await permisosDeRol(pool, u.role_id) : {}
+    permisos: u.role_id ? await permisosDeRol(pool, u.role_id, u.role_key) : {}
   };
 }
 
@@ -176,7 +199,7 @@ export async function sesionPorToken(
     roleNameEn: s.name_en ?? 'No role',
     locale: (s.locale === 'en' ? 'en' : 'es') as 'es' | 'en',
     isBootstrap: false,
-    permisos: s.role_id ? await permisosDeRol(pool, s.role_id) : {},
+    permisos: s.role_id ? await permisosDeRol(pool, s.role_id, s.role_key) : {},
     token: s.token,
     createdAt: new Date(s.created_at).toISOString(),
     expiresAt: new Date(s.expires_at).toISOString()
