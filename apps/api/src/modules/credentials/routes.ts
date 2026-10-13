@@ -26,10 +26,17 @@ export interface CredentialsContext {
 }
 
 function makeSerial(): string {
-  // Human-readable certificate serial, e.g. ATLAS-3F9A1C-7B2E.
+  // Número de serie legible, por ejemplo TFU-3F9A1C-7B2E.
+  //
+  // Esto afecta a los certificados REALES que emite la institución: el prefijo
+  // anterior venía de la plantilla del producto anterior, así que cada
+  // certificado emitido llevaba el nombre de otra institución en su número de
+  // serie. Los únicos que existían con el prefijo viejo eran los siete
+  // inventados por la siembra de demostración, que se retiran en
+  // `infra/data/retirar-ficcion-atlas.sql`.
   const a = randomBytes(3).toString('hex').toUpperCase();
   const b = randomBytes(2).toString('hex').toUpperCase();
-  return `ATLAS-${a}-${b}`;
+  return `TFU-${a}-${b}`;
 }
 
 function makeVerificationCode(): string {

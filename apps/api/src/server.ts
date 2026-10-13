@@ -200,7 +200,17 @@ type PublicAuthSession = {
 const publicSessions = new Map<string, PublicAuthSession>();
 const publicSessionTtlMinutes = Math.max(60, Number(process.env.PUBLIC_SESSION_TTL_MINUTES ?? 43200));
 let moodleSyncInFlight: Promise<void> | null = null;
-const moodleInteractionPrefix = 'ATLAS_INTERACTION::';
+/**
+ * Prefijo con el que se marcan en Moodle las notas que guardan una interacción
+ * de la plataforma.
+ *
+ * Se ESCRIBE sólo el nuevo, pero se LEEN los dos. El prefijo anterior venía de
+ * la plantilla del producto anterior, y las notas ya guardadas en Moodle lo
+ * llevan: si sólo se reconociera el nuevo, esas interacciones dejarían de
+ * interpretarse y desaparecerían del portal sin que nada fallara ni avisara.
+ */
+const moodleInteractionPrefix = 'TFU_INTERACTION::';
+const moodleInteractionPrefixesLeidos = [moodleInteractionPrefix, 'ATLAS_INTERACTION::'];
 
 const demoVideoCandidates = [
   process.env.DEMO_VIDEO_PATH,
@@ -571,11 +581,18 @@ function parseMoodleInteractionNote(
   response: Record<string, unknown>;
   created_at: string;
 } | null {
-  if (typeof rawContent !== 'string' || !rawContent.startsWith(moodleInteractionPrefix)) {
+  if (typeof rawContent !== 'string') {
+    return null;
+  }
+  // Se acepta cualquiera de los dos prefijos: las notas ya guardadas en Moodle
+  // llevan el anterior, y si sólo se reconociera el nuevo esas interacciones
+  // desaparecerían del portal sin que nada fallara.
+  const prefijoPresente = moodleInteractionPrefixesLeidos.find((p) => rawContent.startsWith(p));
+  if (!prefijoPresente) {
     return null;
   }
   try {
-    const payload = JSON.parse(rawContent.slice(moodleInteractionPrefix.length)) as Record<string, unknown>;
+    const payload = JSON.parse(rawContent.slice(prefijoPresente.length)) as Record<string, unknown>;
     const moduleId = Number(payload.moduleId ?? fallback.moduleId);
     const createdAt = typeof payload.createdAt === 'string' ? payload.createdAt : fallback.createdAt;
     return {
@@ -742,7 +759,7 @@ function loadMoodleCategoriesFromDockerFallback(): NormalizedMoodleCategory[] {
       'docker',
       [
         'exec',
-        'atlas-moodle-db',
+        'tfu-moodle-db',
         'mariadb',
         '-N',
         '-umoodle',
@@ -1104,7 +1121,7 @@ app.get('/v1/home', async () => {
   //
   // Esta ruta devolvía `getTenantAndUser()`, y eso servía dos mentiras en una
   // respuesta pública: el `tenant` era la fila heredada del producto original
-  // («Atlas Online University», con un logo de dummyimage.com y una paleta que
+  // (la institución heredada de la plantilla, con un logo de dummyimage.com y una paleta que
   // no es la de TFU), y el `user` era un usuario de demostración fijo con
   // nombre y correo inventados, que se devolvía a cualquiera que pidiera la
   // portada estuviera o no autenticado.
@@ -1145,9 +1162,9 @@ app.get('/v1/podcasts', async () => listPodcasts({ activeOnly: true, landingOnly
 /*
  * `/v1/offers` se retira, y `offers` sale de la respuesta de la portada.
  *
- * Servían tres planes de precio heredados de Atlas —«Paquete de Certificación»
+ * Servían tres planes de precio heredados de la plantilla —«Paquete de Certificación»
  * 199 USD, «Matrícula Anual» 249, «Matrícula Mensual» 29— cuyas descripciones
- * nombran a «Atlas Online University» y que TFU nunca ha fijado. El front no
+ * nombran a la institución heredada y que TFU nunca ha fijado. El front no
  * los pinta en ninguna parte: el commit 5502e42 quitó del portal el lenguaje de
  * compra justamente porque esto no es una tienda. Pero la API pública seguía
  * devolviendo precios inventados a nombre de una institución real, y eso es
@@ -1158,7 +1175,7 @@ app.get('/v1/podcasts', async () => listPodcasts({ activeOnly: true, landingOnly
  * `/v1/entitlements` y `/v1/blueprint` se retiran aquí.
  *
  * Las dos venían del producto original y devolvían datos de demostración de
- * Atlas a cualquiera sin autenticar: `entitlements` servía una lista de
+ * contenido heredado a cualquiera sin autenticar: `entitlements` servía una lista de
  * contenidos `bundle-1`, `course-1`…`course-4` que no existen en TFU, y
  * `blueprint` un plano de plataforma de ejemplo. Ninguna de las dos la llamaba
  * nada: estaban declaradas en el cliente del front y sin un solo uso.
@@ -3028,7 +3045,7 @@ function splitName(fullName: string): { firstname: string; lastname: string } {
 }
 
 function generateTemporaryPassword(): string {
-  return `Atlas!${Math.random().toString(36).slice(2, 7)}${Date.now().toString().slice(-4)}`;
+  return `Tfu!${Math.random().toString(36).slice(2, 7)}${Date.now().toString().slice(-4)}`;
 }
 
 function normalizeCompanySlug(input: string): string {

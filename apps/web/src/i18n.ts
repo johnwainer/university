@@ -22,9 +22,9 @@ export const BRAND = import.meta.env.VITE_INSTITUTION_NAME ?? 'The Floridian Uni
  * ese es el valor por defecto, y cualquier otra institución lo fija por
  * entorno igual que el nombre largo.
  *
- * El valor anterior, "Atlas Online University", venía de la plantilla y
- * llegaba al sitio en producción: el pie decía «© 2026 Atlas Online
- * University» y el aviso de cumplimiento nombraba a Atlas.
+ * El valor anterior venía de la plantilla del producto anterior y llegaba al
+ * sitio en producción: el pie y el aviso de cumplimiento nombraban a aquella
+ * institución, no a TFU.
  */
 export const BRAND_SHORT = import.meta.env.VITE_INSTITUTION_SHORT_NAME ?? 'TFU';
 

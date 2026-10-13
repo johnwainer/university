@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 env:
-  # @atlas/shared ships compiled JS (packages/shared/dist), so the built API
+  # @tfu/shared ships compiled JS (packages/shared/dist), so the built API
   # runs on plain Node with no TypeScript stripping. 22 is the LTS line the
   # production instance runs.
   NODE_VERSION: '22'

@@ -1,4 +1,4 @@
-# Atlas Online University — Propuesta Comercial y Distribución de Costos
+# The Floridian University — Propuesta Comercial y Distribución de Costos
 
 > Valor total del proyecto: **USD $24,700**, llave en mano, incluyendo **3 meses de soporte y ajustes**.
 > Para el detalle del activo ver `SALES_OVERVIEW.md` y `docs/TECHNICAL_INVENTORY.md`.
@@ -89,14 +89,14 @@ Estos costos **no forman parte de los $24,700** ni se pagan al proveedor: son se
 
 ### 5.1 Hosting en AWS (pago directo a Amazon, mensual)
 
-Arquitectura sugerida: cómputo para la API + web (Atlas), cómputo para **Moodle**, base de datos **PostgreSQL** (Atlas) y **MariaDB** (Moodle), caché **Redis**, almacenamiento/CDN/transferencia y backups. Modelo **pago por uso**: el costo crece con la matrícula y el tráfico.
+Arquitectura sugerida: cómputo para la API + web (la plataforma), cómputo para **Moodle**, base de datos **PostgreSQL** (plataforma) y **MariaDB** (Moodle), caché **Redis**, almacenamiento/CDN/transferencia y backups. Modelo **pago por uso**: el costo crece con la matrícula y el tráfico.
 
 | Escenario | Estimado mensual | Notas |
 |---|---|---|
 | **Arranque lean** (~100–400 estudiantes) | **~$80–$130/mes** | Instancias pequeñas, servicios co-ubicados, sin alta disponibilidad |
 | **Crecimiento** (~500–1,000 estudiantes) | **~$180–$320/mes** | RDS/ElastiCache gestionados, balanceador, CloudFront, backups reforzados |
 
-> Referencias de mercado 2026: un Moodle pequeño en producción sobre AWS ronda **$24–$34/mes** y un sitio pequeño EC2+RDS ~**$51/mes**; nuestro stack corre **ambas piezas** (plataforma Atlas + Moodle), de ahí el rango combinado. Cifras estimadas; el costo real depende de tráfico, almacenamiento y región. Se recomienda activar **AWS Budgets** y empezar con instancias reservadas/Savings Plans para optimizar.
+> Referencias de mercado 2026: un Moodle pequeño en producción sobre AWS ronda **$24–$34/mes** y un sitio pequeño EC2+RDS ~**$51/mes**; nuestro stack corre **ambas piezas** (la plataforma + Moodle), de ahí el rango combinado. Cifras estimadas; el costo real depende de tráfico, almacenamiento y región. Se recomienda activar **AWS Budgets** y empezar con instancias reservadas/Savings Plans para optimizar.
 
 ### 5.2 Dominio (pago directo al registrador, anual)
 

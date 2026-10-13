@@ -6,7 +6,7 @@
  *
  * 1. `academic_terms` es la tabla a la que apunta la clave ajena de
  *    `student_enrollments`. En producción sólo contenía tres periodos de
- *    demostración heredados del producto Atlas (`DEMO-2025FA`, `DEMO-2026SP`,
+ *    demostración heredados de la plantilla (`DEMO-2025FA`, `DEMO-2026SP`,
  *    `DEMO-2026SU`), y el marcado como activo era Spring 2026, que terminó en
  *    mayo.
  * 2. `term_grids` es donde el módulo de calendario de la Etapa II guarda el

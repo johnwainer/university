@@ -221,7 +221,7 @@ const webinarPlatformOptions = [
   'external'
 ] as const;
 
-const ADMIN_SESSION_STORAGE = 'atlas-admin-session-token';
+const ADMIN_SESSION_STORAGE = 'tfu-admin-session-token';
 const PAGE_SIZE = 20;
 
 export function AdminApp() {
@@ -234,7 +234,7 @@ export function AdminApp() {
    * desaparecen al llegar la respuesta.
    */
   const [identidad, setIdentidad] = useState<AdminIdentity | null>(null);
-  // El campo arrancaba relleno con «admin@atlas.edu», la cuenta de ejemplo del
+  // El campo arrancaba relleno con la cuenta de ejemplo de la plantilla, del
   // producto original: la pantalla de entrada del panel de TFU ofrecía un
   // correo de otra institución ya escrito. Arranca vacío.
   const [loginEmail, setLoginEmail] = useState('');

@@ -61,7 +61,7 @@ API_PUBLIC_PREFIX="${API_PUBLIC_PREFIX:-/api}"
 VITE_API_URL="${VITE_API_URL:-${API_URL}${API_PUBLIC_PREFIX}}"
 
 # Identidad que se hornea en el SPA. Sin estas variables el front caía al valor
-# por defecto del código y el pie del sitio en producción decía «Atlas Online
+# por defecto del código y el pie del sitio en producción nombraba a la
 # University», que es el nombre de la plantilla y no el del cliente.
 VITE_INSTITUTION_NAME="${VITE_INSTITUTION_NAME:-The Floridian University}"
 VITE_INSTITUTION_SHORT_NAME="${VITE_INSTITUTION_SHORT_NAME:-TFU}"
@@ -111,7 +111,7 @@ API_UPSTREAM="${API_UPSTREAM:-127.0.0.1:${API_PORT}}"
 API_ENTRY_REL="${API_ENTRY_REL:-apps/api/dist/apps/api/src/server.js}"
 
 NODE_MIN_MAJOR="${NODE_MIN_MAJOR:-22}"
-# @atlas/shared resolves to packages/shared/src/index.ts (raw TypeScript).
+# @tfu/shared resolves to packages/shared/src/index.ts (raw TypeScript).
 # Node >= 22.18 strips types by default; 22.6-22.17 needs the explicit flag.
 NODE_MIN_MINOR_FOR_NATIVE_TS="${NODE_MIN_MINOR_FOR_NATIVE_TS:-18}"
 

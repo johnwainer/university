@@ -7,7 +7,7 @@ loadEnv({ path: resolve(process.cwd(), '../../.env') });
 
 /**
  * Las credenciales de administrador tenían valor por defecto en el código
- * ('dev-admin-key', 'AtlasAdmin!2026'). Eso es cómodo en local y es un agujero
+ * ('dev-admin-key', 'CambiaEstaClave!2026'). Eso es cómodo en local y es un agujero
  * en producción: si la variable falta en el entorno, `x-admin-key: dev-admin-key`
  * basta para abrir las ~90 rutas /admin/*, expedientes de estudiantes incluidos,
  * y el fallo es silencioso —el servicio arranca igual—.
@@ -46,11 +46,11 @@ export const config = {
   admin: {
     apiKey: requiredSecret('ADMIN_API_KEY', 'dev-admin-key'),
     email: process.env.ADMIN_EMAIL ?? 'admin@thefloridianuniversity.com',
-    password: requiredSecret('ADMIN_PASSWORD', 'AtlasAdmin!2026'),
+    password: requiredSecret('ADMIN_PASSWORD', 'CambiaEstaClave!2026'),
     sessionTtlMinutes: Number(process.env.ADMIN_SESSION_TTL_MINUTES ?? 720)
   },
   db: {
-    url: process.env.DATABASE_URL ?? 'postgresql://atlas:atlas@localhost:5432/atlas'
+    url: process.env.DATABASE_URL ?? 'postgresql://tfu:tfu@localhost:5432/tfu'
   },
   moodle: {
     baseUrl: process.env.MOODLE_BASE_URL ?? '',

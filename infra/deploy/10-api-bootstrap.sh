@@ -174,7 +174,7 @@ verify_toolchain() {
     fail "Node ${NODE_MIN_MAJOR}+ required, found ${node_version}"
   fi
 
-  # @atlas/shared ships COMPILED JavaScript (packages/shared/dist/index.js,
+  # @tfu/shared ships COMPILED JavaScript (packages/shared/dist/index.js,
   # declared in its package.json "main"/"exports"). The built API therefore
   # loads plain .js at runtime and needs no TypeScript stripping. The root
   # `npm run build` builds shared BEFORE api/web so that dist always exists.
@@ -282,15 +282,15 @@ build_release() {
   # devDependencies are required: the build is tsc.
   as_service bash -lc "cd '${release_dir}' && npm ci --no-audit --no-fund"
 
-  log "building @atlas/shared then @atlas/api"
-  as_service bash -lc "cd '${release_dir}' && npm run build -w @atlas/shared"
-  as_service bash -lc "cd '${release_dir}' && npm run build -w @atlas/api"
+  log "building @tfu/shared then @tfu/api"
+  as_service bash -lc "cd '${release_dir}' && npm run build -w @tfu/shared"
+  as_service bash -lc "cd '${release_dir}' && npm run build -w @tfu/api"
 
-  # El API compilado importa @atlas/shared por su "main" (dist/index.js). Si el
+  # El API compilado importa @tfu/shared por su "main" (dist/index.js). Si el
   # build de shared no emitio dist, el fallo aparecería recien al arrancar, ya
   # con el symlink 'current' movido. Mejor fallar aqui.
   if [[ "$DRY_RUN" != "1" && ! -f "${release_dir}/packages/shared/dist/index.js" ]]; then
-    fail "packages/shared/dist/index.js no existe tras el build; el API no podra resolver @atlas/shared"
+    fail "packages/shared/dist/index.js no existe tras el build; el API no podra resolver @tfu/shared"
   fi
 }
 

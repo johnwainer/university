@@ -145,13 +145,13 @@ will 404 without it." ;;
     log "installing dependencies (npm ci)"
     run npm --prefix "$REPO_DIR" ci --no-audit --no-fund
   fi
-  # @atlas/web type-checks against @atlas/shared, so shared builds first.
-  run npm --prefix "$REPO_DIR" run build -w @atlas/shared
+  # @tfu/web type-checks against @tfu/shared, so shared builds first.
+  run npm --prefix "$REPO_DIR" run build -w @tfu/shared
   run env VITE_API_URL="$VITE_API_URL" \
       VITE_INSTITUTION_NAME="$VITE_INSTITUTION_NAME" \
       VITE_INSTITUTION_SHORT_NAME="$VITE_INSTITUTION_SHORT_NAME" \
       VITE_INSTITUTION_DOMAIN="$VITE_INSTITUTION_DOMAIN" \
-      npm --prefix "$REPO_DIR" run build -w @atlas/web
+      npm --prefix "$REPO_DIR" run build -w @tfu/web
 
   [[ "$DRY_RUN" == "1" ]] || [[ -f "${DIST_DIR}/index.html" ]] \
     || fail "the build finished but ${DIST_DIR}/index.html is missing"

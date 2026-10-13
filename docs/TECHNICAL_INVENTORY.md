@@ -1,4 +1,4 @@
-# Atlas Online University — Inventario Técnico (Due Diligence)
+# The Floridian University — Inventario Técnico (Due Diligence)
 
 > Documento de referencia exhaustivo para evaluación técnica / traspaso del activo.
 > Generado a partir del código fuente. Estado: typecheck limpio en los 3 workspaces.
@@ -47,7 +47,7 @@ apps/
                               BackofficeView, CredentialsView, CompaniesView
       locales/                en.json, es.json
       i18n.ts
-packages/shared/   Tipos/contratos canónicos (@atlas/shared)
+packages/shared/   Tipos/contratos canónicos (@tfu/shared)
 docs/              Documentación funcional/técnica
 infra/             Config auxiliar (PHP/Moodle local)
 docker-compose.yml PostgreSQL, Redis, Adminer, Moodle, MariaDB

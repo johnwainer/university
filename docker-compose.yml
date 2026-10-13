@@ -1,11 +1,11 @@
 services:
   postgres:
     image: postgres:16
-    container_name: atlas-postgres
+    container_name: tfu-postgres
     environment:
-      POSTGRES_USER: atlas
-      POSTGRES_PASSWORD: atlas
-      POSTGRES_DB: atlas
+      POSTGRES_USER: tfu
+      POSTGRES_PASSWORD: tfu
+      POSTGRES_DB: tfu
     ports:
       - "65432:5432"
     volumes:
@@ -13,13 +13,13 @@ services:
 
   redis:
     image: redis:7
-    container_name: atlas-redis
+    container_name: tfu-redis
     ports:
       - "6379:6379"
 
   adminer:
     image: adminer:4
-    container_name: atlas-adminer
+    container_name: tfu-adminer
     ports:
       - "8080:8080"
     depends_on:
@@ -27,7 +27,7 @@ services:
 
   moodle-db:
     image: mariadb:11
-    container_name: atlas-moodle-db
+    container_name: tfu-moodle-db
     profiles: ["moodle"]
     environment:
       MYSQL_ROOT_PASSWORD: moodle_root
@@ -40,7 +40,7 @@ services:
 
   moodle:
     image: lthub/moodle:education-4.5.11
-    container_name: atlas-moodle
+    container_name: tfu-moodle
     platform: linux/amd64
     profiles: ["moodle"]
     ports:

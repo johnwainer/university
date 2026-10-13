@@ -97,7 +97,7 @@ const DEFAULT_PROGRESS: CourseProgress = {
   progressPercent: 0
 };
 
-const PUBLIC_SESSION_STORAGE = 'atlas-public-session';
+const PUBLIC_SESSION_STORAGE = 'tfu-public-session';
 const EMAIL_REGEX_FALLBACK = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
 
 function toPlainText(html?: string): string {
@@ -150,7 +150,7 @@ function snippet(html?: string, title?: string, max = 160): string {
 }
 
 function progressStorageKey(courseId: number): string {
-  return `atlas-progress-${courseId}`;
+  return `tfu-progress-${courseId}`;
 }
 
 function loadCourseProgress(courseId: number): CourseProgress {
@@ -554,7 +554,7 @@ function youtubeEmbedUrl(input: string): string | null {
 
 function youtubeThumbUrl(input: string): string {
   const code = extractYouTubeCode(input);
-  return code ? `https://i.ytimg.com/vi/${code}/hqdefault.jpg` : 'https://picsum.photos/seed/atlas-podcast/640/360';
+  return code ? `https://i.ytimg.com/vi/${code}/hqdefault.jpg` : 'https://picsum.photos/seed/tfu-podcast/640/360';
 }
 
 function generateStrongPassword(length = 14): string {

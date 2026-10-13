@@ -580,7 +580,7 @@ usa la API de Lightsail: `aws lightsail reset-distribution-cache` (no
 
 `packages/shared/package.json` declara `"main": "src/index.ts"`, es decir
 **TypeScript sin compilar**. La API compilada sigue haciendo
-`import … from '@atlas/shared'`, así que **en producción Node carga un `.ts`
+`import … from '@tfu/shared'`, así que **en producción Node carga un `.ts`
 directamente**. Funciona porque Node ≥ 22.18 elimina los tipos por defecto
 (`process.features.typescript === 'strip'`).
 
@@ -589,7 +589,7 @@ directamente**. Funciona porque Node ≥ 22.18 elimina los tipos por defecto
 mensaje explícito**. `ci.yml` también lo comprueba.
 
 Arreglo de raíz (fuera del alcance de este kit, requiere tocar `packages/`):
-apuntar `main`/`exports` de `@atlas/shared` a `dist/`.
+apuntar `main`/`exports` de `@tfu/shared` a `dist/`.
 
 ### 11.4 Ruta del entrypoint compilado
 

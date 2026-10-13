@@ -1,5 +1,5 @@
 {
-  "name": "@atlas/api",
+  "name": "@tfu/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "populate:moodle:demo:docker": "tsx src/scripts/populate-moodle-demo-content-docker.ts"
   },
   "dependencies": {
-    "@atlas/shared": "0.1.0",
+    "@tfu/shared": "0.1.0",
     "@fastify/cors": "^11.1.0",
     "@fastify/sensible": "^6.0.3",
     "dotenv": "^17.2.3",

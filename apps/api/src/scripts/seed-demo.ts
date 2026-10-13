@@ -1,5 +1,5 @@
 /**
- * seed-demo.ts — Idempotent demo seed for "Atlas Online University".
+ * seed-demo.ts — Siembra de demostración idempotente, SÓLO para desarrollo.
  *
  * Fills every intermediator section with believable university demo data so the
  * admin app can be demoed end-to-end. Re-runnable without duplicating: each
@@ -8,7 +8,17 @@
  *
  * Markers used to scope demo data (so we never touch pre-existing real rows):
  *   - users / auth / SIS / CRM / credentials / certificates → demo students use
- *     emails ending in `@demo.atlas.edu` (real seeded users use `@atlas.edu`).
+ *     correos que terminan en `@demo.invalid`.
+ *
+ *     POR QUÉ `.invalid` Y NO EL DOMINIO DE LA INSTITUCIÓN. Este guion fabrica
+ *     personas: ocho empleados con cargo, decanos, certificados con número de
+ *     serie y apuntes de registro FERPA. Antes usaba `@demo.invalid`, heredado de
+ *     la plantilla, y todas esas filas acabaron en la base de PRODUCCIÓN de una
+ *     universidad real y acreditada. Cambiarlas a
+ *     `@thefloridianuniversity.com` sería peor: convertiría personal inventado
+ *     en personal aparentemente real. `.invalid` está reservado por la RFC 2606
+ *     y no se puede registrar ni recibir correo, así que ninguna de estas filas
+ *     puede confundirse nunca con una persona de la institución.
  *   - departments / terms / programs → codes prefixed with `DEMO-`.
  *   - staff_directory → external_id prefixed with `demo-staff-`.
  *   - compliance / syllabi / calendar / media → scoped by demo foreign keys
@@ -20,16 +30,16 @@
 import { randomUUID, randomBytes, scryptSync } from 'node:crypto';
 import { pool } from '../db.js';
 
-const TENANT_ID = 'tenant-atlas';
-const STUDENT_DOMAIN = '@demo.atlas.edu';
-const OWNER_EMAIL = 'admissions@atlas.edu';
+const TENANT_ID = 'tenant-tfu';
+const STUDENT_DOMAIN = '@demo.invalid';
+const OWNER_EMAIL = 'admissions@demo.invalid';
 // Showcase student login handed to demos (has enrollments, ledger, certificates, competencies).
-const SHOWCASE_STUDENT_EMAIL = 'estudiante@atlas.edu';
+const SHOWCASE_STUDENT_EMAIL = 'estudiante@demo.invalid';
 const STUDENT_DEMO_PASSWORD = 'Estudiante2026';
 
 // Moodle course ids actually present in the local DB. Loaded dynamically in
 // main() so transcript/certificates/competencies link to real course names
-// (the synced Atlas catalog), with a fallback if the catalog is empty.
+// (el catálogo sincronizado), con un respaldo si el catálogo está vacío.
 let DEMO_COURSE_IDS = [3, 4, 5, 6, 7];
 
 type Row = Record<string, unknown>;
@@ -195,7 +205,7 @@ const students: SeedStudent[] = studentNames.map((name, i) => {
   return {
     id: randomUUID(),
     fullName: name,
-    // First student is the showcase login handed to demos (clean @atlas.edu email).
+    // El primer estudiante es el acceso de muestra que se entrega en las demos.
     email: i === 0 ? SHOWCASE_STUDENT_EMAIL : `${slug}${STUDENT_DOMAIN}`,
     locale: i % 3 === 0 ? 'en' : 'es',
     programCode: pick(programs, i).code
@@ -213,7 +223,7 @@ function hashPassword(password: string): string {
 async function seedStudents(): Promise<void> {
   // public_user_auth + downstream rows cascade on users delete. Scope by demo
   // domain plus the explicit showcase email so re-seeds stay idempotent without
-  // touching pre-existing real @atlas.edu users.
+  // tocar usuarios reales de la institución.
   await q(`DELETE FROM users WHERE email LIKE $1 OR email = $2`, [`%${STUDENT_DOMAIN}`, SHOWCASE_STUDENT_EMAIL]);
 
   for (const s of students) {
@@ -430,7 +440,7 @@ async function seedSis(): Promise<{ enrolledStudents: SeedStudent[] }> {
 // 4. CRM: contacts, activities, early alerts (reuse existing stages)
 // ---------------------------------------------------------------------------
 async function seedCrm(): Promise<void> {
-  await q(`DELETE FROM crm_contacts WHERE email LIKE '%@prospect.demo.atlas.edu'`);
+  await q(`DELETE FROM crm_contacts WHERE email LIKE '%@prospect.demo.invalid'`);
   await q(
     `DELETE FROM early_alerts WHERE signal IN ('login_gap_14d','grade_below_70','late_submission','financial_hold','no_activity_7d')`
   );
@@ -481,7 +491,7 @@ async function seedCrm(): Promise<void> {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
       [
         name,
-        `${slug}@prospect.demo.atlas.edu`,
+        `${slug}@prospect.demo.invalid`,
         '+57 310 000 0000',
         pick(sources, i),
         stage.id,
@@ -543,7 +553,7 @@ async function seedCredentials(): Promise<void> {
     `DELETE FROM badges WHERE competency_id IN (SELECT id FROM competencies WHERE code LIKE 'DEMO-%')`
   );
   await q(`DELETE FROM competencies WHERE code LIKE 'DEMO-%'`); // cascades progress
-  await q(`DELETE FROM certificates WHERE serial LIKE 'ATLAS-DEMO-%'`);
+  await q(`DELETE FROM certificates WHERE serial LIKE 'TFU-DEMO-%'`);
 
   const compSpecs: Array<{ name: string; code: string; programCode: string; courseId: number }> = [
     { name: 'Pensamiento analítico de negocios', code: 'DEMO-COMP-BA', programCode: 'DEMO-BBA-BA', courseId: 3 },
@@ -620,7 +630,7 @@ async function seedCredentials(): Promise<void> {
     const s = students[i % students.length];
     const kind = certKinds[i % certKinds.length];
     const prog = pick(programs, i);
-    const serial = `ATLAS-DEMO-${serialPart()}-${String(1000 + i)}`;
+    const serial = `TFU-DEMO-${serialPart()}-${String(1000 + i)}`;
     const verification = `VC-DEMO-${randomUUID().slice(0, 12).toUpperCase()}`;
     const title =
       kind === 'program'
@@ -653,7 +663,7 @@ async function seedSyllabus(): Promise<void> {
   await q(
     `DELETE FROM syllabi WHERE term_id IN (SELECT id FROM academic_terms WHERE code LIKE 'DEMO-%')`
   );
-  await q(`DELETE FROM ferpa_access_log WHERE actor_email = 'registrar@atlas.edu'`);
+  await q(`DELETE FROM ferpa_access_log WHERE actor_email = 'registrar@demo.invalid'`);
 
   // Reuse default template if present, else create one.
   let templateId: string | null = null;
@@ -691,7 +701,7 @@ async function seedSyllabus(): Promise<void> {
         JSON.stringify({
           course_objectives: 'Los estudiantes dominarán los objetivos medibles del curso.',
           grading_policy: 'Evaluación ponderada: tareas 40%, examen parcial 25%, final 35%.',
-          academic_integrity: 'Se aplica la política de integridad académica de Atlas Online University.'
+          academic_integrity: 'Se aplica la política de integridad académica de la institución.'
         }),
         s.status,
         s.status === 'published' ? new Date('2026-01-10').toISOString() : null
@@ -733,7 +743,7 @@ async function seedSyllabus(): Promise<void> {
     await q(
       `INSERT INTO ferpa_access_log (actor_email, subject_user_id, resource, action)
        VALUES ($1,$2,$3,$4)`,
-      ['registrar@atlas.edu', f.subject.id, f.resource, f.action]
+      ['registrar@demo.invalid', f.subject.id, f.resource, f.action]
     );
   }
 }
@@ -746,14 +756,14 @@ async function seedBackoffice(): Promise<void> {
   await q(`DELETE FROM gl_sync_log WHERE external_id LIKE 'QB-DEMO-%'`);
 
   const staff: Array<{ name: string; email: string; role: string; type: string; country: string }> = [
-    { name: 'Dr. Laura Mendoza', email: 'lmendoza@atlas.edu', role: 'Dean of Business', type: 'employee', country: 'CO' },
-    { name: 'Dr. Andrés Ramírez', email: 'aramirez@atlas.edu', role: 'Dean of Technology', type: 'employee', country: 'CO' },
-    { name: 'Carolina Vélez', email: 'cvelez@atlas.edu', role: 'Registrar', type: 'employee', country: 'CO' },
-    { name: 'Jorge Mariño', email: 'jmarino@atlas.edu', role: 'Financial Aid Officer', type: 'employee', country: 'MX' },
-    { name: 'Elena Suárez', email: 'esuarez@atlas.edu', role: 'Admissions Counselor', type: 'employee', country: 'CO' },
-    { name: 'Pablo Restrepo', email: 'prestrepo@contractor.atlas.edu', role: 'Adjunct Instructor', type: 'contractor', country: 'AR' },
-    { name: 'Mónica Lara', email: 'mlara@contractor.atlas.edu', role: 'Instructional Designer', type: 'contractor', country: 'PE' },
-    { name: 'David Okafor', email: 'dokafor@atlas.edu', role: 'IT Support Lead', type: 'employee', country: 'US' }
+    { name: 'Dr. Laura Mendoza', email: 'lmendoza@demo.invalid', role: 'Dean of Business', type: 'employee', country: 'CO' },
+    { name: 'Dr. Andrés Ramírez', email: 'aramirez@demo.invalid', role: 'Dean of Technology', type: 'employee', country: 'CO' },
+    { name: 'Carolina Vélez', email: 'cvelez@demo.invalid', role: 'Registrar', type: 'employee', country: 'CO' },
+    { name: 'Jorge Mariño', email: 'jmarino@demo.invalid', role: 'Financial Aid Officer', type: 'employee', country: 'MX' },
+    { name: 'Elena Suárez', email: 'esuarez@demo.invalid', role: 'Admissions Counselor', type: 'employee', country: 'CO' },
+    { name: 'Pablo Restrepo', email: 'prestrepo@contractor.demo.invalid', role: 'Adjunct Instructor', type: 'contractor', country: 'AR' },
+    { name: 'Mónica Lara', email: 'mlara@contractor.demo.invalid', role: 'Instructional Designer', type: 'contractor', country: 'PE' },
+    { name: 'David Okafor', email: 'dokafor@demo.invalid', role: 'IT Support Lead', type: 'employee', country: 'US' }
   ];
   for (let i = 0; i < staff.length; i++) {
     const s = staff[i];
@@ -814,7 +824,7 @@ async function seedMedia(): Promise<void> {
       slug: 'demo-webinar-admisiones',
       title: 'Casa Abierta Virtual: Admisiones 2026',
       subtitle: 'Sesión informativa',
-      description: 'Conoce los programas y el proceso de admisión de Atlas Online University.',
+      description: 'Conoce los programas y el proceso de admisión de la institución.',
       starts: '2026-02-20T22:00:00Z',
       hero: 'https://images.unsplash.com/photo-1543109740-4bdb38fda756?auto=format&fit=crop&w=1600&q=80',
       code: 'H14bBuluwB8'
@@ -857,7 +867,7 @@ async function seedMedia(): Promise<void> {
 // Orchestration
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
-  console.log('Seeding Atlas Online University demo data...');
+  console.log('Sembrando datos de demostración (sólo desarrollo)...');
   // Use the real synced Moodle course ids so transcript/certs show course names.
   const courseRows = await pool.query<{ moodle_course_id: number }>(
     `SELECT moodle_course_id FROM moodle_courses ORDER BY moodle_course_id`
@@ -898,16 +908,16 @@ async function main(): Promise<void> {
     ['financial_aid', `1=1`],
     ['degree_requirements', `degree_program_id IN (SELECT id FROM degree_programs WHERE code LIKE 'DEMO-%')`],
     ['enrollment_holds', `1=1`],
-    ['crm_contacts', `email LIKE '%@prospect.demo.atlas.edu'`],
+    ['crm_contacts', `email LIKE '%@prospect.demo.invalid'`],
     ['crm_activities', `1=1`],
     ['early_alerts', `signal IN ('login_gap_14d','grade_below_70','late_submission','financial_hold','no_activity_7d')`],
     ['competencies', `code LIKE 'DEMO-%'`],
     ['badges', `competency_id IN (SELECT id FROM competencies WHERE code LIKE 'DEMO-%')`],
     ['student_competency_progress', `1=1`],
-    ['certificates', `serial LIKE 'ATLAS-DEMO-%'`],
+    ['certificates', `serial LIKE 'TFU-DEMO-%'`],
     ['syllabi', `term_id IN (SELECT id FROM academic_terms WHERE code LIKE 'DEMO-%')`],
     ['compliance_records', `1=1`],
-    ['ferpa_access_log', `actor_email = 'registrar@atlas.edu'`],
+    ['ferpa_access_log', `actor_email = 'registrar@demo.invalid'`],
     ['staff_directory', `external_id LIKE 'demo-staff-%'`],
     ['gl_sync_log', `external_id LIKE 'QB-DEMO-%'`],
     ['webinars', `slug LIKE 'demo-%'`],

@@ -1,4 +1,4 @@
-# Atlas Online University OTT + LMS SaaS Foundation
+# The Floridian University — Base OTT + LMS SaaS
 
 Monorepo base para una plataforma OTT multi-tenant con Moodle como backoffice, API intermedia y frontend web en React.
 
@@ -28,7 +28,7 @@ Login directo de Moodle: `http://localhost:8081/login/index.php`
 Credenciales locales del admin de Moodle:
 
 - usuario: `admin`
-- contraseña: `AtlasMoodle!2026`
+- contraseña: `CambiaEstaClave!2026`
 
 ## Admin del intermediador
 

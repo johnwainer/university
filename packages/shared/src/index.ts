@@ -3,7 +3,13 @@ export type ContentKind = 'vod' | 'live' | 'course' | 'bundle';
 export type AccessModel = 'free' | 'subscription' | 'purchase' | 'code';
 
 export interface TenantBranding {
-  logoUrl: string;
+  /**
+   * Puede ser nulo: la institución no tiene logo cargado y `asegurarTenant()`
+   * en `apps/api/src/db.ts` escribe NULL. El tipo decía `string` y la base
+   * guardaba nulo, así que el tipo estaba mintiendo. El valor anterior era un
+   * marcador de posición de dummyimage.com que llegó a producción.
+   */
+  logoUrl: string | null;
   primaryColor: string;
   accentColor: string;
   heroGradient: string;
@@ -152,24 +158,41 @@ const interactiveEvents: InteractiveEvent[] = [
   }
 ];
 
+/**
+ * El tenant que usa la siembra de DESARROLLO.
+ *
+ * La clave `tenant-tfu` tiene que coincidir con la de
+ * `infra/data/retirar-ficcion-atlas.sql`, que renombró la de producción: si
+ * discrepan, un arranque en desarrollo crearía un segundo tenant y las filas
+ * quedarían repartidas entre los dos.
+ *
+ * Sin logo: la institución no tiene uno cargado aquí, y el valor anterior
+ * apuntaba a un marcador de posición de dummyimage.com que llegó a producción.
+ */
 export const demoTenant: Tenant = {
-  id: 'tenant-atlas',
-  slug: 'university',
-  name: 'Atlas Online University',
+  id: 'tenant-tfu',
+  slug: 'tfu',
+  name: 'The Floridian University',
   locales: ['es', 'en'],
   currency: 'USD',
   branding: {
-    logoUrl: 'https://dummyimage.com/200x48/0f172a/ffffff&text=Atlas+Online+University',
-    primaryColor: '#1e3a5f',
-    accentColor: '#c9a84c',
-    heroGradient: 'linear-gradient(135deg, #0a0d17 0%, #1e3a5f 50%, #c9a84c 100%)'
+    logoUrl: null,
+    primaryColor: '#0b203a',
+    accentColor: '#2dc4c7',
+    heroGradient: 'linear-gradient(135deg, #061225 0%, #0b203a 50%, #2dc4c7 100%)'
   }
 };
 
+/**
+ * Usuaria de ejemplo para desarrollo. Nombre y dominio deliberadamente
+ * neutros: `example.invalid` no se puede registrar ni enviar correo, así que
+ * esta fila no puede confundirse con personal real de la institución si vuelve
+ * a colarse en algún entorno.
+ */
 export const demoUser: UserProfile = {
   id: 'user-1',
-  fullName: 'María González',
-  email: 'mgonzalez@atlas.edu',
+  fullName: 'Usuaria de Ejemplo',
+  email: 'ejemplo@example.invalid',
   locale: 'es',
   roles: ['tenant_admin', 'learner'],
   tenantId: demoTenant.id
@@ -390,7 +413,7 @@ export const demoOffers: Offer[] = [
   {
     id: 'offer-sub-monthly',
     name: 'Matrícula Mensual',
-    description: 'Acceso ilimitado a todos los cursos, clases magistrales en video y eventos académicos en vivo del catálogo de Atlas Online University.',
+    description: 'Acceso ilimitado a todos los cursos, clases magistrales en video y eventos académicos en vivo del catálogo de la institución.',
     price: 29,
     currency: 'USD',
     billingPeriod: 'monthly',
@@ -408,7 +431,7 @@ export const demoOffers: Offer[] = [
   {
     id: 'offer-course-pack',
     name: 'Paquete de Certificación',
-    description: 'Compra única para acceder a un programa de certificación completo con evaluaciones, proyectos y certificado oficial de Atlas Online University.',
+    description: 'Compra única para acceder a un programa de certificación completo con evaluaciones, proyectos y certificado oficial de la institución.',
     price: 199,
     currency: 'USD',
     type: 'bundle'

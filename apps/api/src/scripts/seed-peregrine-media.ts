@@ -1,7 +1,7 @@
 /**
  * Eventos en vivo y podcasts de Peregrine Corporate Learning.
  *
- * Sustituye al contenido demo de "Atlas Online University" que quedaba de la
+ * Sustituye al contenido de demostración de la plantilla que quedaba de la
  * plantilla (casa abierta de admisiones, métodos de investigación...), que no
  * tiene nada que ver con la oferta real.
  *

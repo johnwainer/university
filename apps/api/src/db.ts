@@ -9,7 +9,7 @@ import {
   type ContentAsset,
   type Entitlement,
   type Offer
-} from '@atlas/shared';
+} from '@tfu/shared';
 import { config } from './config.js';
 import { stripSyllabusBlock } from './moodle.js';
 import { peregrineProgram } from './catalog/peregrine-catalog.js';
@@ -117,7 +117,7 @@ const courseThemePool = [
   'Trayecto de especialización con recursos descargables y actividades interactivas.'
 ];
 
-// Bilingual (es/en) catalog metadata for the Atlas Online University Moodle courses,
+// Metadatos bilingües (es/en) del catálogo de los cursos de Moodle,
 // keyed by course shortname. Used by the Moodle mirror so every course is shown in
 // Spanish (title/summary) and English (titleEn/summaryEn).
 const COURSE_I18N: Record<string, { es: { title: string; summary: string }; en: { title: string; summary: string } }> = {
@@ -595,9 +595,9 @@ async function upsertEntitlement(entitlement: Entitlement): Promise<void> {
  * ESTO ERA UN AGUJERO SERIO Y CONVIENE ENTENDERLO.
  *
  * `seedBaseData()` corre en CADA arranque del API, y sembraba sin condiciones
- * el catálogo de demostración de Atlas, sus ofertas de precio, sus
+ * el catálogo de demostración de la plantilla, sus ofertas de precio, sus
  * entitlements, un seminario de ejemplo y —con `ON CONFLICT DO UPDATE`— el
- * tenant «Atlas Online University» con su logo de dummyimage y la usuaria falsa
+ * tenant de la institución heredada con su logo de dummyimage y la usuaria falsa
  * María González.
  *
  * (Los cuatro seminarios `demo-webinar-*` que hay en la base NO vienen de aquí
@@ -606,7 +606,7 @@ async function upsertEntitlement(entitlement: Entitlement): Promise<void> {
  * Es decir: cualquier limpieza de esos datos duraba hasta el siguiente
  * `pm2 restart`. Se descubrió al borrar los cursos legacy de Moodle y ver que
  * la tabla de contenidos volvía a tener las mismas diez filas que se habían
- * borrado horas antes, y el tenant volvía a llamarse Atlas.
+ * borrado horas antes, y el tenant volvía a llamarse como la institución heredada.
  *
  * Ahora la siembra de demostración está apagada en producción. En desarrollo
  * sigue encendida, que es para lo que existe, y se puede forzar en cualquier
@@ -616,10 +616,29 @@ const SEMBRAR_DEMO = (process.env.SEED_DEMO_DATA ?? (config.isProduction ? 'fals
 
 /**
  * El tenant tiene que existir: `users.tenant_id` es obligatorio y apunta ahí.
- * Pero se crea sólo si falta, y con el nombre de la institución configurada.
- * Nunca se sobrescribe: si alguien lo renombró, se respeta.
+ *
+ * La comprobación es «¿hay ALGÚN tenant?», no «¿existe este identificador?», y
+ * la diferencia importa. `infra/data/retirar-ficcion-atlas.sql` renombra la
+ * clave del tenant de producción de `tenant-atlas` a `tenant-tfu`. Con un
+ * `ON CONFLICT (id) DO NOTHING` sobre un identificador fijo, arrancar este
+ * código ANTES de correr ese guion insertaría un segundo tenant: los usuarios
+ * seguirían colgando del viejo, las filas quedarían repartidas entre los dos y
+ * nada fallaría ni avisaría.
+ *
+ * Así el orden entre el despliegue y el guion deja de importar, que es la
+ * propiedad que se quiere: nadie debería tener que recordarlo.
+ *
+ * Nunca se sobrescribe lo que ya hay: si alguien renombró la institución, se
+ * respeta.
  */
 async function asegurarTenant(): Promise<void> {
+  const { rows } = await pool.query<{ existe: boolean }>(
+    'SELECT EXISTS (SELECT 1 FROM tenants) AS existe'
+  );
+  if (rows[0]?.existe) {
+    return;
+  }
+
   await pool.query(
     `INSERT INTO tenants (id, slug, name, locales, currency, branding)
      VALUES ($1, $2, $3, $4, $5, $6)
@@ -692,13 +711,13 @@ async function seedBaseData(): Promise<void> {
 
   const hasPodcast = await pool.query(`SELECT id FROM podcasts LIMIT 1`);
   if (!hasPodcast.rows[0]) {
-    const atlasPodcasts = [
-      { id: 'atlas-podcast-1', title: 'Bienvenida a Atlas Online University', code: 'UF8uR6Z6KLc', order: 0 },
-      { id: 'atlas-podcast-2', title: 'Aprendizaje flexible para profesionales', code: 'arj7oStGLkU', order: 1 },
-      { id: 'atlas-podcast-3', title: 'Educación basada en competencias', code: '8jPQjjsBbIc', order: 2 },
-      { id: 'atlas-podcast-4', title: 'Historias de estudiantes Atlas', code: 'ZXsQAXx_ao0', order: 3 }
+    const podcastsDemo = [
+      { id: 'demo-podcast-1', title: 'Bienvenida a la institución', code: 'UF8uR6Z6KLc', order: 0 },
+      { id: 'demo-podcast-2', title: 'Aprendizaje flexible para profesionales', code: 'arj7oStGLkU', order: 1 },
+      { id: 'demo-podcast-3', title: 'Educación basada en competencias', code: '8jPQjjsBbIc', order: 2 },
+      { id: 'demo-podcast-4', title: 'Historias de estudiantes', code: 'ZXsQAXx_ao0', order: 3 }
     ];
-    for (const v of atlasPodcasts) {
+    for (const v of podcastsDemo) {
       await createPodcast({
         title: v.title,
         videoCode: v.code,
@@ -973,7 +992,7 @@ export async function syncMoodleCoursesWithCategories(
 
     // Prioridad del texto, de más específico a más genérico:
     //   1. PEREGRINE_CATALOG  — programas de Peregrine, es/en del corporativo.
-    //   2. COURSE_I18N        — cursos demo de Atlas.
+    //   2. COURSE_I18N        — cursos de demostración de la plantilla.
     //   3. Lo que diga Moodle — con {mlang} si lo trae, o el mismo texto en los
     //      dos idiomas, que es mejor que dejar el inglés vacío.
     const program = peregrineProgram(shortname);
@@ -1002,7 +1021,7 @@ export async function syncMoodleCoursesWithCategories(
     // Portada y duración: decisiones de marca del sitio corporativo, no del LMS.
     // Sin entrada en el catálogo se conserva el placeholder determinista de
     // siempre, que al menos da una imagen estable por curso.
-    const heroImage = program?.hero ?? `https://picsum.photos/seed/atlas-course-${course.id}/1400/800`;
+    const heroImage = program?.hero ?? `https://picsum.photos/seed/tfu-course-${course.id}/1400/800`;
     const durationMinutes = program ? program.hours * 60 : 120;
 
     // El mapa de categorías llega crudo del web service, así que pasa por el

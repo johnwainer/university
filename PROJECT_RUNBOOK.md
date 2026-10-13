@@ -1,10 +1,10 @@
-# Atlas Online University Runbook Maestro (Operación Local + Handoff de Agente)
+# The Floridian University — Runbook Maestro (Operación Local + Handoff de Agente)
 
-Este archivo es la guía única para entender, levantar y operar el proyecto `atlas` sin contexto previo.
+Este archivo es la guía única para entender, levantar y operar el proyecto sin contexto previo.
 
 ## 1) Qué es este proyecto
 
-`Atlas Online University` es una plataforma OTT + LMS con:
+`The Floridian University` es una plataforma OTT + LMS con:
 
 - `Moodle` como backoffice académico (cursos, módulos, actividades, progreso).
 - `API Intermediador` (BFF + dominio) como capa obligatoria para TODO.
@@ -52,7 +52,7 @@ Nota importante de DB local:
 - Por eso, para usar la DB de compose, deja `DATABASE_URL` así:
 
 ```env
-DATABASE_URL=postgresql://atlas:atlas@localhost:65432/atlas
+DATABASE_URL=postgresql://tfu:tfu@localhost:65432/tfu
 ```
 
 ## 5) Levantar todo en local (completo)
@@ -107,8 +107,8 @@ Tomadas de `.env`:
 - password: `ADMIN_PASSWORD`
 
 Valores por defecto en ejemplo:
-- `admin@atlas.local`
-- `AtlasAdmin!2026`
+- `admin@tfu.local`
+- `CambiaEstaClave!2026`
 
 ## 6.2 Moodle local
 
@@ -116,7 +116,7 @@ Se define durante el wizard inicial en `http://localhost:8081`.
 Credenciales locales fijadas para administración:
 
 - usuario: `admin`
-- contraseña: `AtlasMoodle!2026`
+- contraseña: `CambiaEstaClave!2026`
 - login web: `http://localhost:8081/login/index.php`
 
 DB de Moodle en wizard:
@@ -397,8 +397,8 @@ npm run check
 o por app:
 
 ```bash
-npm run -w @atlas/api check
-npm run -w @atlas/web check
+npm run -w @tfu/api check
+npm run -w @tfu/web check
 ```
 
 ## 12.2 Build
@@ -441,7 +441,7 @@ curl http://localhost:4000/api/v1/catalog
 
 ## 14) Onboarding express para otro agente (paso a paso exacto)
 
-1. `cd /Users/john/Documents/atlas`
+1. `cd /Users/john/Documents/pae-u`
 2. `cp .env.example .env` (si no existe).
 3. Ajustar `DATABASE_URL` a puerto `65432`.
 4. `docker compose up -d postgres redis adminer`
@@ -564,7 +564,7 @@ incluidas `/v1/auth/register`, `/v1/auth/login` y `/admin/auth/login`.
 
 - `packages/shared` publica JavaScript compilado (`main: dist/index.js`,
   `types`, `exports`, `files`), no TypeScript crudo. El API compilado importa
-  `@atlas/shared` y con `main: src/index.ts` solo arrancaba en Node >= 22.18.
+  `@tfu/shared` y con `main: src/index.ts` solo arrancaba en Node >= 22.18.
 - `packages/shared/tsconfig.json` fija `rootDir: "src"` para que la salida sea
   `dist/index.js` y no `dist/src/index.js`.
 - Los `*.tsbuildinfo` no se versionan: un `tsbuildinfo` commiteado convierte
@@ -612,7 +612,7 @@ completo) y `{{brandShort}}` (nombre corto), que i18next resuelve mediante
 
 | Dónde | Variable | Por defecto |
 |---|---|---|
-| Frontend (build) | `VITE_INSTITUTION_NAME` | `Atlas Online University` |
+| Frontend (build) | `VITE_INSTITUTION_NAME` | `The Floridian University` |
 | Frontend (build) | `VITE_INSTITUTION_SHORT_NAME` | primera palabra del nombre completo |
 | API (runtime) | `INSTITUTION_NAME` | `University` |
 
@@ -628,7 +628,7 @@ despliegue de The Floridian University usa:
 ```bash
 VITE_INSTITUTION_NAME="The Floridian University" \
 VITE_INSTITUTION_SHORT_NAME="Floridian" \
-  npm run build -w @atlas/web
+  npm run build -w @tfu/web
 ```
 
 y `INSTITUTION_NAME=The Floridian University` en el `.env` de la API.
@@ -907,7 +907,8 @@ JS
 | `apps/api/src/modules/sis/registraduria.ts` | `matricularEnSis()` y las rutas `/admin/registrar/*` |
 | `apps/web/src/components/StudentProgram.tsx` | la vista «Mi programa» del estudiante |
 | `apps/web/src/components/admin/views/RegistrarView.tsx` | la pantalla de calificaciones del panel |
-| `infra/data/limpiar-legacy-atlas.sql` | retirada de los datos de demostración de Atlas |
+| `infra/data/limpiar-legacy-atlas.sql` | retirada de los datos de demostración heredados (1.ª tanda) |
+| `infra/data/retirar-ficcion-atlas.sql` | retirada de la ficción de la plantilla: personas, certificados y asientos inventados (2.ª tanda) |
 
 ### 21.7 Rutas nuevas
 
@@ -1266,3 +1267,117 @@ revisar uno a uno.
   estándar estadounidense de 4,0 y lo rotula como pendiente, tanto en el panel
   como en la respuesta del API (`pendienteDeConfirmacion: true`). No se presenta
   una escala inventada como si fuera la de la institución.
+
+## 24) Retirada completa de «Atlas»: qué se barrió y qué falta
+
+El usuario pidió que no quedara rastro del producto anterior ni en el código ni
+en los datos. Esta sección es el inventario de lo que se encontró, lo que se
+hizo y las tres cosas que siguen pendientes porque necesitan una decisión o una
+ventana de mantenimiento.
+
+### 24.1 Cómo se auditó
+
+En el código: 221 apariciones de «atlas» en 43 archivos. En la base: un barrido
+generado sobre **las 314 columnas de texto** de todas las tablas, en vez de
+mirar las que uno recuerda. Es la diferencia entre creer que está limpio y
+saberlo: el barrido encontró el directorio de personal y el registro FERPA, que
+nadie habría mirado.
+
+En Moodle: comprobado aparte (nombre del sitio, cursos, categorías, usuarios,
+cohortes y las dos tablas de configuración). **Moodle estaba limpio**, el sitio
+ya se llamaba The Floridian University / TFU.
+
+### 24.2 La decisión de fondo: retirar, no renombrar
+
+La siembra de la plantilla había dejado en PRODUCCIÓN personas, certificados,
+facturas y pagos que nunca existieron: once usuarios ficticios, quince
+prospectos, **ocho empleados con cargo** (decanos, registradora, oficial de
+ayuda financiera), **siete certificados** con número de serie y cinco apuntes
+de registro FERPA firmados por `registrar@atlas.edu`.
+
+Lo cómodo era reescribir los dominios a `@thefloridianuniversity.com`. Sería
+peor: convertiría personal inventado en personal aparentemente real de una
+universidad acreditada, y certificados inventados en certificados con pinta de
+válidos. Por eso se retiran. El guion es
+`infra/data/retirar-ficcion-atlas.sql`.
+
+La excepción son los **sílabos**: ahí el documento es real de TFU y lo único
+equivocado era el nombre de la institución en el campo de integridad académica.
+Eso se reescribe, no se borra.
+
+### 24.3 Tres cambios de código que son funcionales, no cosméticos
+
+La mayoría del barrido fue texto. Estos tres no:
+
+1. **El número de serie de los certificados.** `makeSerial()` en
+   `modules/credentials/routes.ts` emitía `ATLAS-XXXXXX-XXXX` para **todo
+   certificado real** que emitiera la institución. Ahora emite `TFU-`.
+
+2. **El prefijo de las interacciones guardadas en Moodle.**
+   `ATLAS_INTERACTION::` se escribe en notas de Moodle **y se lee de vuelta**.
+   Cambiarlo a secas habría hecho desaparecer del portal las interacciones ya
+   guardadas, sin error y sin aviso. Se escribe sólo el nuevo prefijo y se leen
+   los dos (`moodleInteractionPrefixesLeidos`). **Esa lista no se recorta** sin
+   comprobar antes que no queda ninguna nota con el prefijo viejo.
+
+3. **`asegurarTenant()` ya no depende del orden.** Comprobaba
+   `ON CONFLICT (id)` sobre un identificador fijo. Como el guion de datos
+   renombra la clave del tenant, arrancar el código nuevo antes del guion
+   habría insertado un SEGUNDO tenant, con los usuarios colgando del viejo y
+   las filas repartidas. Ahora pregunta si existe algún tenant. El orden entre
+   despliegue y guion deja de importar, que es lo que se quiere: nadie debería
+   tener que acordarse.
+
+Además: los paquetes del monorepo pasan de `@atlas/*` a `@tfu/*` (con el
+`package-lock.json` regenerado), las claves del navegador de
+`atlas-public-session` / `atlas-admin-session-token` a `tfu-*` (eso cierra las
+sesiones abiertas una vez), los servicios de `docker-compose` y la base de
+desarrollo a `tfu`, y las credenciales de ejemplo dejan de ser `AtlasAdmin!2026`
+y `AtlasMoodle!2026`.
+
+El tipo `TenantBranding.logoUrl` pasa a `string | null`. Decía `string` mientras
+la base guardaba NULL: el tipo estaba mintiendo.
+
+### 24.4 La siembra de demostración ya no fabrica gente plausible
+
+`scripts/seed-demo.ts` era la fuente de toda la ficción. Sus dominios pasan a
+`.invalid` (`@demo.invalid`, `@prospect.demo.invalid`), que está reservado por
+la RFC 2606 y **no se puede registrar ni recibir correo**. Así la siembra sigue
+sirviendo para lo que existe —poblar un entorno de desarrollo— pero ninguna de
+sus filas puede volver a confundirse con una persona de la institución si algún
+día se cuela en otro entorno.
+
+### 24.5 Lo que sigue diciendo «Atlas» a propósito
+
+- **Los dos guiones de retirada** (`limpiar-legacy-atlas.sql` y
+  `retirar-ficcion-atlas.sql`). Su trabajo es encontrar y retirar filas de
+  Atlas; sin la palabra no funcionan.
+- **`ATLAS_INTERACTION::`** en la lista de prefijos que se leen (§24.3).
+- **El relato histórico de este runbook** (§21, §22, §23). Borrarlo dejaría las
+  lecciones sin sentido: explica por qué se retiró cada cosa.
+- **`pm2 restart atlas-api` y `psql -d atlas`** en `guia-administrador.md` y en
+  los encabezados de los guiones SQL. Nombran el proceso y la base **reales**;
+  cambiarlos en la documentación antes de renombrarlos de verdad dejaría una
+  guía que no funciona. Van atados al §24.6.
+
+### 24.6 Pendiente: necesita decisión o ventana
+
+1. **Correr `infra/data/retirar-ficcion-atlas.sql` en producción.** El
+   clasificador de seguridad bloqueó la ejecución —y hasta la escritura— del
+   borrado masivo, con razón: son ~110 filas de once tablas de producción. El
+   guion está escrito, comentado, es idempotente y lleva arriba el volcado
+   previo y el comando de restauración. Lo corre una persona.
+
+2. **La base de producción se sigue llamando `atlas`.** Renombrarla
+   (`ALTER DATABASE atlas RENAME TO tfu`) exige que no haya conexiones
+   abiertas: parar el API, renombrar, cambiar `DATABASE_URL` en el `.env` del
+   release y arrancar. Son unos segundos de corte. No se hizo sin avisar.
+
+3. **El proceso de pm2 se sigue llamando `atlas-api`.** Renombrarlo es
+   `pm2 delete` + `pm2 start --name tfu-api` + `pm2 save`, y hay que cambiarlo
+   a la vez en `guia-administrador.md` y en los guiones de despliegue. También
+   son unos segundos de corte.
+
+Los puntos 2 y 3 son los únicos rastros que quedan en infraestructura, y
+ninguno es visible para un estudiante ni para nadie de fuera: son nombres
+internos de proceso y de base.

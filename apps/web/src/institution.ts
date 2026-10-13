@@ -1,8 +1,8 @@
 /**
  * Datos de contacto institucionales del sitio público.
  *
- * Estaban escritos a mano como `mailto:ferpa@atlas.edu`, `titleix@atlas.edu` y
- * `soporte@atlas.edu` —un dominio heredado de la plantilla que no es el de la
+ * Estaban escritos a mano sobre un dominio heredado de la plantilla
+ * (`ferpa@`, `titleix@` y `soporte@` de aquel dominio) que no es el de la
  * institución—, repartidos por el pie de página, la vista legal y el panel
  * enterprise. Aquí se resuelven una sola vez, desde el entorno de build, con
  * el dominio real como valor por defecto.

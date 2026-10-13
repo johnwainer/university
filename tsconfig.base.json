@@ -9,7 +9,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@atlas/shared": ["packages/shared/src"]
+      "@tfu/shared": ["packages/shared/src"]
     }
   }
 }

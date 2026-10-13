@@ -1,5 +1,5 @@
 {
-  "name": "atlas-online-university",
+  "name": "the-floridian-university",
   "private": true,
   "version": "0.1.0",
   "workspaces": [
@@ -7,10 +7,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @atlas/api & npm run dev -w @atlas/web",
-    "dev:api": "npm run dev -w @atlas/api",
-    "dev:web": "npm run dev -w @atlas/web",
-    "build": "npm run build -w @atlas/shared && npm run build -w @atlas/api && npm run build -w @atlas/web",
+    "dev": "npm run dev -w @tfu/api & npm run dev -w @tfu/web",
+    "dev:api": "npm run dev -w @tfu/api",
+    "dev:web": "npm run dev -w @tfu/web",
+    "build": "npm run build -w @tfu/shared && npm run build -w @tfu/api && npm run build -w @tfu/web",
     "check": "npm run check -ws",
     "check:runbook": "node scripts/check-runbook-update.mjs"
   }

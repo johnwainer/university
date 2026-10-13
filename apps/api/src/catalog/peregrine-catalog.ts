@@ -13,7 +13,7 @@
  *   arreglaría el web service pero dejaría las llaves a la vista en el aula.
  *
  *   Así que el portal se sirve de este módulo —igual que COURSE_I18N ya hacía
- *   con los cursos demo de Atlas— y Moodle conserva su propio texto bilingüe
+ *   con los cursos de demostración de la plantilla— y Moodle conserva su propio texto bilingüe
  *   para el aula. Si algún día el web service devolviera el marcado crudo,
  *   parseMultilang() en db.ts ya lo resuelve y esto pasa a ser el respaldo.
  *

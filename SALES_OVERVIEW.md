@@ -1,4 +1,4 @@
-# Atlas Online University — Resumen de Venta
+# The Floridian University — Resumen de Venta
 
 > Dossier ejecutivo del activo. Para detalle técnico ver `docs/TECHNICAL_INVENTORY.md`;
 > para operación ver `PROJECT_RUNBOOK.md`; para el plan de fases ver
@@ -8,15 +8,15 @@
 
 ## 1. Qué es
 
-**Atlas Online University** es una plataforma **"University Operating System" (OTT + LMS)** lista para operar una universidad online (enfocada en reskilling de adultos). No es solo un LMS: es la capa de orquestación que **unifica los 6 dominios funcionales de una universidad** en un solo sistema, con Moodle como backoffice académico abstraído.
+**The Floridian University** es una plataforma **"University Operating System" (OTT + LMS)** lista para operar una universidad online (enfocada en reskilling de adultos). No es solo un LMS: es la capa de orquestación que **unifica los 6 dominios funcionales de una universidad** en un solo sistema, con Moodle como backoffice académico abstraído.
 
-**Una frase:** Atlas reemplaza un stack de 5–6 SaaS (SIS + CRM + Syllabus + HR/Payroll + Contabilidad + Pagos) con módulos **nativos**, más **conectores opcionales** a los vendors líderes para quien ya los use.
+**Una frase:** la plataforma reemplaza un stack de 5–6 SaaS (SIS + CRM + Syllabus + HR/Payroll + Contabilidad + Pagos) con módulos **nativos**, más **conectores opcionales** a los vendors líderes para quien ya los use.
 
 ---
 
 ## 2. Propuesta de valor / por qué se vende
 
-- **Sustituye gasto recurrente alto.** El stack tradicional equivalente (SIS por estudiante + CRM + plataforma de syllabus + nómina + contabilidad + pasarela de pago) cuesta **~$32k–$140k+/año** según volumen de matrícula. Atlas lo internaliza en un solo sistema.
+- **Sustituye gasto recurrente alto.** El stack tradicional equivalente (SIS por estudiante + CRM + plataforma de syllabus + nómina + contabilidad + pasarela de pago) cuesta **~$32k–$140k+/año** según volumen de matrícula. La plataforma lo internaliza en un solo sistema.
 - **Diseñado para crecer.** Cloud-native, multi-tenant y modelo de datos preparado para escalar de cientos a miles de estudiantes sin migraciones.
 - **Time-to-market.** Plataforma funcional, con datos demo, documentación operativa y typecheck limpio. Se levanta en local en minutos (Docker + 2 comandos).
 - **Sin lock-in y portable.** Regla de oro: todo pasa por la API intermediadora; el LMS está abstraído y es reemplazable sin tocar el frontend.
@@ -27,7 +27,7 @@
 
 ## 3. Dominios que cubre la plataforma
 
-Atlas implementa los seis dominios que necesita una universidad online. Para cada uno se tomó una decisión **híbrida**: construir nativo el núcleo operativo, integrar vía conector lo que no conviene reinventar (nómina/contabilidad) y conservar el LMS.
+La plataforma implementa los seis dominios que necesita una universidad online. Para cada uno se tomó una decisión **híbrida**: construir nativo el núcleo operativo, integrar vía conector lo que no conviene reinventar (nómina/contabilidad) y conservar el LMS.
 
 | Dominio | Referencia de mercado | Decisión | Estado |
 |---|---|---|---|
@@ -127,12 +127,20 @@ Detalle completo: `docs/TECHNICAL_INVENTORY.md`.
 
 ## 7. Estado y polish reciente
 
-**Hecho y verificado:** 5 módulos University OS, portal estudiante, rebrand completo a Atlas, catálogo Moodle universitario, catálogo bilingüe, seed demo, typecheck limpio.
+**Hecho y verificado:** 5 módulos University OS, portal estudiante, catálogo Moodle universitario, catálogo bilingüe, seed demo, typecheck limpio.
 
-**Pulido de presentación aplicado en esta revisión:**
-1. Branding: header con marca **Atlas**, footer/emails de compliance a `@atlas.edu`, strings de UI rebrandeadas (ES/EN) — se preserva "My University" (portal) y "Atlas Online University" (nombre legal).
+**Corrección importante respecto a revisiones anteriores de este documento.** Una
+revisión previa dio por hecho un «rebrand completo» a la institución de la
+plantilla del producto anterior, con el encabezado, el pie y los correos de
+cumplimiento sobre aquel dominio. Aquello **se deshizo**: la institución es The
+Floridian University y el nombre, los dominios de cumplimiento y la marca del
+portal son los suyos. No queda nada de la plantilla en la interfaz.
+
+**Pulido de presentación aplicado:**
+1. Branding: encabezado, pie y correos de cumplimiento sobre el dominio de la
+   institución, cadenas de interfaz en los dos idiomas (ES/EN).
 2. Eliminados los prefijos visibles `[DEMO]` del contenido sembrado; idempotencia del seed conservada con marcadores **no visibles** (claves demo por FK/código).
-3. Podcasts genéricos reemplazados por contenido **Atlas** (códigos de video verificados).
+3. Podcasts genéricos reemplazados por contenido propio (códigos de video verificados).
 4. Carrusel "Continue Learning" ahora respeta el idioma (aplica `localizeAsset`).
 5. Sync de Moodle ahora **poda** cursos/assets eliminados upstream (con guarda anti-borrado si Moodle devuelve vacío).
 
@@ -142,4 +150,4 @@ Detalle completo: `docs/TECHNICAL_INVENTORY.md`.
 
 ## 8. Pitch de una línea
 
-> Atlas Online University: un "University OS" listo para operar que unifica SIS, CRM, Syllabus/Compliance, credenciales CBE, HR y contabilidad sobre Moodle, con pagos Stripe nativos, compliance US, multi-tenant y bilingüe — reemplazando un stack SaaS de $32k–$140k+/año, con arquitectura limpia y código que compila sin errores.
+> The Floridian University: un "University OS" listo para operar que unifica SIS, CRM, Syllabus/Compliance, credenciales CBE, HR y contabilidad sobre Moodle, con pagos Stripe nativos, compliance US, multi-tenant y bilingüe — reemplazando un stack SaaS de $32k–$140k+/año, con arquitectura limpia y código que compila sin errores.
