@@ -1402,3 +1402,48 @@ y `/v1/programs` responden 200 con los 13 cursos bilingües. Aguanta
 Queda en el servidor `.env.bak-rename`, a propósito: es la vuelta atrás del
 cambio de `DATABASE_URL`. Conviene retirarlo cuando se haya convivido unos días
 con el nombre nuevo.
+
+### 24.8 El renombrado rompió los respaldos, y por qué
+
+Conviene dejarlo escrito porque el fallo fue del tipo que no avisa.
+
+Tras renombrar la base se comprobó el `.env` del release en curso
+(`current/.env`) y se dio el trabajo por bueno. **Hay un segundo `.env`:**
+`/opt/plataforma-estudiantil/api/shared/.env`, que es la plantilla desde la que
+el despliegue copia el fichero a cada release nuevo. Ése seguía diciendo
+`atlas`. Consecuencias:
+
+- **El guion de respaldos** (`tfu-api-backup.sh`) lee precisamente
+  `shared/.env`, así que los respaldos pasaron a fallar. Comprobado:
+  `FATAL: password authentication failed for user "atlas"`.
+- **El siguiente despliegue** habría copiado ese `.env` al release nuevo y el
+  API no habría arrancado.
+
+Ninguna de las dos cosas da señal al momento: el respaldo falla en silencio en
+una tarea programada, y el despliegue rompe más tarde. Un `/health` en 200 no
+dice nada de esto.
+
+Arreglado: `shared/.env` reescrito y **comprobado ejecutando un respaldo de
+verdad**, que es la única prueba que vale (324 KB). Y se puso al día el `.env`
+de los siete releases que se conservan, porque volver atrás el enlace `current`
+a cualquiera de ellos habría dejado el API apuntando a una base que ya no
+existe. Los nueve `.env` en uso dicen ahora `tfu@tfu`.
+
+**La regla que sale de aquí:** al cambiar cualquier cosa del `.env` de
+producción, no basta con el del release en curso. Hay que recorrer **todos**:
+
+```bash
+sudo find /opt/plataforma-estudiantil -name ".env" -o -name ".env.*" \
+  | while read F; do
+      printf "%-70s %s\n" "$F" \
+        "$(sudo grep -m1 '^DATABASE_URL=' "$F" \
+           | sed -E 's|.*://([^:]+):[^@]*@[^/]+/(.*)$|\1@\2|')"
+    done
+```
+
+Y después, probar lo que depende de ellos —el respaldo, no sólo la salud del
+API—, porque es lo que falla callado.
+
+Quedan en el servidor los `.bak-rename` como vuelta atrás. Conviene retirarlos
+cuando se haya convivido unos días con el nombre nuevo; contienen la URL
+anterior con su contraseña, en ficheros 0600 de `ubuntu`, igual que los `.env`.
