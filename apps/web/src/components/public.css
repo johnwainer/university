@@ -1621,6 +1621,163 @@
   color: #fda4af;
 }
 
+/* --- Perfil extendido del estudiante ------------------------------------- *
+ *
+ * Los dos bloques se distinguen a la vista y no sólo por el rótulo: el de
+ * «sólo docentes y staff» lleva filete y fondo propios. Un estudiante decide
+ * qué escribe según quién lo lee, así que la frontera tiene que verse de un
+ * vistazo y no leerse en letra pequeña.
+ */
+
+.profile-ext-form {
+  margin-top: 22px;
+  display: grid;
+  gap: 18px;
+  max-width: 620px;
+}
+
+.profile-ext-bloque {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #3a3a3f;
+  border-radius: 14px;
+  padding: 16px 18px 18px;
+  margin: 0;
+}
+
+.profile-ext-bloque legend {
+  padding: 0 8px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.98rem;
+}
+
+.profile-ext-bloque-staff {
+  border-color: rgba(212, 175, 54, 0.55);
+  background: rgba(212, 175, 54, 0.05);
+}
+
+.profile-ext-nota {
+  margin: 0;
+  color: #a8a8ae;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.profile-ext-bloque label {
+  display: grid;
+  gap: 6px;
+  color: #d9d9dc;
+  font-size: 0.92rem;
+}
+
+.profile-ext-bloque input,
+.profile-ext-bloque select,
+.profile-ext-bloque textarea {
+  border: 1px solid #3a3a3f;
+  border-radius: 10px;
+  background: #141418;
+  color: #fff;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.profile-ext-bloque textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.profile-ext-bloque input:focus,
+.profile-ext-bloque select:focus,
+.profile-ext-bloque textarea:focus {
+  outline: none;
+  border-color: rgba(45, 196, 199, 0.9);
+  box-shadow: 0 0 0 3px rgba(45, 196, 199, 0.2);
+}
+
+.profile-ext-bloque small {
+  color: #8f8f96;
+  font-size: 0.8rem;
+}
+
+.profile-ext-foto {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.profile-ext-avatar {
+  width: 88px;
+  height: 88px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid #3a3a3f;
+  background: #141418;
+  display: grid;
+  place-items: center;
+  color: #a8a8ae;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.profile-ext-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-ext-foto-acciones {
+  display: grid;
+  gap: 6px;
+  min-width: 240px;
+  flex: 1 1 240px;
+}
+
+.profile-ext-foto-label {
+  display: grid;
+  gap: 6px;
+  color: #d9d9dc;
+  font-size: 0.92rem;
+}
+
+.profile-ext-metas {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-ext-metas-titulo {
+  color: #d9d9dc;
+  font-size: 0.92rem;
+}
+
+/*
+ * El selector lleva `label` a propósito y no es redundante.
+ *
+ * `.profile-ext-bloque label` (0,2,1) pone `display: grid` a todas las
+ * etiquetas del bloque, y con `.profile-ext-checkbox` a secas (0,1,0) perdía:
+ * la casilla salía ENCIMA de su texto en vez de al lado. Se vio mirando la
+ * captura, no leyendo el código. Es la trampa de especificidad de siempre.
+ */
+.profile-ext-bloque label.profile-ext-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Objetivo de 44px: estas casillas se tocan desde el móvil. */
+  min-height: 44px;
+  color: #d9d9dc;
+  cursor: pointer;
+}
+
+.profile-ext-bloque label.profile-ext-checkbox input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  flex: 0 0 auto;
+  accent-color: #2dc4c7;
+}
+
 .auth-modal-backdrop {
   position: fixed;
   inset: 0;

@@ -75,7 +75,16 @@ export type EditableSyllabus = {
 };
 
 type Outcome = { id?: string; text?: string; assessment?: string };
-type Week = { week?: number; topic?: string; readings?: string; activities?: string };
+type Week = {
+  week?: number;
+  /** Fechas traídas del calendario del término; no se editan a mano. */
+  startsOn?: string;
+  endsOn?: string;
+  shifted?: boolean;
+  topic?: string;
+  readings?: string;
+  activities?: string;
+};
 
 type PublishResult = {
   destinations?: {
@@ -465,6 +474,9 @@ export function SyllabusEditor({
             content={content}
             update={update}
             updateIn={updateIn}
+            token={token}
+            syllabusId={syllabus.id}
+            termId={syllabus.term_id ?? null}
           />
         </section>
       </div>
@@ -479,13 +491,19 @@ function SectionFields({
   master,
   content,
   update,
-  updateIn
+  updateIn,
+  token,
+  syllabusId,
+  termId
 }: {
   section: MasterSection;
   master: MasterModel;
   content: Record<string, unknown>;
   update: (key: string, value: unknown) => void;
   updateIn: (key: string, field: string, value: unknown) => void;
+  token: string;
+  syllabusId: string;
+  termId: string | null;
 }) {
   const { t } = useTranslation();
 
@@ -528,7 +546,7 @@ function SectionFields({
     case 'assessment_weights':
       return <WeightsFields content={content} master={master} updateIn={updateIn} />;
     case 'course_schedule':
-      return <ScheduleFields content={content} update={update} />;
+      return <ScheduleFields content={content} update={update} token={token} syllabusId={syllabusId} termId={termId} />;
     case 'ai_standard':
       return <AiFields content={content} master={master} updateIn={updateIn} />;
     default:
@@ -783,20 +801,65 @@ function WeightsFields({
 
 function ScheduleFields({
   content,
-  update
+  update,
+  token,
+  syllabusId,
+  termId
 }: {
   content: Record<string, unknown>;
   update: (key: string, value: unknown) => void;
+  token: string;
+  syllabusId: string;
+  termId: string | null;
 }) {
   const { t } = useTranslation();
   const data = record(content, 'course_schedule');
   const weeks: Week[] = Array.isArray(data.weeks) ? (data.weeks as Week[]) : [];
+  const [sincronizando, setSincronizando] = useState(false);
+  const [avisoCalendario, setAvisoCalendario] = useState<string | null>(null);
 
   const write = (next: Week[]) => update('course_schedule', { ...data, weeks: next });
+
+  /**
+   * Trae las fechas del calendario académico del término.
+   *
+   * Es la respuesta a la pregunta de TFU sobre si el calendario se sincroniza
+   * con el sílabo: ahora sí, en una dirección. El término es la única fuente de
+   * fechas —si un festivo las desplaza, se desplazan para todas las secciones—
+   * y aquí se refrescan sin tocar tema, lecturas ni actividades.
+   */
+  const traerDelCalendario = async () => {
+    setSincronizando(true);
+    setAvisoCalendario(null);
+    try {
+      const resultado = await adminFetch<{ synced: boolean; reason?: string; weeks: Week[] }>(
+        token,
+        `/admin/syllabi/${encodeURIComponent(syllabusId)}/sync-calendar`,
+        { method: 'POST' }
+      );
+      write(resultado.weeks ?? []);
+      setAvisoCalendario(
+        resultado.synced
+          ? t('admin.syllabus.calendarioTraido')
+          : t('admin.syllabus.calendarioYaAlineado')
+      );
+    } catch (error) {
+      setAvisoCalendario(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSincronizando(false);
+    }
+  };
 
   return (
     <>
       <p className="muted">{t('admin.syllabus.cronogramaAviso')}</p>
+      <div className="inline-actions" style={{ marginBottom: '10px' }}>
+        <button className="ghost" onClick={() => void traerDelCalendario()} disabled={sincronizando || !termId}>
+          {sincronizando ? t('admin.syllabus.calendarioTrayendo') : t('admin.syllabus.calendarioTraer')}
+        </button>
+        {!termId ? <small className="muted">{t('admin.syllabus.calendarioSinTermino')}</small> : null}
+      </div>
+      {avisoCalendario ? <p className="muted">{avisoCalendario}</p> : null}
       {weeks.length === 0 ? (
         <button
           className="ghost"
@@ -809,7 +872,18 @@ function ScheduleFields({
       ) : null}
       {weeks.map((week, index) => (
         <fieldset className="syllabus-repeat" key={index}>
-          <legend>{t('admin.syllabus.semana', { numero: week.week ?? index + 1 })}</legend>
+          <legend>
+            {t('admin.syllabus.semana', { numero: week.week ?? index + 1 })}
+            {/* Las fechas vienen del calendario y por eso se MUESTRAN, no se
+                editan aquí: editarlas en el sílabo las separaría del término. */}
+            {week.startsOn && week.endsOn ? (
+              <small className="muted">
+                {' '}
+                · {week.startsOn} – {week.endsOn}
+                {week.shifted ? ` · ${t('admin.syllabus.semanaDesplazada')}` : ''}
+              </small>
+            ) : null}
+          </legend>
           <label className="syllabus-field">
             <span>{t('admin.syllabus.semanaTema')}</span>
             <input

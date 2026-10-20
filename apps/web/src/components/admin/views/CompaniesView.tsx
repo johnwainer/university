@@ -437,8 +437,23 @@ export function CompaniesView({
     }
   };
 
+  /*
+   * La nota de arriba no es decorativa.
+   *
+   * TFU preguntó literalmente «¿para qué es esta sección? ¿agrupa programas?»,
+   * y la pregunta estaba justificada: el módulo se llama «Departamentos» en el
+   * menú pero por dentro son `companies` → miembros → grupos de aulas. Agrupa
+   * PERSONAS Y AULAS en unidades; no agrupa programas. Lo que agrupa programas
+   * es el departamento académico de `degree_programs.department_id`, que vive
+   * en SIS.
+   *
+   * Decirlo en la propia pantalla es más barato que volver a explicarlo por
+   * correo cada vez que alguien nuevo entra al panel.
+   */
   return (
-    <section className="grid-2">
+    <>
+      <p className="ad-note">{t('admin.companies.queEsEstaSeccion')}</p>
+      <section className="grid-2">
       <article className="card">
         <h2>{selectedCompanyId ? t('admin.companies.editarTitulo', { nombre: companyForm.name }) : t('admin.companies.crearEmpresa')}</h2>
         <form className="login-form" onSubmit={(e) => {
@@ -1120,6 +1135,7 @@ export function CompaniesView({
             </div>
         )}
       </article>
-    </section>
+      </section>
+    </>
   );
 }

@@ -17,6 +17,55 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api';
 
 type Stage = 'lead' | 'applied' | 'admitted' | 'enrolled' | 'rejected';
 
+/**
+ * Perfil declarativo del estudiante, tal y como lo sirve
+ * `/admin/students/profiles` y `/admin/students/:id/profile`.
+ *
+ * El bloque `staff` existe en la respuesta porque esta pantalla ES la de
+ * docentes y staff. En el portal del estudiante el mismo dato viaja aparte, y
+ * en ninguna respuesta pública viaja.
+ */
+type PerfilResumen = {
+  id: string;
+  fullName: string;
+  email: string;
+  preferredName: string | null;
+  avatarUrl: string | null;
+  headline: string | null;
+  industry: string | null;
+  countryRegion: string | null;
+  aiFamiliarity: string | null;
+  updatedAt: string | null;
+  camposLlenos: number;
+  total: number;
+};
+
+type PerfilDetalle = {
+  user: { id: string; fullName: string; email: string; locale: string };
+  updatedAt: string | null;
+  exists: boolean;
+  visible: {
+    preferredName: string | null;
+    avatarUrl: string | null;
+    headline: string | null;
+    industry: string | null;
+    bio: string | null;
+    countryRegion: string | null;
+    portfolioUrl: string | null;
+  };
+  staff: {
+    legalName: string | null;
+    currentRole: string | null;
+    yearsExperience: number | null;
+    aiFamiliarity: string | null;
+    learningGoals: string[];
+    timeZone: string | null;
+    preferredContact: string | null;
+    languages: string | null;
+    languageSupport: string | null;
+  };
+};
+
 type AdmissionApplication = {
   id: string;
   full_name: string;
@@ -130,7 +179,7 @@ function formatMoney(cents: number, currency: string): string {
   return `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
 }
 
-type SisTab = 'admissions' | 'finance' | 'audit';
+type SisTab = 'admissions' | 'finance' | 'audit' | 'perfiles';
 
 const STAGES: Stage[] = ['lead', 'applied', 'admitted', 'enrolled', 'rejected'];
 
@@ -145,6 +194,13 @@ export function SisView({
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<SisTab>('admissions');
+
+  // Perfiles de estudiantes (campos declarativos pedidos por TFU).
+  const [perfiles, setPerfiles] = useState<PerfilResumen[]>([]);
+  const [perfilBusqueda, setPerfilBusqueda] = useState('');
+  const [soloIncompletos, setSoloIncompletos] = useState(false);
+  const [perfilDetalle, setPerfilDetalle] = useState<PerfilDetalle | null>(null);
+  const [cargandoPerfiles, setCargandoPerfiles] = useState(false);
 
   // Admisiones
   const [applications, setApplications] = useState<AdmissionApplication[]>([]);
@@ -394,6 +450,46 @@ export function SisView({
     }
   };
 
+
+  const cargarPerfiles = async () => {
+    if (!sessionToken) return;
+    setCargandoPerfiles(true);
+    try {
+      const params = new URLSearchParams();
+      if (perfilBusqueda.trim()) params.set('search', perfilBusqueda.trim());
+      if (soloIncompletos) params.set('soloIncompletos', 'true');
+      const data = await sisFetch<{ items: PerfilResumen[] }>(
+        sessionToken,
+        `/admin/students/profiles${params.toString() ? `?${params.toString()}` : ''}`
+      );
+      setPerfiles(data.items ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCargandoPerfiles(false);
+    }
+  };
+
+  const abrirPerfil = async (userId: string) => {
+    if (!sessionToken) return;
+    try {
+      const data = await sisFetch<PerfilDetalle>(sessionToken, `/admin/students/${encodeURIComponent(userId)}/profile`);
+      setPerfilDetalle(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  // La pestaña carga sola al abrirse: obligar a pulsar «buscar» para ver la
+  // lista entera es una fricción sin motivo.
+  useEffect(() => {
+    if (tab === 'perfiles' && sessionToken && perfiles.length === 0 && !cargandoPerfiles) {
+      void cargarPerfiles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, sessionToken]);
+
+
   return (
     <section className="grid-1">
       <article className="card">
@@ -407,7 +503,165 @@ export function SisView({
           <button className={tab === 'audit' ? '' : 'ghost'} onClick={() => setTab('audit')}>
             {t('admin.sis.tabAuditoria')}
           </button>
+          <button className={tab === 'perfiles' ? '' : 'ghost'} onClick={() => setTab('perfiles')}>
+            {t('admin.sis.tabPerfiles')}
+          </button>
         </div>
+
+        {tab === 'perfiles' && (
+          <div className="grid-2">
+            <div>
+              <h2>{t('admin.sis.perfilesTitulo', { total: perfiles.length })}</h2>
+              <p className="ad-note">{t('admin.sis.perfilesNota')}</p>
+              <div className="inline-actions" style={{ marginBottom: '12px' }}>
+                <input
+                  value={perfilBusqueda}
+                  placeholder={t('admin.sis.perfilesBuscar')}
+                  onChange={(e) => setPerfilBusqueda(e.target.value)}
+                />
+                <label className="ad-field" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={soloIncompletos}
+                    onChange={(e) => setSoloIncompletos(e.target.checked)}
+                  />
+                  {t('admin.sis.perfilesSoloIncompletos')}
+                </label>
+                <button onClick={() => void cargarPerfiles()} disabled={cargandoPerfiles}>
+                  {cargandoPerfiles ? t('admin.sis.perfilesCargando') : t('admin.sis.perfilesActualizar')}
+                </button>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{t('admin.sis.perfilesColEstudiante')}</th>
+                      <th>{t('admin.sis.perfilesColTitular')}</th>
+                      <th>{t('admin.sis.perfilesColIndustria')}</th>
+                      <th>{t('admin.sis.perfilesColCompletitud')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {perfiles.length === 0 ? (
+                      <tr>
+                        <td colSpan={4}>{t('admin.sis.perfilesVacio')}</td>
+                      </tr>
+                    ) : (
+                      perfiles.map((fila) => (
+                        <tr
+                          key={fila.id}
+                          onClick={() => void abrirPerfil(fila.id)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td>
+                            {fila.preferredName ? `${fila.preferredName} · ` : ''}
+                            {fila.fullName}
+                            <br />
+                            <small>{fila.email}</small>
+                          </td>
+                          <td>{fila.headline ?? '—'}</td>
+                          <td>{fila.industry ?? '—'}</td>
+                          {/* Completitud como fracción y no como porcentaje: con
+                              seis campos, «3 de 6» se entiende sin calcular. */}
+                          <td>
+                            <span
+                              className={`ad-badge ${
+                                fila.camposLlenos >= fila.total ? 'ad-badge-ok' : 'ad-badge-warn'
+                              }`}
+                            >
+                              {fila.camposLlenos} / {fila.total}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <h2>{t('admin.sis.perfilDetalleTitulo')}</h2>
+              {!perfilDetalle ? (
+                <p className="ad-empty">{t('admin.sis.perfilDetalleVacio')}</p>
+              ) : (
+                <article className="ad-card">
+                  <div className="ad-card-body">
+                    <h3>
+                      {perfilDetalle.visible.preferredName
+                        ? `${perfilDetalle.visible.preferredName} (${perfilDetalle.user.fullName})`
+                        : perfilDetalle.user.fullName}
+                    </h3>
+                    <p>
+                      <small>{perfilDetalle.user.email}</small>
+                    </p>
+                    {perfilDetalle.visible.avatarUrl ? (
+                      <img
+                        src={perfilDetalle.visible.avatarUrl}
+                        alt=""
+                        style={{ width: '96px', height: '96px', borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                    ) : null}
+                    <dl className="ad-matrix">
+                      <dt>{t('profileExt.headline')}</dt>
+                      <dd>{perfilDetalle.visible.headline ?? '—'}</dd>
+                      <dt>{t('profileExt.industry')}</dt>
+                      <dd>{perfilDetalle.visible.industry ?? '—'}</dd>
+                      <dt>{t('profileExt.countryRegion')}</dt>
+                      <dd>{perfilDetalle.visible.countryRegion ?? '—'}</dd>
+                      <dt>{t('profileExt.bio')}</dt>
+                      <dd>{perfilDetalle.visible.bio ?? '—'}</dd>
+                      <dt>{t('profileExt.portfolioUrl')}</dt>
+                      <dd>
+                        {perfilDetalle.visible.portfolioUrl ? (
+                          <a href={perfilDetalle.visible.portfolioUrl} target="_blank" rel="noopener noreferrer">
+                            {perfilDetalle.visible.portfolioUrl}
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </dd>
+                      <dt>{t('profileExt.legalName')}</dt>
+                      <dd>{perfilDetalle.staff.legalName ?? '—'}</dd>
+                      <dt>{t('profileExt.currentRole')}</dt>
+                      <dd>
+                        {perfilDetalle.staff.currentRole ?? '—'}
+                        {perfilDetalle.staff.yearsExperience != null
+                          ? ` · ${perfilDetalle.staff.yearsExperience} ${t('admin.sis.perfilAnios')}`
+                          : ''}
+                      </dd>
+                      <dt>{t('profileExt.aiFamiliarity')}</dt>
+                      <dd>{perfilDetalle.staff.aiFamiliarity ?? '—'}</dd>
+                      <dt>{t('profileExt.learningGoals')}</dt>
+                      <dd>
+                        {perfilDetalle.staff.learningGoals.length > 0
+                          ? perfilDetalle.staff.learningGoals.join(', ')
+                          : '—'}
+                      </dd>
+                      <dt>{t('profileExt.timeZone')}</dt>
+                      <dd>{perfilDetalle.staff.timeZone ?? '—'}</dd>
+                      <dt>{t('profileExt.preferredContact')}</dt>
+                      <dd>{perfilDetalle.staff.preferredContact ?? '—'}</dd>
+                      <dt>{t('profileExt.languages')}</dt>
+                      <dd>{perfilDetalle.staff.languages ?? '—'}</dd>
+                      <dt>{t('profileExt.languageSupport')}</dt>
+                      <dd>{perfilDetalle.staff.languageSupport ?? '—'}</dd>
+                    </dl>
+                    <p>
+                      <small>
+                        {perfilDetalle.updatedAt
+                          ? t('admin.sis.perfilActualizado', {
+                              fecha: new Date(perfilDetalle.updatedAt).toLocaleString()
+                            })
+                          : t('admin.sis.perfilNuncaLlenado')}
+                      </small>
+                    </p>
+                  </div>
+                </article>
+              )}
+            </div>
+          </div>
+        )}
 
         {tab === 'admissions' && (
           <div className="grid-2">
