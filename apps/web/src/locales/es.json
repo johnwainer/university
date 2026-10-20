@@ -223,7 +223,23 @@
     "minChars": "Mínimo 10 caracteres",
     "oneUppercase": "Una mayúscula",
     "oneNumber": "Un número",
-    "oneSymbol": "Un símbolo"
+    "oneSymbol": "Un símbolo",
+    "reglaPassword": {
+      "minLength": "mínimo 10 caracteres",
+      "upper": "al menos una mayúscula",
+      "lower": "al menos una minúscula",
+      "digit": "al menos un número",
+      "symbol": "al menos un símbolo !@#$%^&*"
+    },
+    "error": {
+      "emailFormato": "Correo inválido. Verifica el formato (ejemplo@dominio.com).",
+      "emailFormatoCorto": "Correo inválido. Verifica el formato.",
+      "passwordNoCoincide": "Las contraseñas no coinciden.",
+      "passwordInsegura": "Contraseña insegura: {{reglas}}.",
+      "terminosRegistro": "Debes aceptar términos y condiciones para continuar.",
+      "terminosLogin": "Debes aceptar términos y condiciones para iniciar sesión.",
+      "nombreCorto": "El nombre debe tener al menos 3 caracteres."
+    }
   },
   "enterprise": {
     "eyebrow": "{{brandShort}} Académico",
@@ -348,7 +364,13 @@
       "sinCursosIndividuales": "Sin cursos individuales",
       "asignarGrupo": "Asignar grupo de cursos",
       "seleccionaGrupo": "Selecciona un grupo",
-      "sinGruposAsignados": "Sin grupos asignados"
+      "sinGruposAsignados": "Sin grupos asignados",
+      "errorCargar": "No se pudieron cargar los grupos.",
+      "errorCargarAsignacion": "No se pudo cargar la asignación del usuario.",
+      "errorAnadirCurso": "No se pudo añadir el aula al grupo.",
+      "errorAsignarCurso": "No se pudo asignar el aula.",
+      "errorQuitarCurso": "No se pudo quitar el aula del usuario.",
+      "errorQuitarGrupo": "No se pudo quitar el grupo del usuario."
     }
   },
   "legal": {
@@ -1156,7 +1178,7 @@
       },
       "enterprise": {
         "label": "Departamentos",
-        "hint": "Empresas y programas B2B"
+        "hint": "Unidades con estudiantes y aulas asignadas"
       },
       "sis": {
         "label": "SIS / Académico",
@@ -1707,7 +1729,8 @@
       "errorEliminarPaquete": "No se pudo eliminar paquete",
       "errorAnadirCursoPaquete": "No se pudo añadir el aula al paquete",
       "errorRemoverCursoPaquete": "No se pudo remover el aula del paquete",
-      "errorSync": "Error al sincronizar empresa"
+      "errorSync": "Error al sincronizar empresa",
+      "queEsEstaSeccion": "Esta sección agrupa estudiantes y aulas en unidades (departamentos o cuentas corporativas): una unidad tiene miembros y grupos de aulas asignados. No agrupa programas — el programa se agrupa por departamento académico desde SIS."
     },
     "compliance": {
       "sinSesion": "Inicia sesión para gestionar el cumplimiento.",
@@ -2347,7 +2370,24 @@
       "errorCrearFactura": "No se pudo crear la factura",
       "errorCrearBloqueo": "No se pudo crear el bloqueo",
       "errorLiberarBloqueo": "No se pudo liberar el bloqueo",
-      "errorCargarAuditoria": "No se pudo cargar la auditoría"
+      "errorCargarAuditoria": "No se pudo cargar la auditoría",
+      "tabPerfiles": "Perfiles",
+      "perfilesTitulo": "Perfiles de estudiantes ({{total}})",
+      "perfilesNota": "Lo que cada estudiante declara sobre sí mismo. Incluye el bloque que sólo ven docentes y staff; no se publica en ninguna página.",
+      "perfilesBuscar": "Buscar por nombre o correo",
+      "perfilesSoloIncompletos": "Sólo perfiles incompletos",
+      "perfilesActualizar": "Actualizar",
+      "perfilesCargando": "Cargando...",
+      "perfilesVacio": "No hay estudiantes que mostrar.",
+      "perfilesColEstudiante": "Estudiante",
+      "perfilesColTitular": "Titular profesional",
+      "perfilesColIndustria": "Industria",
+      "perfilesColCompletitud": "Campos llenos",
+      "perfilDetalleTitulo": "Ficha del estudiante",
+      "perfilDetalleVacio": "Elige un estudiante de la lista para ver su perfil.",
+      "perfilAnios": "años de experiencia",
+      "perfilActualizado": "Actualizado por el estudiante el {{fecha}}.",
+      "perfilNuncaLlenado": "Este estudiante todavía no ha llenado su perfil."
     },
     "syllabus": {
       "tratamientoFacultad": "Redacta la facultad",
@@ -2438,7 +2478,13 @@
       "indicacionesPlaceholder": "Qué se admite, qué hay que declarar y cómo se cita.",
       "errorCargarMaster": "No se pudo cargar el Master Syllabus",
       "errorGuardar": "No se pudo guardar",
-      "errorPublicar": "No se pudo publicar"
+      "errorPublicar": "No se pudo publicar",
+      "calendarioTraer": "Traer fechas del calendario",
+      "calendarioTrayendo": "Trayendo fechas...",
+      "calendarioTraido": "Las ocho semanas se actualizaron con las fechas del término. El tema, las lecturas y las actividades se conservaron.",
+      "calendarioYaAlineado": "La malla ya coincide con el calendario del término.",
+      "calendarioSinTermino": "Asigna un término al sílabo para traer sus fechas.",
+      "semanaDesplazada": "fechas desplazadas por festivo"
     },
     "cuentaArranque": "Administrador (.env)",
     "registrar": {
@@ -2624,6 +2670,49 @@
         "titulo": "Finalizador",
         "texto": "Completaste el curso entero."
       }
-    }
+    },
+    "requiereSesion": "Debes registrarte o iniciar sesión para entrar al curso.",
+    "abrirEnlace": "Abrir el enlace de la actividad",
+    "contenidoNoDisponible": "El contenido detallado del aula no está disponible.",
+    "errorCargando": "No se pudo cargar el contenido del aula."
+  },
+  "profileExt": {
+    "cargando": "Cargando tu perfil...",
+    "errorCargar": "No se pudo cargar tu perfil.",
+    "errorGuardar": "No se pudo guardar tu perfil.",
+    "guardar": "Guardar perfil",
+    "guardando": "Guardando...",
+    "guardado": "Perfil guardado.",
+    "sinElegir": "Sin especificar",
+    "bloqueVisible": "Tu perfil",
+    "bloqueVisibleNota": "Esto es lo que la universidad usa para presentarte: lo ven tus docentes y el equipo académico.",
+    "bloqueStaff": "Sólo para docentes y staff",
+    "bloqueStaffNota": "Este bloque lo ven únicamente tus docentes y el equipo de la universidad. Sirve para acompañarte mejor; no aparece en ninguna página pública.",
+    "foto": "Foto o avatar",
+    "fotoAlt": "Tu foto de perfil",
+    "fotoAyuda": "JPEG, PNG o WebP, hasta 2 MB. Se recomienda una foto de rostro; un avatar también sirve.",
+    "fotoNoConfigurada": "La subida de fotos todavía no está habilitada en el servidor. El resto del perfil se guarda igual.",
+    "fotoPesada": "La imagen pesa más de 2 MB. Elige una más liviana.",
+    "fotoIlegible": "No se pudo leer la imagen. Intenta con otro archivo.",
+    "preferredName": "Nombre preferido",
+    "headline": "Titular profesional",
+    "headlinePlaceholder": "Ej.: Gerente de operaciones en salud",
+    "industry": "Industria",
+    "bio": "Biografía corta",
+    "bioPrompt": "¿Qué quieres poder hacer con IA al terminar este programa?",
+    "bioAyuda": "De dos a cuatro frases.",
+    "countryRegion": "País o región",
+    "countryRegionAyuda": "Sólo el país o la región; no hace falta la dirección.",
+    "portfolioUrl": "LinkedIn o portafolio (opcional)",
+    "legalName": "Nombre legal",
+    "legalNameAyuda": "Sólo si es distinto de tu nombre preferido.",
+    "currentRole": "Cargo actual",
+    "yearsExperience": "Años de experiencia",
+    "aiFamiliarity": "Tu familiaridad con la IA",
+    "learningGoals": "Metas de aprendizaje",
+    "timeZone": "Zona horaria",
+    "preferredContact": "Medio de contacto preferido",
+    "languages": "Idiomas que hablas",
+    "languageSupport": "¿Necesitas algún apoyo con el idioma?"
   }
 }

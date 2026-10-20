@@ -223,7 +223,23 @@
     "minChars": "Minimum 10 characters",
     "oneUppercase": "One uppercase",
     "oneNumber": "One number",
-    "oneSymbol": "One symbol"
+    "oneSymbol": "One symbol",
+    "reglaPassword": {
+      "minLength": "at least 10 characters",
+      "upper": "at least one uppercase letter",
+      "lower": "at least one lowercase letter",
+      "digit": "at least one number",
+      "symbol": "at least one symbol !@#$%^&*"
+    },
+    "error": {
+      "emailFormato": "Invalid email. Check the format (example@domain.com).",
+      "emailFormatoCorto": "Invalid email. Check the format.",
+      "passwordNoCoincide": "The passwords do not match.",
+      "passwordInsegura": "Weak password: {{reglas}}.",
+      "terminosRegistro": "You must accept the terms and conditions to continue.",
+      "terminosLogin": "You must accept the terms and conditions to sign in.",
+      "nombreCorto": "The name must be at least 3 characters long."
+    }
   },
   "enterprise": {
     "eyebrow": "{{brandShort}} Academic",
@@ -348,7 +364,13 @@
       "sinCursosIndividuales": "No individual courses",
       "asignarGrupo": "Assign a course group",
       "seleccionaGrupo": "Pick a group",
-      "sinGruposAsignados": "No groups assigned"
+      "sinGruposAsignados": "No groups assigned",
+      "errorCargar": "The groups could not be loaded.",
+      "errorCargarAsignacion": "The user's assignment could not be loaded.",
+      "errorAnadirCurso": "The classroom could not be added to the group.",
+      "errorAsignarCurso": "The classroom could not be assigned.",
+      "errorQuitarCurso": "The classroom could not be removed from the user.",
+      "errorQuitarGrupo": "The group could not be removed from the user."
     }
   },
   "legal": {
@@ -1156,7 +1178,7 @@
       },
       "enterprise": {
         "label": "Departments",
-        "hint": "Companies and B2B programs"
+        "hint": "Units with students and classrooms assigned"
       },
       "sis": {
         "label": "SIS / Academic",
@@ -1707,7 +1729,8 @@
       "errorEliminarPaquete": "Could not delete the bundle",
       "errorAnadirCursoPaquete": "Could not add the classroom to the bundle",
       "errorRemoverCursoPaquete": "Could not remove the classroom from the bundle",
-      "errorSync": "Could not sync the department"
+      "errorSync": "Could not sync the department",
+      "queEsEstaSeccion": "This section groups students and classrooms into units (departments or corporate accounts): a unit has members and assigned classroom groups. It does not group programs — programs are grouped by academic department in SIS."
     },
     "compliance": {
       "sinSesion": "Sign in to manage compliance.",
@@ -2347,7 +2370,24 @@
       "errorCrearFactura": "Could not create the invoice",
       "errorCrearBloqueo": "Could not place the hold",
       "errorLiberarBloqueo": "Could not release the hold",
-      "errorCargarAuditoria": "Could not load the degree audit"
+      "errorCargarAuditoria": "Could not load the degree audit",
+      "tabPerfiles": "Profiles",
+      "perfilesTitulo": "Student profiles ({{total}})",
+      "perfilesNota": "What each student declares about themselves. It includes the block only instructors and staff can see; it is never published on any page.",
+      "perfilesBuscar": "Search by name or email",
+      "perfilesSoloIncompletos": "Incomplete profiles only",
+      "perfilesActualizar": "Refresh",
+      "perfilesCargando": "Loading...",
+      "perfilesVacio": "There are no students to show.",
+      "perfilesColEstudiante": "Student",
+      "perfilesColTitular": "Professional headline",
+      "perfilesColIndustria": "Industry",
+      "perfilesColCompletitud": "Fields filled",
+      "perfilDetalleTitulo": "Student record",
+      "perfilDetalleVacio": "Pick a student from the list to see their profile.",
+      "perfilAnios": "years of experience",
+      "perfilActualizado": "Updated by the student on {{fecha}}.",
+      "perfilNuncaLlenado": "This student has not filled in their profile yet."
     },
     "syllabus": {
       "tratamientoFacultad": "Written by faculty",
@@ -2438,7 +2478,13 @@
       "indicacionesPlaceholder": "What is allowed, what must be disclosed and how to cite it.",
       "errorCargarMaster": "Could not load the Master Syllabus",
       "errorGuardar": "Could not save",
-      "errorPublicar": "Could not publish"
+      "errorPublicar": "Could not publish",
+      "calendarioTraer": "Pull dates from the calendar",
+      "calendarioTrayendo": "Pulling dates...",
+      "calendarioTraido": "The eight weeks were updated with the term dates. Topic, readings and activities were kept.",
+      "calendarioYaAlineado": "The schedule already matches the term calendar.",
+      "calendarioSinTermino": "Assign a term to the syllabus to pull its dates.",
+      "semanaDesplazada": "dates shifted by a holiday"
     },
     "cuentaArranque": "Administrator (.env)",
     "registrar": {
@@ -2624,6 +2670,49 @@
         "titulo": "Finisher",
         "texto": "You completed the whole course."
       }
-    }
+    },
+    "requiereSesion": "Sign up or sign in to enter the course.",
+    "abrirEnlace": "Open the activity link",
+    "contenidoNoDisponible": "The detailed classroom content is not available.",
+    "errorCargando": "The classroom content could not be loaded."
+  },
+  "profileExt": {
+    "cargando": "Loading your profile...",
+    "errorCargar": "Your profile could not be loaded.",
+    "errorGuardar": "Your profile could not be saved.",
+    "guardar": "Save profile",
+    "guardando": "Saving...",
+    "guardado": "Profile saved.",
+    "sinElegir": "Not specified",
+    "bloqueVisible": "Your profile",
+    "bloqueVisibleNota": "This is what the university uses to introduce you: your instructors and the academic team can see it.",
+    "bloqueStaff": "Instructors and staff only",
+    "bloqueStaffNota": "Only your instructors and the university team can see this block. It helps them support you; it never appears on a public page.",
+    "foto": "Photo or avatar",
+    "fotoAlt": "Your profile photo",
+    "fotoAyuda": "JPEG, PNG or WebP, up to 2 MB. A headshot is encouraged; an avatar is accepted.",
+    "fotoNoConfigurada": "Photo upload is not enabled on the server yet. The rest of the profile is saved as usual.",
+    "fotoPesada": "The image is larger than 2 MB. Please pick a smaller one.",
+    "fotoIlegible": "The image could not be read. Try another file.",
+    "preferredName": "Preferred name",
+    "headline": "Professional headline",
+    "headlinePlaceholder": "e.g. Operations manager in healthcare",
+    "industry": "Industry",
+    "bio": "Short bio",
+    "bioPrompt": "What do you want to be able to do with AI after this program?",
+    "bioAyuda": "Two to four sentences.",
+    "countryRegion": "Country or region",
+    "countryRegionAyuda": "Country or region only; no street address needed.",
+    "portfolioUrl": "LinkedIn or portfolio (optional)",
+    "legalName": "Legal name",
+    "legalNameAyuda": "Only if it differs from your preferred name.",
+    "currentRole": "Current role",
+    "yearsExperience": "Years of experience",
+    "aiFamiliarity": "Your AI familiarity",
+    "learningGoals": "Learning goals",
+    "timeZone": "Time zone",
+    "preferredContact": "Preferred contact method",
+    "languages": "Languages you speak",
+    "languageSupport": "Do you need any language support?"
   }
 }

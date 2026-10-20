@@ -22,6 +22,7 @@ import { EnterpriseGroupManager } from './EnterpriseGroupManager';
 import { BRAND, BRAND_SHORT } from '../i18n';
 import { INSTITUTION_CONTACTS } from '../institution';
 import { StudentAcademics } from './StudentAcademics';
+import { StudentProfileFields } from './StudentProfileFields';
 import { StudentProgram } from './StudentProgram';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ContactSection } from './public/ContactSection';
@@ -563,6 +564,43 @@ function youtubeEmbedUrl(input: string): string | null {
   return code ? `https://www.youtube.com/embed/${code}?rel=0&modestbranding=1` : null;
 }
 
+/**
+ * Vimeo, con la misma forma que YouTube: el id numérico del vídeo.
+ *
+ * `player.vimeo.com/video/<id>` es el único que se puede incrustar; la URL que
+ * la gente copia del navegador (`vimeo.com/<id>`) NO se puede meter en un
+ * iframe ni en un `<video>`.
+ */
+function vimeoEmbedUrl(input: string): string | null {
+  try {
+    const url = new URL(input.trim());
+    if (!url.hostname.toLowerCase().includes('vimeo.com')) {
+      return null;
+    }
+    const id = url.pathname.split('/').filter(Boolean).pop() ?? '';
+    return /^\d{6,}$/.test(id) ? `https://player.vimeo.com/video/${id}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * URL incrustable de un vídeo alojado en un servicio externo.
+ *
+ * Esto existe porque el aula tenía un defecto que sólo se ve con contenido
+ * real: una actividad de tipo `url` apuntando a YouTube acababa en
+ * `<video src="https://www.youtube.com/watch?v=...">`, y un `<video>` no
+ * reproduce una página de YouTube — se quedaba un reproductor vacío. El
+ * ayudante de incrustar ya existía en este archivo, pero sólo estaba conectado
+ * a los podcasts.
+ *
+ * Los dos servicios están en `frame-src` de la CSP; cualquier otro devuelve
+ * null y el aula lo ofrece como enlace, que es honesto y funciona.
+ */
+function embedDeVideoExterno(input: string): string | null {
+  return youtubeEmbedUrl(input) ?? vimeoEmbedUrl(input);
+}
+
 function youtubeThumbUrl(input: string): string {
   const code = extractYouTubeCode(input);
   return code ? `https://i.ytimg.com/vi/${code}/hqdefault.jpg` : 'https://picsum.photos/seed/tfu-podcast/640/360';
@@ -582,22 +620,30 @@ function generateStrongPassword(length = 14): string {
   return chars.sort(() => Math.random() - 0.5).join('');
 }
 
+/**
+ * Reglas de contraseña incumplidas, devueltas como CLAVES de i18n y no como
+ * texto.
+ *
+ * Es una función de módulo y no tiene acceso a `t()`; cuando devolvía el texto
+ * ya escrito, las cinco reglas salían en español aunque el portal estuviera en
+ * inglés. Quien la llama traduce cada clave, que es donde `t()` existe.
+ */
 function getPasswordValidation(password: string): string[] {
   const issues: string[] = [];
   if (password.length < 10) {
-    issues.push('mínimo 10 caracteres');
+    issues.push('auth.reglaPassword.minLength');
   }
   if (!/[A-Z]/.test(password)) {
-    issues.push('al menos una mayúscula');
+    issues.push('auth.reglaPassword.upper');
   }
   if (!/[a-z]/.test(password)) {
-    issues.push('al menos una minúscula');
+    issues.push('auth.reglaPassword.lower');
   }
   if (!/[0-9]/.test(password)) {
-    issues.push('al menos un número');
+    issues.push('auth.reglaPassword.digit');
   }
   if (!/[!@#$%^&*]/.test(password)) {
-    issues.push('al menos un símbolo !@#$%^&*');
+    issues.push('auth.reglaPassword.symbol');
   }
   return issues;
 }
@@ -709,12 +755,15 @@ export function PublicApp() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  // El idioma de la cuenta arranca en el que el visitante está viendo, no fijo
+  // en español: con el portal en inglés, una cuenta nueva nacía con locale 'es'
+  // y los avisos del SIS le llegarían en el idioma que no eligió.
   const [registerForm, setRegisterForm] = useState({
     fullName: '',
     email: '',
     password: '',
     confirmPassword: '',
-    locale: 'es',
+    locale: currentLang,
     acceptedTerms: false
   });
   const [loginForm, setLoginForm] = useState({ email: '', password: '', acceptedTerms: false });
@@ -723,7 +772,7 @@ export function PublicApp() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [profileForm, setProfileForm] = useState({ fullName: '', email: '', locale: 'es' });
+  const [profileForm, setProfileForm] = useState({ fullName: '', email: '', locale: currentLang });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -1082,7 +1131,7 @@ export function PublicApp() {
 
     if (!publicSession?.token) {
       setCourseContent(null);
-      setCourseContentError('Debes registrarte o iniciar sesión para entrar al curso.');
+      setCourseContentError(t('aula.requiereSesion'));
       return;
     }
 
@@ -1092,7 +1141,7 @@ export function PublicApp() {
       setInteractionMessage(null);
       try {
         const [response, remoteProgress, interactionsResult] = await Promise.all([
-          api.courseContent(moodleCourseId, publicSession.token),
+          api.courseContent(moodleCourseId, publicSession.token, currentLang),
           api.courseProgress(moodleCourseId, publicSession.token),
           api.courseInteractions(moodleCourseId, publicSession.token)
         ]);
@@ -1111,10 +1160,10 @@ export function PublicApp() {
           setProgress({ ...DEFAULT_PROGRESS });
         }
         if (!response.available) {
-          setCourseContentError(response.error ?? 'El contenido detallado de Moodle no está disponible.');
+          setCourseContentError(response.error ?? t('aula.contenidoNoDisponible'));
         }
       } catch (reason) {
-        const message = reason instanceof Error ? reason.message : 'Error cargando contenido del curso';
+        const message = reason instanceof Error ? reason.message : t('aula.errorCargando');
         setCourseContentError(message);
         if (message.includes('401')) {
           // La sesión caducó dentro del aula: se limpia y se vuelve a pedir.
@@ -1129,7 +1178,10 @@ export function PublicApp() {
     };
 
     void loadCourseContent();
-  }, [cursoAbiertoId, publicSession?.token]);
+    // `currentLang` está en las dependencias a propósito: al cambiar de idioma
+    // hay que volver a pedir el contenido, porque el texto lo resuelve la API y
+    // no el front. Sin esto el aula se quedaba en el idioma en que se abrió.
+  }, [cursoAbiertoId, publicSession?.token, currentLang]);
 
   /**
    * La búsqueda mira también los cursos del temario: alguien que busca
@@ -1307,7 +1359,20 @@ export function PublicApp() {
     return proxifyMoodleHtml(html, publicSession.token);
   }, [activeModule, publicSession?.token]);
 
-  const activeModuleVideoUrl = useMemo(() => {
+  /**
+   * Lo que apunta una actividad de tipo `url`, resuelto en tres casos.
+   *
+   * Antes esto devolvía la URL de CUALQUIER actividad `url` y el aula la metía
+   * en un `<video>`. Con eso: un vídeo de YouTube salía como reproductor vacío
+   * y un enlace a una página cualquiera —una lectura, una herramienta— salía
+   * también como reproductor vacío, sin enlace para abrirla. Los tres casos son
+   * distintos y ahora se distinguen:
+   *
+   *   embed   YouTube o Vimeo    -> iframe (los dos están en frame-src)
+   *   archivo .mp4, .webm, .mov  -> <video> por el proxy autenticado
+   *   enlace  cualquier otra URL -> botón para abrir en una pestaña nueva
+   */
+  const activeModuleUrlTarget = useMemo(() => {
     if (!activeModule || activeModule.module.modname !== 'url') {
       return null;
     }
@@ -1318,11 +1383,23 @@ export function PublicApp() {
     if (!raw) {
       return null;
     }
-    if (publicSession?.token && isMoodleProtectedFileUrl(raw)) {
-      return api.moodleFileUrl(raw, publicSession.token);
+    const embed = embedDeVideoExterno(raw);
+    if (embed) {
+      return { kind: 'embed' as const, url: embed };
     }
-    return raw;
+    if (isVideoContentFile({ filename: raw })) {
+      const src =
+        publicSession?.token && isMoodleProtectedFileUrl(raw)
+          ? api.moodleFileUrl(raw, publicSession.token)
+          : raw;
+      return { kind: 'archivo' as const, url: src };
+    }
+    return { kind: 'enlace' as const, url: raw };
   }, [activeModule, publicSession?.token]);
+
+  const activeModuleEmbedUrl = activeModuleUrlTarget?.kind === 'embed' ? activeModuleUrlTarget.url : null;
+  const activeModuleVideoUrl = activeModuleUrlTarget?.kind === 'archivo' ? activeModuleUrlTarget.url : null;
+  const activeModuleExternalLink = activeModuleUrlTarget?.kind === 'enlace' ? activeModuleUrlTarget.url : null;
 
   const activeModuleFileVideoUrl = useMemo(() => {
     if (!activeModule) {
@@ -1594,17 +1671,21 @@ export function PublicApp() {
     try {
       const email = registerForm.email.trim().toLowerCase();
       if (!isValidEmail(email)) {
-        throw new Error('Correo inválido. Verifica el formato (ejemplo@dominio.com).');
+        throw new Error(t('auth.error.emailFormato'));
       }
       if (registerForm.password !== registerForm.confirmPassword) {
-        throw new Error('Las contraseñas no coinciden.');
+        throw new Error(t('auth.error.passwordNoCoincide'));
       }
       const passwordIssues = getPasswordValidation(registerForm.password);
       if (passwordIssues.length > 0) {
-        throw new Error(`Contraseña insegura: ${passwordIssues.join(', ')}.`);
+        throw new Error(
+          t('auth.error.passwordInsegura', {
+            reglas: passwordIssues.map((clave) => t(clave)).join(', ')
+          })
+        );
       }
       if (!registerForm.acceptedTerms) {
-        throw new Error('Debes aceptar términos y condiciones para continuar.');
+        throw new Error(t('auth.error.terminosRegistro'));
       }
 
       const response = await api.publicAuth.register({
@@ -1637,10 +1718,10 @@ export function PublicApp() {
     try {
       const email = loginForm.email.trim().toLowerCase();
       if (!isValidEmail(email)) {
-        throw new Error('Correo inválido. Verifica el formato (ejemplo@dominio.com).');
+        throw new Error(t('auth.error.emailFormato'));
       }
       if (!loginForm.acceptedTerms) {
-        throw new Error('Debes aceptar términos y condiciones para iniciar sesión.');
+        throw new Error(t('auth.error.terminosLogin'));
       }
       const response = await api.publicAuth.login({
         email,
@@ -1689,10 +1770,10 @@ export function PublicApp() {
       const email = profileForm.email.trim().toLowerCase();
       const locale = profileForm.locale.trim().toLowerCase();
       if (fullName.length < 3) {
-        throw new Error('El nombre debe tener al menos 3 caracteres.');
+        throw new Error(t('auth.error.nombreCorto'));
       }
       if (!isValidEmail(email)) {
-        throw new Error('Correo inválido. Verifica el formato.');
+        throw new Error(t('auth.error.emailFormatoCorto'));
       }
       const response = await api.publicAuth.updateMe(publicSession.token, {
         fullName,
@@ -3031,17 +3112,43 @@ export function PublicApp() {
                       dangerouslySetInnerHTML={{ __html: activeModuleDescriptionHtml }}
                     />
 
-                    {activeModuleVideoUrl || activeModuleFileVideoUrl ? (
+                    {/* Vídeo alojado fuera (YouTube o Vimeo): iframe, no <video>. */}
+                    {activeModuleEmbedUrl ? (
+                      <div className="aula-video aula-video-embed">
+                        <iframe
+                          src={activeModuleEmbedUrl}
+                          title={activeModule.module.name}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                          allowFullScreen
+                          loading="lazy"
+                          referrerPolicy="strict-origin-when-cross-origin"
+                        />
+                      </div>
+                    ) : null}
+
+                    {/* Vídeo que es un archivo: reproductor nativo por el proxy. */}
+                    {!activeModuleEmbedUrl && (activeModuleVideoUrl || activeModuleFileVideoUrl) ? (
                       <div className="aula-video">
                         <video
                           controls
                           preload="metadata"
+                          playsInline
                           src={activeModuleVideoUrl ?? activeModuleFileVideoUrl ?? undefined}
                         />
                       </div>
                     ) : null}
 
-                    {!activeModuleVideoUrl && !activeModuleFileVideoUrl && (activeModule.module.contents ?? []).length > 0 ? (
+                    {/* Enlace externo que no es vídeo: antes se perdía dentro de
+                        un reproductor vacío y no había forma de abrirlo. */}
+                    {activeModuleExternalLink ? (
+                      <p className="aula-enlace-externo">
+                        <a href={activeModuleExternalLink} target="_blank" rel="noopener noreferrer">
+                          {t('aula.abrirEnlace')}
+                        </a>
+                      </p>
+                    ) : null}
+
+                    {!activeModuleEmbedUrl && !activeModuleExternalLink && !activeModuleVideoUrl && !activeModuleFileVideoUrl && (activeModule.module.contents ?? []).length > 0 ? (
                       <div className="aula-archivos">
                         <h3 className="aula-archivos-titulo">{t('aula.material')}</h3>
                         {(activeModule.module.contents ?? []).map((file, index) => {
@@ -3066,11 +3173,11 @@ export function PublicApp() {
                       </div>
                     ) : null}
 
-                    {!activeModuleVideoUrl && !activeModuleFileVideoUrl && (activeModule.module.contents ?? []).length === 0 ? (
+                    {!activeModuleEmbedUrl && !activeModuleExternalLink && !activeModuleVideoUrl && !activeModuleFileVideoUrl && (activeModule.module.contents ?? []).length === 0 ? (
                       <p className="aula-nota">{t('aula.sinMaterial')}</p>
                     ) : null}
 
-                    {!activeModuleVideoUrl && !activeModuleFileVideoUrl && activeFileUrl ? (
+                    {!activeModuleEmbedUrl && !activeModuleVideoUrl && !activeModuleFileVideoUrl && activeFileUrl ? (
                       <div className="aula-visor">
                         <iframe src={activeFileUrl} title={t('aula.visorTitulo')} />
                       </div>
@@ -3425,6 +3532,14 @@ export function PublicApp() {
               {profileError ? <p className="profile-editor-feedback error">{profileError}</p> : null}
             </form>
           )}
+          {/* Los campos que pidió TFU van en su propio componente y con su
+              propio guardado: el formulario de arriba es la IDENTIDAD (nombre,
+              correo, idioma) y al guardarla se sincroniza Moodle. El perfil
+              declarativo no toca Moodle, así que forzar un guardado conjunto
+              haría que corregir una bio reescribiera la cuenta del LMS. */}
+          {publicSession?.token ? (
+            <StudentProfileFields token={publicSession.token} locale={currentLang} />
+          ) : null}
         </section>
       ) : null}
 

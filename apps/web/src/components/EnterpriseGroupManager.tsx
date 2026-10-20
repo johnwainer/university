@@ -47,7 +47,7 @@ export function EnterpriseGroupManager({
                 setSelectedGroup(res.find((g) => g.id === selectedGroup.id) ?? null);
             }
         } catch (e) {
-            setError('No se pudieron cargar los grupos');
+            setError(t('enterprise.grupos.errorCargar'));
         } finally {
             setLoading(false);
         }
@@ -72,7 +72,7 @@ export function EnterpriseGroupManager({
             setMemberCourses(cr);
             setMemberGroups(gr);
         } catch {
-            setError('No se pudo cargar la asignación del usuario');
+            setError(t('enterprise.grupos.errorCargarAsignacion'));
         } finally {
             setLoadingMemberData(false);
         }
@@ -117,7 +117,7 @@ export function EnterpriseGroupManager({
             setSelectedCourseId('');
             await fetchGroups();
         } catch {
-            setError('Error al añadir curso');
+            setError(t('enterprise.grupos.errorAnadirCurso'));
         } finally {
             setLoading(false);
         }
@@ -146,7 +146,7 @@ export function EnterpriseGroupManager({
             await loadMemberData(assignMemberId);
             onRefresh();
         } catch {
-            setError('Error al asignar el curso');
+            setError(t('enterprise.grupos.errorAsignarCurso'));
         } finally {
             setLoading(false);
         }
@@ -176,7 +176,7 @@ export function EnterpriseGroupManager({
             await loadMemberData(assignMemberId);
             onRefresh();
         } catch {
-            setError('Error al remover curso del usuario');
+            setError(t('enterprise.grupos.errorQuitarCurso'));
         } finally {
             setLoading(false);
         }
@@ -190,7 +190,7 @@ export function EnterpriseGroupManager({
             await loadMemberData(assignMemberId);
             onRefresh();
         } catch {
-            setError('Error al remover grupo del usuario');
+            setError(t('enterprise.grupos.errorQuitarGrupo'));
         } finally {
             setLoading(false);
         }

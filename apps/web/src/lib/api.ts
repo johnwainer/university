@@ -366,7 +366,74 @@ export type PublicHomeResponse = Omit<HomeResponse, 'featured' | 'continueLearni
   programs: ProgramaPublico[];
 };
 
+/* -------------------------------------------------------------------------- */
+/* Perfil extendido del estudiante                                            */
+/* -------------------------------------------------------------------------- */
+
+export type OpcionPerfil = { value: string; labelEs: string; labelEn: string };
+
+export type OpcionesPerfil = {
+  aiFamiliarity: OpcionPerfil[];
+  learningGoals: OpcionPerfil[];
+  preferredContact: OpcionPerfil[];
+  /** Falso cuando el bucket de fotos no está configurado en el servidor. */
+  avatarUploadEnabled: boolean;
+};
+
+/** Bloque que la institución usa para presentar al estudiante. */
+export type PerfilVisible = {
+  preferredName: string | null;
+  avatarUrl: string | null;
+  headline: string | null;
+  industry: string | null;
+  bio: string | null;
+  countryRegion: string | null;
+  portfolioUrl: string | null;
+};
+
+/** Bloque que sólo ven docentes y staff. Lo declara el propio estudiante. */
+export type PerfilStaff = {
+  legalName: string | null;
+  currentRole: string | null;
+  yearsExperience: number | null;
+  aiFamiliarity: string | null;
+  learningGoals: string[];
+  timeZone: string | null;
+  preferredContact: string | null;
+  languages: string | null;
+  languageSupport: string | null;
+};
+
+export type PerfilEstudianteResponse = {
+  exists: boolean;
+  visible: PerfilVisible;
+  staff: PerfilStaff;
+  /** Motivo por el que la foto no se subió, cuando el perfil sí se guardó. */
+  avatarAviso?: string | null;
+};
+
+export type PerfilEstudiantePayload = Partial<
+  Omit<PerfilVisible, 'avatarUrl'> & PerfilStaff & { avatarDataUrl: string }
+>;
+
+export type PerfilResumenAdmin = {
+  id: string;
+  fullName: string;
+  email: string;
+  preferredName: string | null;
+  avatarUrl: string | null;
+  headline: string | null;
+  industry: string | null;
+  countryRegion: string | null;
+  aiFamiliarity: string | null;
+  updatedAt: string | null;
+  camposLlenos: number;
+  total: number;
+};
+
 export type MoodleCourseContentResponse = {
+  /** Idioma en el que la API resolvió el texto de Moodle. */
+  locale?: 'es' | 'en';
   moodleCourseId: number;
   available: boolean;
   error?: string;
@@ -1216,10 +1283,26 @@ export const api = {
     /** El programa del estudiante con su plan de estudios, notas y plazos. */
     program: (token: string) => fetchJson<MiProgramaResponse>('/v1/me/program', { auth: { token } })
   },
-  courseContent: (moodleCourseId: number, token: string) =>
-    fetchJson<MoodleCourseContentResponse>(`/v1/courses/${moodleCourseId}/content`, {
-      auth: { token }
+  /**
+   * Contenido del aula. El idioma va en la petición porque el texto lo trae
+   * Moodle con marcado multiidioma y es la API la que lo separa; sin `locale`
+   * el aula se quedaba en español aunque el portal estuviera en inglés.
+   */
+  /** Catálogos del perfil (familiaridad con IA, metas, contacto). */
+  profileOptions: () => fetchJson<OpcionesPerfil>('/v1/profile/options'),
+  /** Perfil extendido propio. El estudiante ve y edita también su bloque de staff. */
+  myProfile: (token: string) => fetchJson<PerfilEstudianteResponse>('/v1/me/profile', { auth: { token } }),
+  saveMyProfile: (token: string, payload: PerfilEstudiantePayload) =>
+    fetchJson<PerfilEstudianteResponse>('/v1/me/profile', {
+      method: 'PATCH',
+      auth: { token },
+      body: payload
     }),
+  courseContent: (moodleCourseId: number, token: string, locale: 'es' | 'en' = 'es') =>
+    fetchJson<MoodleCourseContentResponse>(
+      `/v1/courses/${moodleCourseId}/content?locale=${encodeURIComponent(locale)}`,
+      { auth: { token } }
+    ),
   moodleFileUrl: (url: string, token: string) =>
     `${API_URL}/v1/moodle/file?url=${encodeURIComponent(url)}&authToken=${encodeURIComponent(token)}`,
   submitPublicCourseInteraction: (

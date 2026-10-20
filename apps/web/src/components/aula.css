@@ -509,6 +509,60 @@
   background: #000;
 }
 
+/*
+ * Vídeo incrustado (YouTube, Vimeo).
+ *
+ * El iframe se enmarca con proporción 16:9 en vez de una altura fija: con una
+ * altura fija, el reproductor del servicio deja franjas negras arriba y abajo
+ * en pantallas estrechas, que es justo donde el aula se mira desde el móvil.
+ */
+.aula-video-embed {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--aula-radio-s);
+  overflow: hidden;
+  background: #000;
+}
+
+.aula-video-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/*
+ * Enlace externo de una actividad de tipo «url» que no es vídeo.
+ *
+ * Objetivo de 48px de alto, como el resto del aula: se diseñó para personas
+ * mayores y un enlace de texto suelto no se acierta con el dedo.
+ */
+.aula-enlace-externo {
+  margin-top: var(--aula-e2);
+}
+
+.aula-enlace-externo a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aula-e1);
+  min-height: var(--aula-toque);
+  padding: 0 var(--aula-e2);
+  border: 1px solid var(--aula-acento);
+  border-radius: var(--aula-radio-s);
+  color: var(--aula-acento);
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.aula-enlace-externo a:hover,
+.aula-enlace-externo a:focus-visible {
+  background: var(--aula-acento);
+  color: var(--aula-fondo);
+}
+
 /* --- Archivos adjuntos --------------------------------------------------- */
 
 .aula-archivos {
