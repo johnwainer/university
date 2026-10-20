@@ -1752,7 +1752,57 @@ Variables nuevas: `AVATAR_BUCKET`, `AVATAR_PUBLIC_BASE`, `AVATAR_PREFIX`,
 `AVATAR_MAX_BYTES`. Dependencia opcional nueva: `@aws-sdk/client-s3`, cargada
 de forma perezosa como `nodemailer`.
 
-### 26.5 «Let's talk about your program»: ni correo ni sistema de tickets
+### 26.5 «Let's talk about your program»: ahora sí guarda la comunicación
+
+> Esta sección se reescribió el 20 de octubre por la tarde: la respuesta de la
+> mañana —«ni correo ni tickets»— describía lo que había, y a continuación se
+> construyó lo que faltaba. Se deja el diagnóstico porque explica el porqué.
+
+**Lo que había.** `POST /v1/contact` guardaba una fila en `contact_messages`
+con un estado (`new` / `in_progress` / `closed` / `spam`) y se gestionaba desde
+el panel, dentro de la vista del checklist CIE. No salía ningún correo, porque
+`SMTP_URL` no está definida y el mailer no finge envíos.
+
+Para la pregunta de TFU eso contestaba a medias: la consulta se podía cerrar,
+pero «keeping all information about the communication» no se cumplía. De lo
+que se le dijo a la persona no quedaba nada.
+
+**Lo que hay ahora.**
+
+- `contact_message_events`: una fila por cada movimiento —nota interna,
+  respuesta, cambio de estado, cambio de responsable— con autor y fecha.
+  Inmutable y en orden. Un historial que se puede reescribir no es un
+  historial, así que nada lo edita ni lo borra.
+- **Responder desde el panel** manda un correo de verdad. Sin SMTP, la
+  respuesta se guarda marcada como no enviada **con el motivo**: el equipo ve
+  qué quedó pendiente de salir cuando TFU entregue los buzones. `nodemailer`
+  pasa a ser dependencia opcional; antes el mailer no podía enviar nada aunque
+  hubiera SMTP configurado.
+- **Nota interna y respuesta son dos botones distintos**, nunca uno con una
+  casilla. Mandarle por error a quien escribe una nota interna es un daño que
+  no se deshace.
+- **Código de referencia** `TFU-C-XXX-XXX`, con el formato del código de
+  admisiones y por el mismo motivo: se dicta por teléfono. Se le enseña a la
+  persona al enviar el formulario y es por lo que se busca en el panel. Las
+  consultas anteriores reciben el suyo en la migración.
+- **Sección propia en el panel**, bajo Admisiones. Antes vivía en el checklist
+  CIE, que es donde nadie la buscaba.
+
+**Un agujero que apareció al construirlo:** `/admin/contact-messages` no estaba
+en `ROUTE_SECTIONS`. Como una ruta sin mapear queda sólo para el
+superadministrador, la bandeja era invisible para el rol de admisiones y nada
+lo decía. Ahora cuelga de la sección `mensajes`.
+
+**Al desplegar:** un rol que ya existe no se reescribe, así que hay que
+conceder «Consultas» al rol de admisiones desde Roles y permisos. Las
+instalaciones nuevas ya lo traen.
+
+**Lo que sigue fuera:** un sistema de tickets completo —colas, SLA, portal del
+solicitante, adjuntos— es el Anexo A (osTicket, USD 950), fuera de los 26.650
+hasta que se firme el acuerdo independiente de la Cláusula 9.4. Lo que hay
+ahora cubre lo que TFU preguntó: la consulta se cierra y la comunicación queda.
+
+### 26.5-bis El diagnóstico original, que explica el porqué
 
 **Lo que preguntaba TFU:** «Is this an email or does it generate a ticket that
 must be closed keeping all information about the communication?»
@@ -1833,6 +1883,22 @@ para entregar a TFU.
 Esto **no** sustituye al §8.2 del traspaso: la contraseña de
 `demo.estudiante@thefloridianuniversity.com` sigue sin conocerse. Con estas dos
 cuentas nuevas deja de ser bloqueante para evaluar la plataforma.
+
+### 26.10 El panel seguía abriéndose en español
+
+Apareció probando las consultas, no leyendo el código: el cambio del §26.1 no
+alcanzaba al panel. Al iniciar sesión, el idioma de la CUENTA pisaba cualquier
+otra cosa, y la columna `locale` de `admin_users` nacía en `'es'` por omisión
+—nadie la eligió—. Resultado: el portal arrancaba en inglés y el panel no.
+
+Ahora el idioma del panel se decide por orden: lo que la persona eligió en ese
+navegador, el idioma de su cuenta, y si no hay ninguno, inglés. Las cuentas
+nuevas nacen en inglés.
+
+**Las cuentas que ya existen conservan su `locale`.** Si una abre en español,
+basta con pulsar «EN» una vez —la elección se guarda— o cambiar el idioma de la
+cuenta. No se tocaron las cuentas de producción: cambiarle el idioma a alguien
+sin pedírselo es decidir por él.
 
 ### 26.9 Cómo se verificó
 
