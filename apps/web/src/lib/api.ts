@@ -1045,6 +1045,8 @@ export type ContactSubmitPayload = {
 export type ContactSubmitResponse = {
   received: boolean;
   id: string;
+  /** Código que la persona puede citar: «TFU-C-XXX-XXX». */
+  reference?: string;
 };
 
 export const api = {

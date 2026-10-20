@@ -55,6 +55,7 @@ export function ContactSection() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [programs, setPrograms] = useState<PublicProgram[]>([]);
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [referencia, setReferencia] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
@@ -116,7 +117,7 @@ export function ContactSection() {
 
     setStatus('sending');
     try {
-      await api.submitContact({
+      const respuesta = await api.submitContact({
         fullName: form.fullName.trim(),
         email: form.email.trim(),
         phone: form.phone.trim() || null,
@@ -126,6 +127,10 @@ export function ContactSection() {
         locale,
         company: form.company
       });
+      // El código de referencia se le enseña a la persona: es lo que puede
+      // citar si vuelve a escribir o llama, y lo mismo que ve el equipo en el
+      // panel. Sin él, de este lado la consulta no tiene nombre.
+      setReferencia(respuesta?.reference ?? null);
       setStatus('sent');
       setForm(EMPTY_FORM);
     } catch (submitError) {
@@ -141,6 +146,11 @@ export function ContactSection() {
         <div className="contact-success">
           <h2>{t('contact.success.title')}</h2>
           <p>{t('contact.success.body')}</p>
+          {referencia ? (
+            <p className="contact-reference">
+              {t('contact.success.reference')} <strong>{referencia}</strong>
+            </p>
+          ) : null}
           <button type="button" className="ghost-btn" onClick={() => setStatus('idle')}>
             {t('contact.success.again')}
           </button>

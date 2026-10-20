@@ -4223,3 +4223,21 @@ h1, h2, h3,
   overflow-wrap: break-word;
   hyphens: auto;
 }
+
+/*
+ * Código de referencia de la consulta, en la pantalla de confirmación.
+ *
+ * Va en monoespaciada y con tracking: es un código que la gente copia o dicta
+ * por teléfono, y en la tipografía del cuerpo un 0 y una O se confunden.
+ */
+.contact-reference {
+  margin-top: 10px;
+  font-size: 0.95rem;
+  color: #d9d9dc;
+}
+
+.contact-reference strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+  color: #fff;
+}

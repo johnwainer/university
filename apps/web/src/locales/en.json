@@ -524,7 +524,8 @@
     "success": {
       "title": "Message received",
       "body": "Thanks for writing. An academic advisor will reply to the address you gave us.",
-      "again": "Send another message"
+      "again": "Send another message",
+      "reference": "Your reference number is:"
     }
   },
   "pages": {
@@ -1239,6 +1240,10 @@
       "registraduria": {
         "label": "Registrar",
         "hint": "Term enrollments and grade entry"
+      },
+      "mensajes": {
+        "label": "Enquiries",
+        "hint": "Public form messages and their history"
       }
     },
     "tituloPanel": "Admin panel",
@@ -2531,6 +2536,51 @@
       "empty": "No enrollments to show.",
       "emptyHelp": "Enrollments are created when a student is enrolled in a program, from Users.",
       "loadError": "Could not load enrollments."
+    },
+    "mensajes": {
+      "titulo": "Enquiries ({{total}})",
+      "queEsEstaSeccion": "What comes in through the \"Let's talk about your program\" form. Each enquiry keeps its full history: internal notes, replies sent and status changes.",
+      "filtroTodas": "All",
+      "buscar": "Search by name, email, subject or reference",
+      "actualizar": "Refresh",
+      "cargando": "Loading...",
+      "vacio": "There are no enquiries to show.",
+      "colReferencia": "Reference",
+      "colPersona": "Person",
+      "colEstado": "Status",
+      "colActividad": "Last activity",
+      "respuestasCuenta": "{{total}} reply/replies",
+      "detalleTitulo": "Enquiry",
+      "detalleVacio": "Pick an enquiry from the list to open it.",
+      "recibida": "received on {{fecha}}",
+      "sobrePrograma": "About the program: {{programa}}",
+      "historial": "Communication history",
+      "historialVacio": "Nothing has happened on this enquiry yet.",
+      "sistema": "system",
+      "escribir": "Write",
+      "escribirAyuda": "Write the reply or the internal note here.",
+      "responder": "Reply to the person",
+      "notaInterna": "Save as internal note",
+      "guardando": "Saving...",
+      "notaGuardada": "Internal note saved. It never leaves the institution.",
+      "respuestaEnviada": "Reply sent to {{correo}}.",
+      "respuestaRegistrada": "Reply recorded in the history but NOT sent: the institutional email (SMTP) is not configured yet.",
+      "envioHecho": "Emailed to {{correo}}.",
+      "envioPendiente": "Not emailed: {{motivo}}",
+      "sinMotivo": "no reason recorded",
+      "avisoEnvio": "\"Reply\" emails the person. \"Internal note\" stays inside the panel.",
+      "tipos": {
+        "note": "Internal note",
+        "reply": "Reply",
+        "status": "Status change",
+        "assignment": "Owner change"
+      },
+      "estados": {
+        "new": "New",
+        "in_progress": "In progress",
+        "closed": "Closed",
+        "spam": "Spam"
+      }
     }
   },
   "myProgram": {

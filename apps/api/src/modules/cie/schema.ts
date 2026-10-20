@@ -155,6 +155,74 @@ export async function migrateCie(pool: Pool): Promise<void> {
       WHERE faculty_id IS NOT NULL;
   `);
 
+  /*
+   * Las consultas del formulario público, con historial.
+   *
+   * Hasta aquí `contact_messages` guardaba el mensaje y un estado, y eso
+   * contestaba a medias la pregunta de TFU: «is this an email or does it
+   * generate a ticket that must be closed KEEPING ALL INFORMATION ABOUT THE
+   * COMMUNICATION?». El estado se podía cerrar, pero de la comunicación no
+   * quedaba nada: ni quién contestó, ni qué le dijo, ni cuándo.
+   *
+   * Dos piezas lo resuelven, y ninguna rompe lo que ya existía:
+   *
+   *   - Columnas nuevas en contact_messages. Se añaden con ALTER ... IF NOT
+   *     EXISTS porque la tabla ya tiene filas en producción.
+   *   - contact_message_events: una fila por cada cosa que pasa en la
+   *     consulta. Es un registro INMUTABLE y se escribe en el mismo orden en
+   *     que ocurrieron las cosas; nada lo edita ni lo borra. Un historial que
+   *     se puede reescribir no sirve como historial.
+   *
+   * `reference` es el código que se le da a la persona para que pueda citarlo
+   * («TFU-C-...»), igual que el código de seguimiento de admisiones. Sin un
+   * código, una consulta sólo se puede nombrar por un uuid que nadie dicta por
+   * teléfono.
+   */
+  await pool.query(`
+    ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS reference TEXT;
+    ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS assigned_to TEXT;
+    ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
+    ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
+    ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS closed_by TEXT;
+
+    CREATE TABLE IF NOT EXISTS contact_message_events (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+      message_id TEXT NOT NULL REFERENCES contact_messages(id) ON DELETE CASCADE,
+      -- note:       nota interna, no sale de la institución
+      -- reply:      respuesta enviada (o intentada) a la persona
+      -- status:     cambio de estado
+      -- assignment: cambio de responsable
+      kind TEXT NOT NULL CHECK (kind IN ('note','reply','status','assignment')),
+      body TEXT,
+      author_email TEXT,
+      -- Qué pasó con el correo de una respuesta. 'not_configured' es el estado
+      -- honesto mientras TFU no entregue SMTP: la respuesta queda registrada y
+      -- se ve que NO salió, en vez de un "enviado" falso.
+      email_to TEXT,
+      email_status TEXT CHECK (email_status IN ('sent','failed','not_configured')),
+      email_detail TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS contact_message_events_msg_idx
+      ON contact_message_events(message_id, created_at);
+  `);
+
+  // Código de referencia para las consultas que ya existían. Se genera una
+  // sola vez y después el índice único impide duplicados.
+  await pool.query(`
+    UPDATE contact_messages
+       SET reference = 'TFU-C-' || UPPER(SUBSTRING(MD5(id) FROM 1 FOR 3)) || '-' ||
+                                   UPPER(SUBSTRING(MD5(id) FROM 4 FOR 3))
+     WHERE reference IS NULL;
+    UPDATE contact_messages
+       SET last_activity_at = COALESCE(handled_at, created_at)
+     WHERE last_activity_at IS NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS contact_messages_reference_idx
+      ON contact_messages(reference);
+    CREATE INDEX IF NOT EXISTS contact_messages_assigned_idx
+      ON contact_messages(assigned_to, status);
+  `);
+
   await seedCieDocumentTypes(pool);
 }
 

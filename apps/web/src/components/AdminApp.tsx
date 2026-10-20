@@ -24,6 +24,7 @@ import { CompaniesView } from './admin/views/CompaniesView';
 import { SisView } from './admin/views/SisView';
 import { RegistrarView } from './admin/views/RegistrarView';
 import { CrmView } from './admin/views/CrmView';
+import { MensajesView } from './admin/views/MensajesView';
 import { ComplianceView } from './admin/views/ComplianceView';
 import { BackofficeView } from './admin/views/BackofficeView';
 import { CredentialsView } from './admin/views/CredentialsView';
@@ -64,6 +65,7 @@ type PanelSection =
   | 'registraduria'
   | 'programs'
   | 'crm'
+  | 'mensajes'
   | 'compliance'
   | 'cie'
   | 'calendar'
@@ -141,7 +143,13 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: 'admin.nav.grupos.admisiones',
-    items: [{ id: 'crm', label: 'admin.nav.crm.label', hint: 'admin.nav.crm.hint' }]
+    items: [
+      { id: 'crm', label: 'admin.nav.crm.label', hint: 'admin.nav.crm.hint' },
+      // Las consultas del formulario público. Estaban dentro del checklist
+      // CIE, que es donde nadie las buscaba: quien atiende a quien escribe es
+      // admisiones, no acreditación.
+      { id: 'mensajes', label: 'admin.nav.mensajes.label', hint: 'admin.nav.mensajes.hint' }
+    ]
   },
   {
     label: 'admin.nav.grupos.acreditacion',
@@ -599,9 +607,30 @@ export function AdminApp() {
       }
 
       setIdentidad(sesion.admin);
-      // El panel arranca en el idioma de la persona, no en el del navegador.
-      if (sesion.admin?.locale) {
-        void i18n.changeLanguage(sesion.admin.locale);
+      /*
+       * Idioma del panel, por orden de mando:
+       *
+       *   1. Lo que la persona eligió en ESTE navegador con el conmutador.
+       *   2. El idioma de su cuenta.
+       *   3. Inglés, que es el idioma de arranque que pidió TFU.
+       *
+       * El orden importa y antes no existía: el idioma de la cuenta pisaba
+       * siempre, incluso cuando la persona acababa de pulsar «EN». Y como la
+       * columna `locale` de admin_users nacía en 'es' por omisión —nadie la
+       * eligió—, el panel seguía abriéndose en español por mucho que el
+       * arranque del portal ya fuera inglés.
+       *
+       * Una elección explícita vale más que un valor por defecto heredado.
+       */
+      let idiomaElegido: string | null = null;
+      try {
+        idiomaElegido = localStorage.getItem('university-lang');
+      } catch {
+        idiomaElegido = null;
+      }
+      const idiomaPanel = idiomaElegido ?? sesion.admin?.locale ?? 'en';
+      if (idiomaPanel !== i18n.language) {
+        void i18n.changeLanguage(idiomaPanel);
       }
 
       // Cada carga va por su cuenta y se traga su propio fallo: lo que no se
@@ -2154,6 +2183,15 @@ export function AdminApp() {
               currentUsers={usersData?.items || []} 
               loadUsers={loadUsers} 
               loadBase={loadBase} 
+            />
+          ) : null}
+
+          {activeSection === 'mensajes' ? (
+            <MensajesView
+              token={sessionToken}
+              puedeEditar={puedeEditar('mensajes')}
+              setError={setError}
+              setInfo={setInfo}
             />
           ) : null}
 

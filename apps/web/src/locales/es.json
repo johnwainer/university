@@ -524,7 +524,8 @@
     "success": {
       "title": "Mensaje recibido",
       "body": "Gracias por escribirnos. Un asesor académico te responderá al correo que nos dejaste.",
-      "again": "Enviar otro mensaje"
+      "again": "Enviar otro mensaje",
+      "reference": "Tu número de referencia es:"
     }
   },
   "pages": {
@@ -1239,6 +1240,10 @@
       "registraduria": {
         "label": "Registraduría",
         "hint": "Matrículas del periodo y registro de calificaciones"
+      },
+      "mensajes": {
+        "label": "Consultas",
+        "hint": "Mensajes del formulario público y su historial"
       }
     },
     "tituloPanel": "Panel administrativo",
@@ -2531,6 +2536,51 @@
       "empty": "No hay matrículas que mostrar.",
       "emptyHelp": "Las matrículas se crean al matricular a un estudiante en un programa, desde Usuarios.",
       "loadError": "No se pudieron cargar las matrículas."
+    },
+    "mensajes": {
+      "titulo": "Consultas ({{total}})",
+      "queEsEstaSeccion": "Lo que llega por el formulario «Hablemos de tu programa». Cada consulta guarda su historial completo: notas internas, respuestas enviadas y cambios de estado.",
+      "filtroTodas": "Todas",
+      "buscar": "Buscar por nombre, correo, asunto o referencia",
+      "actualizar": "Actualizar",
+      "cargando": "Cargando...",
+      "vacio": "No hay consultas que mostrar.",
+      "colReferencia": "Referencia",
+      "colPersona": "Persona",
+      "colEstado": "Estado",
+      "colActividad": "Última actividad",
+      "respuestasCuenta": "{{total}} respuesta(s)",
+      "detalleTitulo": "Consulta",
+      "detalleVacio": "Elige una consulta de la lista para verla.",
+      "recibida": "recibida el {{fecha}}",
+      "sobrePrograma": "Sobre el programa: {{programa}}",
+      "historial": "Historial de la comunicación",
+      "historialVacio": "Todavía no hay movimientos en esta consulta.",
+      "sistema": "sistema",
+      "escribir": "Escribir",
+      "escribirAyuda": "Escribe aquí la respuesta o la nota interna.",
+      "responder": "Responder a la persona",
+      "notaInterna": "Guardar como nota interna",
+      "guardando": "Guardando...",
+      "notaGuardada": "Nota interna guardada. No sale de la institución.",
+      "respuestaEnviada": "Respuesta enviada a {{correo}}.",
+      "respuestaRegistrada": "Respuesta registrada en el historial, pero NO enviada: falta configurar el correo institucional (SMTP).",
+      "envioHecho": "Enviada por correo a {{correo}}.",
+      "envioPendiente": "No enviada por correo: {{motivo}}",
+      "sinMotivo": "sin motivo registrado",
+      "avisoEnvio": "«Responder» le manda un correo a la persona. «Nota interna» se queda dentro del panel.",
+      "tipos": {
+        "note": "Nota interna",
+        "reply": "Respuesta",
+        "status": "Cambio de estado",
+        "assignment": "Cambio de responsable"
+      },
+      "estados": {
+        "new": "Nueva",
+        "in_progress": "En gestión",
+        "closed": "Cerrada",
+        "spam": "Spam"
+      }
     }
   },
   "myProgram": {

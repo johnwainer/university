@@ -24,6 +24,19 @@ export interface CieContext {
   ensureAdmin: (request: any) => { email?: string } | unknown;
   /** Máximo de mensajes de contacto por IP dentro de la ventana. */
   contactRateLimit?: { max: number; windowMinutes: number };
+  /**
+   * Envío de correo, para responder una consulta desde el panel. Se inyecta en
+   * vez de importar el mailer: sin él la respuesta se registra igual y queda
+   * marcada como no enviada, que es lo que pasa hoy —TFU no ha entregado SMTP—
+   * y es información, no un fallo.
+   */
+  sendMail?: (input: {
+    to: string[];
+    subject: string;
+    text: string;
+  }) => Promise<{ configured: boolean; ok: boolean; detail?: string }>;
+  /** URL pública del portal, para firmar la respuesta con algo comprobable. */
+  portalUrl?: string;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -117,6 +130,17 @@ const contactSchema = z.object({
 
 const contactStatusSchema = z.object({ status: z.enum(CONTACT_STATUSES) });
 
+/** Nota interna o respuesta a la persona. El tipo decide si sale correo. */
+const contactEventSchema = z.object({
+  kind: z.enum(['note', 'reply']),
+  body: z.string().trim().min(2).max(5000)
+});
+
+/** Responsable de la consulta; null la devuelve a la bandeja sin dueño. */
+const contactAssignSchema = z.object({
+  assignedTo: z.string().trim().email().max(200).nullable()
+});
+
 const listDocumentsQuerySchema = z.object({
   scope: z.enum(SCOPES).optional(),
   status: z.enum(DOCUMENT_STATUSES).optional(),
@@ -127,6 +151,9 @@ const listDocumentsQuerySchema = z.object({
 
 const contactListQuerySchema = z.object({
   status: z.enum(CONTACT_STATUSES).optional(),
+  /** Nombre, correo, asunto o referencia. */
+  search: z.string().trim().max(200).optional(),
+  assignedTo: z.string().trim().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional()
 });
@@ -244,14 +271,44 @@ const FACULTY_SELECT_COLUMNS = `
 
 const CONTACT_SELECT = `
   SELECT
-    c.id, c.full_name AS "fullName", c.email, c.phone, c.program_id AS "programId",
+    c.id, c.reference, c.full_name AS "fullName", c.email, c.phone,
+    c.program_id AS "programId",
     c.subject, c.message, c.locale, c.status, c.source,
-    c.handled_by AS "handledBy", c.handled_at AS "handledAt", c.created_at AS "createdAt",
+    c.handled_by AS "handledBy", c.handled_at AS "handledAt",
+    c.assigned_to AS "assignedTo",
+    c.last_activity_at AS "lastActivityAt",
+    c.closed_at AS "closedAt", c.closed_by AS "closedBy",
+    c.created_at AS "createdAt",
     p.code AS "programCode",
-    p.name AS "programName"
+    p.name AS "programName",
+    (SELECT COUNT(*)::int FROM contact_message_events e WHERE e.message_id = c.id) AS "eventCount",
+    (SELECT COUNT(*)::int FROM contact_message_events e
+      WHERE e.message_id = c.id AND e.kind = 'reply') AS "replyCount"
   FROM contact_messages c
   LEFT JOIN degree_programs p ON p.id = c.program_id
 `;
+
+/** Historial de una consulta, en el orden en que ocurrió. */
+const CONTACT_EVENTS_SELECT = `
+  SELECT id, message_id AS "messageId", kind, body,
+         author_email AS "authorEmail",
+         email_to AS "emailTo", email_status AS "emailStatus", email_detail AS "emailDetail",
+         created_at AS "createdAt"
+  FROM contact_message_events
+`;
+
+/**
+ * Código de referencia de una consulta.
+ *
+ * Mismo formato que el de admisiones y por el mismo motivo: una persona tiene
+ * que poder dictarlo por teléfono. Nada de uuids.
+ */
+function nuevaReferencia(): string {
+  const alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin I, O, 0, 1
+  const grupo = () =>
+    Array.from({ length: 3 }, () => alfabeto[Math.floor(Math.random() * alfabeto.length)]).join('');
+  return `TFU-C-${grupo()}-${grupo()}`;
+}
 
 /* -------------------------------------------------------------------------- */
 /* Registro                                                                   */
@@ -259,6 +316,46 @@ const CONTACT_SELECT = `
 
 export function registerCieRoutes(app: FastifyInstance, ctx: CieContext): void {
   const { pool, ensureAdmin } = ctx;
+
+  /**
+   * Escribe una entrada del historial y mueve la fecha de actividad.
+   *
+   * Está aquí y no como helper suelto porque necesita el pool, y en un solo
+   * sitio para que ningún camino pueda cambiar una consulta sin dejar rastro:
+   * si mañana alguien añade otra acción, pasa por aquí o no se escribe.
+   */
+  async function registrarEvento(entrada: {
+    messageId: string;
+    kind: 'note' | 'reply' | 'status' | 'assignment';
+    body: string | null;
+    authorEmail: string | null;
+    emailTo?: string | null;
+    emailStatus?: 'sent' | 'failed' | 'not_configured' | null;
+    emailDetail?: string | null;
+  }) {
+    const insertado = await pool.query(
+      `INSERT INTO contact_message_events
+         (message_id, kind, body, author_email, email_to, email_status, email_detail)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, message_id AS "messageId", kind, body,
+                 author_email AS "authorEmail", email_to AS "emailTo",
+                 email_status AS "emailStatus", email_detail AS "emailDetail",
+                 created_at AS "createdAt"`,
+      [
+        entrada.messageId,
+        entrada.kind,
+        entrada.body,
+        entrada.authorEmail,
+        entrada.emailTo ?? null,
+        entrada.emailStatus ?? null,
+        entrada.emailDetail ?? null
+      ]
+    );
+    await pool.query('UPDATE contact_messages SET last_activity_at = NOW() WHERE id = $1', [
+      entrada.messageId
+    ]);
+    return insertado.rows[0];
+  }
   const rateLimit = ctx.contactRateLimit ?? { max: 5, windowMinutes: 60 };
   const institutionName = config.institution.name;
 
@@ -326,27 +423,46 @@ export function registerCieRoutes(app: FastifyInstance, ctx: CieContext): void {
       return reply.badRequest('Unknown programId');
     }
 
-    const inserted = await pool.query(
-      `INSERT INTO contact_messages
-         (full_name, email, phone, program_id, subject, message, locale, source, remote_ip, user_agent)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'public-web', $8, $9)
-       RETURNING id`,
-      [
-        payload.fullName,
-        payload.email,
-        payload.phone ?? null,
-        payload.programId ?? null,
-        payload.subject ?? null,
-        payload.message,
-        payload.locale ?? resolveLocale(request),
-        ip,
-        typeof request.headers['user-agent'] === 'string' ? request.headers['user-agent'] : null
-      ]
-    );
+    // La referencia se genera aquí y se devuelve: es lo que la persona cita
+    // cuando vuelve a escribir o llama. El reintento cubre el choque
+    // improbable con una referencia ya usada (el índice es único).
+    let id = '';
+    let reference = '';
+    for (let intento = 0; intento < 5 && !id; intento++) {
+      const candidata = nuevaReferencia();
+      try {
+        const inserted = await pool.query(
+          `INSERT INTO contact_messages
+             (full_name, email, phone, program_id, subject, message, locale, source,
+              remote_ip, user_agent, reference, last_activity_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'public-web', $8, $9, $10, NOW())
+           RETURNING id, reference`,
+          [
+            payload.fullName,
+            payload.email,
+            payload.phone ?? null,
+            payload.programId ?? null,
+            payload.subject ?? null,
+            payload.message,
+            payload.locale ?? resolveLocale(request),
+            ip,
+            typeof request.headers['user-agent'] === 'string' ? request.headers['user-agent'] : null,
+            candidata
+          ]
+        );
+        id = String(inserted.rows[0].id);
+        reference = String(inserted.rows[0].reference);
+      } catch (error) {
+        const codigo = (error as { code?: string }).code;
+        if (codigo !== '23505') throw error; // 23505 = unique_violation
+      }
+    }
+    if (!id) {
+      return reply.internalServerError('No se pudo registrar la consulta.');
+    }
 
-    const id = String(inserted.rows[0].id);
-    request.log.info({ contactMessageId: id }, 'contact message stored');
-    return reply.code(201).send({ received: true, id });
+    request.log.info({ contactMessageId: id, reference }, 'contact message stored');
+    return reply.code(201).send({ received: true, id, reference });
   });
 
   /* ------------------------ Admin — checklist ---------------------------- */
@@ -831,20 +947,44 @@ export function registerCieRoutes(app: FastifyInstance, ctx: CieContext): void {
     const query = contactListQuerySchema.parse(request.query ?? {});
     const limit = Math.min(Math.max(query.limit ?? 50, 1), 200);
     const offset = Math.max(query.offset ?? 0, 0);
-    const [rows, total] = await Promise.all([
+    // El orden es por ÚLTIMA ACTIVIDAD y no por fecha de llegada: con
+    // historial, lo que el equipo necesita arriba es lo que se movió, no lo
+    // que entró. Las consultas sin actividad caen a su fecha de creación.
+    const [rows, total, resumen] = await Promise.all([
       pool.query(
         `${CONTACT_SELECT}
          WHERE ($1::text IS NULL OR c.status = $1)
-         ORDER BY c.created_at DESC
+           AND ($4::text IS NULL OR c.assigned_to = $4)
+           AND ($5::text IS NULL OR
+                c.full_name ILIKE '%' || $5 || '%' OR
+                c.email     ILIKE '%' || $5 || '%' OR
+                c.subject   ILIKE '%' || $5 || '%' OR
+                c.reference ILIKE '%' || $5 || '%')
+         ORDER BY COALESCE(c.last_activity_at, c.created_at) DESC
          LIMIT $2 OFFSET $3`,
-        [query.status ?? null, limit, offset]
+        [query.status ?? null, limit, offset, query.assignedTo ?? null, query.search ?? null]
       ),
       pool.query(
-        `SELECT COUNT(*)::int AS total FROM contact_messages WHERE ($1::text IS NULL OR status = $1)`,
-        [query.status ?? null]
+        `SELECT COUNT(*)::int AS total FROM contact_messages
+          WHERE ($1::text IS NULL OR status = $1)
+            AND ($2::text IS NULL OR assigned_to = $2)
+            AND ($3::text IS NULL OR
+                 full_name ILIKE '%' || $3 || '%' OR
+                 email     ILIKE '%' || $3 || '%' OR
+                 subject   ILIKE '%' || $3 || '%' OR
+                 reference ILIKE '%' || $3 || '%')`,
+        [query.status ?? null, query.assignedTo ?? null, query.search ?? null]
+      ),
+      // Contadores por estado: es lo que decide a qué se entra primero.
+      pool.query(
+        `SELECT status, COUNT(*)::int AS total FROM contact_messages GROUP BY status`
       )
     ]);
-    return { items: rows.rows, total: Number(total.rows[0]?.total ?? 0) };
+    const counts: Record<string, number> = { new: 0, in_progress: 0, closed: 0, spam: 0 };
+    for (const fila of resumen.rows as Array<{ status: string; total: number }>) {
+      counts[fila.status] = Number(fila.total);
+    }
+    return { items: rows.rows, total: Number(total.rows[0]?.total ?? 0), counts };
   });
 
   app.patch<{ Params: { messageId: string } }>(
@@ -852,14 +992,25 @@ export function registerCieRoutes(app: FastifyInstance, ctx: CieContext): void {
     async (request, reply) => {
       const session = ensureAdmin(request);
       const payload = contactStatusSchema.parse(request.body);
+      const autor = adminEmail(session);
       // Volver a 'new' devuelve el mensaje a la bandeja sin dueño: se limpian
       // responsable y fecha de gestión para que no quede un rastro falso.
-      const handledBy = payload.status === 'new' ? null : adminEmail(session);
+      const handledBy = payload.status === 'new' ? null : autor;
+      const anterior = await pool.query<{ status: string }>(
+        'SELECT status FROM contact_messages WHERE id = $1',
+        [request.params.messageId]
+      );
+      if (!anterior.rows[0]) {
+        return reply.notFound('Contact message not found');
+      }
       const result = await pool.query(
         `UPDATE contact_messages SET
            status     = $2,
            handled_by = $3,
-           handled_at = CASE WHEN $2 = 'new' THEN NULL ELSE NOW() END
+           handled_at = CASE WHEN $2 = 'new' THEN NULL ELSE NOW() END,
+           closed_at  = CASE WHEN $2 = 'closed' THEN NOW() ELSE NULL END,
+           closed_by  = CASE WHEN $2 = 'closed' THEN $3 ELSE NULL END,
+           last_activity_at = NOW()
          WHERE id = $1
          RETURNING id`,
         [request.params.messageId, payload.status, handledBy]
@@ -867,6 +1018,156 @@ export function registerCieRoutes(app: FastifyInstance, ctx: CieContext): void {
       if (!result.rows[0]) {
         return reply.notFound('Contact message not found');
       }
+      // El cambio de estado entra en el historial: cerrar una consulta sin
+      // dejar constancia de quién y cuándo es justo lo que TFU no quería.
+      await registrarEvento({
+        messageId: request.params.messageId,
+        kind: 'status',
+        body: `${anterior.rows[0].status} → ${payload.status}`,
+        authorEmail: autor
+      });
+      const message = await pool.query(`${CONTACT_SELECT} WHERE c.id = $1`, [
+        request.params.messageId
+      ]);
+      return { updated: true, message: message.rows[0] };
+    }
+  );
+
+  /* ------------------ Consultas: detalle, historial y respuesta ------------ */
+
+  /**
+   * Una consulta con TODO su historial.
+   *
+   * Es la respuesta concreta a «keeping all information about the
+   * communication»: el mensaje original, cada nota interna, cada respuesta
+   * enviada con su resultado de envío, cada cambio de estado y de responsable,
+   * en orden.
+   */
+  app.get<{ Params: { messageId: string } }>(
+    '/admin/contact-messages/:messageId',
+    async (request, reply) => {
+      ensureAdmin(request);
+      const message = await pool.query(`${CONTACT_SELECT} WHERE c.id = $1`, [
+        request.params.messageId
+      ]);
+      if (!message.rows[0]) {
+        return reply.notFound('Contact message not found');
+      }
+      const events = await pool.query(
+        `${CONTACT_EVENTS_SELECT} WHERE message_id = $1 ORDER BY created_at ASC`,
+        [request.params.messageId]
+      );
+      return { message: message.rows[0], events: events.rows };
+    }
+  );
+
+  /**
+   * Añade una nota interna o envía una respuesta a la persona.
+   *
+   * La diferencia importa y está en el tipo, no en una convención de redacción:
+   *
+   *   note   se queda dentro. No sale ningún correo.
+   *   reply  se le manda a quien escribió. Si SMTP no está configurado, la
+   *          respuesta SE GUARDA IGUAL marcada como no enviada, con el motivo.
+   *          Así el equipo ve qué quedó pendiente de salir cuando TFU entregue
+   *          los buzones, en vez de perder el texto o creer que salió.
+   */
+  app.post<{ Params: { messageId: string } }>(
+    '/admin/contact-messages/:messageId/events',
+    async (request, reply) => {
+      const session = ensureAdmin(request);
+      const payload = contactEventSchema.parse(request.body);
+      const autor = adminEmail(session);
+
+      const consulta = await pool.query<{
+        id: string;
+        email: string;
+        reference: string;
+        full_name: string;
+        locale: string;
+        subject: string | null;
+        status: string;
+      }>(
+        `SELECT id, email, reference, full_name, locale, subject, status
+         FROM contact_messages WHERE id = $1`,
+        [request.params.messageId]
+      );
+      const fila = consulta.rows[0];
+      if (!fila) {
+        return reply.notFound('Contact message not found');
+      }
+
+      let emailTo: string | null = null;
+      let emailStatus: 'sent' | 'failed' | 'not_configured' | null = null;
+      let emailDetail: string | null = null;
+
+      if (payload.kind === 'reply') {
+        emailTo = fila.email;
+        const asunto =
+          fila.locale === 'en'
+            ? `Re: your enquiry ${fila.reference}`
+            : `Re: tu consulta ${fila.reference}`;
+        const pie =
+          fila.locale === 'en'
+            ? `\n\n— ${institutionName}${ctx.portalUrl ? `\n${ctx.portalUrl}` : ''}`
+            : `\n\n— ${institutionName}${ctx.portalUrl ? `\n${ctx.portalUrl}` : ''}`;
+        const resultado = ctx.sendMail
+          ? await ctx.sendMail({ to: [fila.email], subject: asunto, text: `${payload.body}${pie}` })
+          : { configured: false, ok: false, detail: 'El envío de correo no está disponible en este despliegue.' };
+        emailStatus = resultado.ok ? 'sent' : resultado.configured ? 'failed' : 'not_configured';
+        emailDetail = resultado.detail ?? null;
+      }
+
+      const evento = await registrarEvento({
+        messageId: fila.id,
+        kind: payload.kind,
+        body: payload.body,
+        authorEmail: autor,
+        emailTo,
+        emailStatus,
+        emailDetail
+      });
+
+      // Responder saca la consulta de la bandeja de entrada: pasa a «en
+      // gestión» si estaba sin tocar. No la cierra: cerrarla es una decisión
+      // de quien atiende, no un efecto secundario de escribir.
+      if (payload.kind === 'reply' && fila.status === 'new') {
+        await pool.query(
+          `UPDATE contact_messages
+              SET status = 'in_progress', handled_by = COALESCE(handled_by, $2), handled_at = NOW()
+            WHERE id = $1`,
+          [fila.id, autor]
+        );
+      }
+
+      const message = await pool.query(`${CONTACT_SELECT} WHERE c.id = $1`, [fila.id]);
+      return reply.code(201).send({ event: evento, message: message.rows[0] });
+    }
+  );
+
+  /** Asigna la consulta a alguien del equipo (o la deja sin dueño con null). */
+  app.patch<{ Params: { messageId: string } }>(
+    '/admin/contact-messages/:messageId/assignment',
+    async (request, reply) => {
+      const session = ensureAdmin(request);
+      const payload = contactAssignSchema.parse(request.body);
+      const autor = adminEmail(session);
+      const result = await pool.query(
+        `UPDATE contact_messages
+            SET assigned_to = $2, last_activity_at = NOW()
+          WHERE id = $1
+          RETURNING id`,
+        [request.params.messageId, payload.assignedTo ?? null]
+      );
+      if (!result.rows[0]) {
+        return reply.notFound('Contact message not found');
+      }
+      await registrarEvento({
+        messageId: request.params.messageId,
+        kind: 'assignment',
+        body: payload.assignedTo ?? '(sin responsable)',
+        authorEmail: autor
+      });
       const message = await pool.query(`${CONTACT_SELECT} WHERE c.id = $1`, [
         request.params.messageId
       ]);

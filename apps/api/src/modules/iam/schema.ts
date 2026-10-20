@@ -47,7 +47,9 @@ export async function migrateIam(pool: Pool): Promise<void> {
       password_salt TEXT NOT NULL,
       password_hash TEXT NOT NULL,
       role_id UUID REFERENCES admin_roles(id) ON DELETE RESTRICT,
-      locale TEXT NOT NULL DEFAULT 'es' CHECK (locale IN ('es','en')),
+      -- Por omisión inglés: es el idioma de arranque que pidió TFU y el que
+      -- usa el portal. Una cuenta que quiera español lo cambia y se guarda.
+      locale TEXT NOT NULL DEFAULT 'en' CHECK (locale IN ('es','en')),
       is_active BOOLEAN NOT NULL DEFAULT true,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       last_login_at TIMESTAMPTZ
@@ -119,7 +121,11 @@ const ROLES_INICIALES: Array<{
     descEs: 'Prospectos, postulaciones y cuentas de estudiante.',
     descEn: 'Prospects, applications and student accounts.',
     isSystem: false,
-    edit: ['crm', 'users'],
+    // 'mensajes' entra aquí porque quien atiende a quien escribe por el
+    // formulario es admisiones. OJO: esta siembra sólo aplica a instalaciones
+    // NUEVAS —un rol que ya existe no se reescribe—, así que en producción hay
+    // que concederle «Consultas» al rol desde Roles y permisos.
+    edit: ['crm', 'users', 'mensajes'],
     view: ['overview', 'reports', 'courses', 'sis', 'calendar']
   },
   {

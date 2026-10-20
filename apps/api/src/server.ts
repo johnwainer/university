@@ -4478,7 +4478,14 @@ registerCredentialsRoutes(app, {
 });
 // Etapa I — CIE Readiness: checklist documental, expedientes de faculty y
 // formulario de contacto público.
-registerCieRoutes(app, { pool, ensureAdmin });
+registerCieRoutes(app, {
+  pool,
+  ensureAdmin,
+  // Para responder una consulta desde el panel. Sin SMTP el mailer no finge el
+  // envío: la respuesta se registra marcada como no enviada.
+  sendMail: (input) => sendMail(input),
+  portalUrl: (process.env.PORTAL_URL ?? 'https://portal.thefloridianuniversity.com').trim()
+});
 registerPagesRoutes(app, { pool, ensureAdmin });
 registerPerfilRoutes(app, {
   pool,

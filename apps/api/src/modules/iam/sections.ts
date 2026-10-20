@@ -35,6 +35,7 @@ export const SECTIONS: SectionDef[] = [
   { id: 'calendar',     group: 'Académico',    groupEn: 'Academic',      nameEs: 'Calendario y aulas',      nameEn: 'Calendar & classrooms' },
   { id: 'compliance',   group: 'Académico',    groupEn: 'Academic',      nameEs: 'Sílabos y cumplimiento',  nameEn: 'Syllabi & compliance' },
   { id: 'crm',          group: 'Admisiones',   groupEn: 'Admissions',    nameEs: 'CRM / Admisión',          nameEn: 'CRM / Admissions' },
+  { id: 'mensajes',     group: 'Admisiones',   groupEn: 'Admissions',    nameEs: 'Consultas',               nameEn: 'Enquiries' },
   { id: 'cie',          group: 'Acreditación', groupEn: 'Accreditation', nameEs: 'Checklist CIE',           nameEn: 'CIE checklist' },
   { id: 'credentials',  group: 'Acreditación', groupEn: 'Accreditation', nameEs: 'Credenciales',            nameEn: 'Credentials' },
   { id: 'webinars',     group: 'Contenido',    groupEn: 'Content',       nameEs: 'Seminarios',              nameEn: 'Webinars' },
@@ -86,6 +87,10 @@ export const ROUTE_SECTIONS: Array<[string, string]> = [
   ['/admin/sis',             'sis'],
   ['/admin/admissions',      'crm'],
   ['/admin/crm',             'crm'],
+  // Las consultas del formulario público NO estaban mapeadas, así que la
+  // bandeja entera quedaba sólo para el superadministrador: el rol de
+  // admisiones —el que atiende a quien escribe— no la veía, y nada lo decía.
+  ['/admin/contact-messages', 'mensajes'],
   ['/admin/calendar',        'calendar'],
   ['/admin/compliance',      'compliance'],
   ['/admin/syllabus',        'compliance'],

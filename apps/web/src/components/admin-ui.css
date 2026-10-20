@@ -1642,3 +1642,51 @@ body:has(.admin-shell) {
   letter-spacing: normal;
   text-transform: none;
 }
+
+/* --- Historial de una consulta -------------------------------------------- *
+ *
+ * La estética del panel: filete de 1px, sin desenfoques ni degradados. El tipo
+ * de entrada se distingue por el color del filete izquierdo Y por su rótulo,
+ * nunca sólo por el color: una respuesta enviada y una nota interna no pueden
+ * confundirse en una pantalla en blanco y negro ni con daltonismo.
+ */
+.admin-shell .ad-timeline {
+  list-style: none;
+  margin: var(--ad-sp-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ad-sp-3);
+}
+
+.admin-shell .ad-timeline-item {
+  padding: var(--ad-sp-3) var(--ad-sp-4);
+  border: 1px solid var(--adm-line);
+  border-left-width: 3px;
+  border-radius: var(--ad-radio);
+  background: var(--adm-surface);
+}
+
+.admin-shell .ad-timeline-item.kind-reply {
+  border-left-color: var(--ad-serie-3);
+}
+
+.admin-shell .ad-timeline-item.kind-note {
+  border-left-color: var(--ad-serie-4);
+}
+
+.admin-shell .ad-timeline-item.kind-status,
+.admin-shell .ad-timeline-item.kind-assignment {
+  border-left-color: var(--adm-line);
+}
+
+.admin-shell .ad-timeline-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--ad-sp-3);
+  flex-wrap: wrap;
+}
+
+.admin-shell .ad-timeline-head small {
+  color: var(--adm-ink-2);
+}
