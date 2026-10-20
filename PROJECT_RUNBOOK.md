@@ -1900,6 +1900,50 @@ basta con pulsar «EN» una vez —la elección se guarda— o cambiar el idioma
 cuenta. No se tocaron las cuentas de producción: cambiarle el idioma a alguien
 sin pedírselo es decidir por él.
 
+### 26.11 Los dos estudiantes de prueba, creados — y lo que enseñaron
+
+`infra/data/crear-estudiantes-de-prueba.sh` se ejecutó contra producción el 20
+de octubre. Dos cuentas, matrícula por programa con SIS y espejo de Moodle:
+
+```
+TFU Test Student (EN)         test.student.en@thefloridianuniversity.com
+  TFU-AI-WORK, TERM-2026-FALL, aula 20
+TFU Estudiante de Prueba (ES) estudiante.prueba.es@thefloridianuniversity.com
+  TFU-SALES-EXC, TERM-2026-FALL, aula 12
+```
+
+Los nombres dicen que son de prueba a propósito. La limpieza del §8.1 retiró de
+producción a ocho empleados inventados con correo institucional justamente
+porque en una universidad acreditada un nombre verosímil pasa por real; el
+nombre de la cuenta viaja al aula de Moodle y a cualquier reporte.
+
+Con ellas se hizo por fin **la comprobación que quedaba pendiente desde el
+§8.2**: entrar al aula como estudiante. Resultado: las dos cuentas entran, ven
+su programa en «Mis cursos», abren el aula con sus ocho semanas y sus fechas,
+0 `pageerror` y 0 respuestas 4xx.
+
+**Y enseñaron un límite que hay que decirle a TFU.** Pedir el mismo curso en
+los dos idiomas devuelve exactamente el mismo texto:
+
+```
+locale=en -> "Punto de partida · Start here" / "Semana 1 · Week 1"
+locale=es -> "Punto de partida · Start here" / "Semana 1 · Week 1"
+{mlang} en la respuesta: 0     span multilang en la respuesta: 0
+```
+
+No es el API: las aulas se escribieron metiendo los dos idiomas en la misma
+cadena, separados por «·». No hay nada que separar. El §26.2 dejó el camino
+hecho —la ruta acepta `?locale=` y resuelve el marcado— pero el contenido no lo
+trae.
+
+Hay guion para eso, **sin ejecutar**:
+`infra/moodle/cli/paeu-separar-idiomas-aula.php` convierte «Español · English»
+en el marcado del núcleo. No traduce nada —sólo separa lo que ya está escrito
+en dos idiomas—, no toca cuerpos de actividad, no toca lo que ya tiene marcado
+y se salta lo que tiene más de un separador. Tiene `--dry-run` y es idempotente.
+Correrlo cambia contenido de trece aulas de una universidad real, así que es
+una decisión de TFU, no del despliegue.
+
 ### 26.9 Cómo se verificó
 
 - Prueba de humo contra producción **antes** de tocar nada: 33 passed / 1 failed

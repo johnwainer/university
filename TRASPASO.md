@@ -292,6 +292,15 @@ El despliegue es el de siempre (§7), con dos cosas propias de esta tanda:
   `AVATAR_PUBLIC_BASE=https://portal.thefloridianuniversity.com`,
   `AVATAR_PREFIX=avatares/`. Recuerda el §9.1: hay DOS `.env`.
 
+### 8.2-bis Hay dos cuentas de estudiante de prueba que SÍ funcionan
+
+Creadas el 20 de octubre con `infra/data/crear-estudiantes-de-prueba.sh`:
+`test.student.en@thefloridianuniversity.com` (TFU-AI-WORK, inglés) y
+`estudiante.prueba.es@thefloridianuniversity.com` (TFU-SALES-EXC, español).
+Las contraseñas están en el guion. Con ellas se hizo la comprobación del aula
+en vivo que faltaba, así que el §8.2 ya no bloquea evaluar la plataforma;
+sigue abierto sólo si TFU quiere recuperar la cuenta `demo.estudiante`.
+
 ### 8.2 La contraseña del estudiante demo — BLOQUEADO, necesita al usuario
 
 `demo.estudiante@thefloridianuniversity.com` es la cuenta que se va a entregar y
