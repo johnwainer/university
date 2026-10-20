@@ -15,11 +15,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 // sustitucion de build no alcanza si la variable no estaba definida.
 document.title = BRAND;
 
-// El <html lang> venia fijo a "en" en index.html, pero el idioma por defecto es
-// el espanol y el conmutador lo cambia en caliente sin tocar el atributo. Un
-// lector de pantalla leia todo el portal con pronunciacion inglesa.
+// El <html lang> venia fijo en index.html y el conmutador lo cambia en caliente
+// sin tocar el atributo. Un lector de pantalla leia todo el portal con la
+// pronunciacion del idioma equivocado.
+//
+// El respaldo de esta linea es 'en' y no 'es' desde que el idioma de arranque
+// es el ingles: si i18next todavia no resolvio el idioma, el atributo debe
+// decir lo mismo que se va a pintar.
 const syncDocumentLanguage = (lng: string) => {
-  document.documentElement.lang = lng.startsWith('en') ? 'en' : 'es';
+  document.documentElement.lang = lng.startsWith('es') ? 'es' : 'en';
 };
-syncDocumentLanguage(i18n.language ?? 'es');
+syncDocumentLanguage(i18n.language ?? 'en');
 i18n.on('languageChanged', syncDocumentLanguage);

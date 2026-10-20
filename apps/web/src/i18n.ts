@@ -36,10 +36,28 @@ i18n
       es: { translation: es },
       en: { translation: en }
     },
-    fallbackLng: 'es',
+    /*
+     * TFU pidió que la plataforma arranque SIEMPRE en inglés y que el idioma lo
+     * cambie el usuario si quiere. Son dos cambios y los dos hacen falta:
+     *
+     *   fallbackLng: 'en'   el idioma de respaldo cuando no hay preferencia.
+     *   detection.order     SIN 'navigator'.
+     *
+     * Dejar 'navigator' en la lista era justo lo que hacía que TFU viera el
+     * portal en español: el detector preguntaba al navegador antes que nada, y
+     * un equipo configurado en es-CO entraba en español. Peor aún, un navegador
+     * en un tercer idioma (fr-FR) también caía en español por el fallbackLng
+     * anterior. Verificado contra producción antes del cambio: en-US -> en,
+     * es-CO -> es, fr-FR -> es.
+     *
+     * Con 'localStorage' como única fuente, el primer visitante entra en inglés
+     * y su elección se guarda en cuanto toca el conmutador, así que la
+     * preferencia de quien ya eligió se respeta igual que antes.
+     */
+    fallbackLng: 'en',
     supportedLngs: ['es', 'en'],
     detection: {
-      order: ['localStorage', 'navigator'],
+      order: ['localStorage'],
       caches: ['localStorage'],
       lookupLocalStorage: 'university-lang'
     },
