@@ -1597,3 +1597,265 @@ contenedores reales del portal van de x=320 a x=1600. Con
 sus 20px de margen— el aula cae exactamente en 320→1600. Medido también a
 1440px (80→1360) y a 1280px (20→1260, donde manda el margen del shell).
 
+
+---
+
+## 26) La tanda de peticiones de TFU (20 de octubre de 2026)
+
+TFU envió una lista de observaciones y preguntas sobre el portal y el panel.
+Esta sección recoge qué se cambió, qué se respondió sin cambiar nada y por qué.
+Las respuestas a las preguntas valen tanto como el código: varias eran
+«¿esto funciona?» y la respuesta honesta era «sí, pero no como lo esperabas».
+
+### 26.1 El idioma de arranque pasa a ser el inglés
+
+**Lo que pedía TFU:** «The default should be English», en el portal y en el
+panel.
+
+**Lo que pasaba:** el idioma lo decidía el navegador. `i18n.ts` tenía
+`detection.order: ['localStorage', 'navigator']` y `fallbackLng: 'es'`.
+Comprobado contra producción antes de tocar nada, con Playwright:
+
+```
+navegador=en-US -> html lang=en   primer h2 "Continue Learning"
+navegador=es-CO -> html lang=es   primer h2 "Continúa aprendiendo"
+navegador=fr-FR -> html lang=es   primer h2 "Continúa aprendiendo"
+```
+
+Es decir: un equipo configurado en español entraba en español, y un navegador
+en un tercer idioma caía también en español por el `fallbackLng`.
+
+**Lo que se hizo:** `fallbackLng: 'en'` y `detection.order: ['localStorage']`.
+El primer visitante entra en inglés y, en cuanto toca el conmutador, su
+elección se guarda y se respeta. El `<html lang>` de `index.html` y el respaldo
+de `syncDocumentLanguage` también pasan a `en`, para que el primer pintado y el
+lector de pantalla coincidan con lo que se ve.
+
+Hay un tercer sitio que importaba y no era obvio: el formulario de registro y el
+de perfil fijaban `locale: 'es'` para la CUENTA. Una cuenta creada con el portal
+en inglés nacía en español y los avisos del SIS le habrían llegado en el idioma
+que no eligió. Ahora heredan el idioma que el visitante está viendo.
+
+El panel comparte la misma instancia de i18next, así que el cambio lo cubre.
+
+### 26.2 El botón de traducción: qué estaba bien y qué no
+
+**Lo que pedía TFU:** «The translation button does not work on content and
+sometimes on headings. Is it fully functional?»
+
+El sitio público **sí** traducía. Verificado contra producción con el cambio de
+idioma en vivo en `/`, `/programas`, `/programas/<slug>` y `/about`: cambian
+encabezados y cuerpo, 0 marcado multiidioma crudo, 0 errores de API. Las diez
+páginas del CMS tienen contenido distinto en cada idioma.
+
+Lo que **no** traducía, y es lo que TFU vio:
+
+1. **Ocho mensajes escritos en español dentro del código**, en registro, inicio
+   de sesión y acceso al aula: «Las contraseñas no coinciden», «Debes aceptar
+   términos y condiciones», «Debes registrarte o iniciar sesión para entrar al
+   curso»… Salían en español con el portal en inglés. Ahora pasan por i18next.
+   Incluida `getPasswordValidation()`, que devolvía las cinco reglas ya
+   redactadas; ahora devuelve **claves** y el texto se resuelve donde `t()`
+   existe.
+2. **El contenido del aula no seguía al idioma nunca.**
+   `GET /v1/courses/:id/content` devolvía lo que da Moodle **en crudo**: el
+   servicio web no pasa los filtros (§9.5 del traspaso), así que el nombre de
+   la sección, el de la actividad y su descripción llegaban con el marcado
+   multiidioma sin resolver o con las dos versiones pegadas. No había nada que
+   el conmutador pudiera mover.
+
+   Se añadió `modules/sis/aula-idioma.ts`, que aplica al aula el mismo
+   `parseMultilang()` que ya usaba el catálogo —reconoce las dos sintaxis que
+   conviven: el `<span lang class="multilang">` del núcleo y el `{mlang}` de
+   multilang2—. La ruta acepta `?locale=` y el portal lo manda; `currentLang`
+   entra en las dependencias del efecto, así que cambiar de idioma **vuelve a
+   pedir** el contenido.
+
+   Esto es condición necesaria, no suficiente: si una actividad está escrita en
+   Moodle en un solo idioma, se seguirá viendo en ese idioma. La traducción del
+   material la escribe la facultad en el LMS, y así es como se quiso.
+3. Los **63 mensajes de error del servidor** siguen en español dentro del
+   código (§8.6 del traspaso). No entraba en esta tanda.
+
+### 26.3 Video en el aula
+
+**Lo que pedía TFU:** «We would like to test a video in the online classroom.
+We cannot visualize what a video would look like there.»
+
+El aula **ya** sabía pintar vídeo: detecta `video/*` y las extensiones de
+archivo y usa reproductor nativo por el proxy autenticado. El problema era otro
+y sólo se ve con contenido real:
+
+- Una actividad de tipo `url` apuntando a **YouTube** acababa en
+  `<video src="https://www.youtube.com/watch?v=...">`. Un `<video>` no
+  reproduce una página de YouTube: quedaba un reproductor vacío. El ayudante
+  `youtubeEmbedUrl()` existía en el mismo archivo, pero sólo estaba conectado a
+  los podcasts.
+- Peor: **cualquier** actividad `url` que no fuera vídeo —una lectura, una
+  herramienta— caía en el mismo `<video>` vacío, sin enlace para abrirla.
+
+Ahora la actividad `url` se resuelve en tres casos: *embed* (YouTube y Vimeo,
+en iframe 16:9), *archivo* (reproductor nativo) y *enlace* (botón de 48px para
+abrir en pestaña nueva). Se añadió `https://player.vimeo.com` a `frame-src` de
+la CSP; YouTube ya estaba.
+
+Para que TFU pueda mirarlo hace falta que exista un vídeo en un aula:
+`infra/moodle/cli/paeu-video-de-prueba.php` crea la actividad en la sección de
+Recursos de aprendizaje. Es idempotente, tiene `--dry-run` y avisa si el
+dominio no es incrustable. Se ejecuta en la máquina de Moodle, porque de las 21
+funciones del servicio web ninguna crea módulos de curso.
+
+### 26.4 El perfil del estudiante: diecinueve campos nuevos
+
+**Lo que pedía TFU:** una lista de campos visibles (nombre preferido, foto,
+titular profesional, industria, bio con la pregunta sobre IA, país o región,
+LinkedIn) y otra de campos **sólo para docentes y staff** (nombre legal, cargo
+y años de experiencia, familiaridad con IA, metas de aprendizaje, zona horaria
+y contacto preferido, idiomas y apoyo lingüístico).
+
+Antes el perfil tenía nombre, correo, idioma y contraseña: los diecinueve son
+nuevos.
+
+- **Tabla propia**, `student_profiles`, y no columnas en `users`. `users` es la
+  identidad y la escriben el registro, Moodle y el panel; el perfil es
+  declarativo y la mitad no es pública. Mezclarlos obligaría a filtrar columnas
+  en cada consulta de identidad, que es como se filtra un dato sin querer.
+- **La línea de visibilidad está en el esquema**: los campos de staff van
+  agrupados y el API los sirve en un objeto aparte (`staff`), de modo que una
+  respuesta pública futura omite la propiedad entera en vez de acordarse de
+  quitar nueve campos.
+- **No hay ruta para ver el perfil de otro estudiante.** `/v1/me/profile` es
+  propio; el staff lo ve por `/admin/students/:id/profile`, que pasa por el
+  guardián de IAM (sección `sis`, mapeada en `ROUTE_SECTIONS`). Si TFU quiere
+  un directorio de compañeros, es una decisión suya y una ruta nueva.
+- **`current_role` es palabra reservada en PostgreSQL.** La columna se llama
+  `current_position` y el campo del API sigue siendo `currentRole`. Lo descubrió
+  el arranque contra una base local, no una revisión del código.
+- **El `PATCH` distingue «no enviado» de «borrado»**: un campo ausente no se
+  toca, un campo en `null` se borra. Sin esa distinción, guardar media pestaña
+  del formulario vaciaba la otra mitad.
+- **La foto va al bucket del portal** (`AVATAR_BUCKET`, prefijo `avatares/`),
+  que es el único almacén que el rol de la instancia puede escribir. Nombre
+  aleatorio de 32 hexadecimales porque **el bucket es de lectura pública**: un
+  nombre derivado del id permitiría enumerar fotos. `30-frontend-deploy.sh`
+  excluye ese prefijo al hacer `--prune`, o un despliegue con limpieza borraría
+  la foto de cada estudiante sin avisar. Si TFU quiere privacidad real hace
+  falta bucket privado y servirlas por el API: es otro trabajo.
+- **Sin bucket configurado no se finge la subida**: el perfil se guarda y se
+  dice por qué la foto no, igual que el mailer sin SMTP. Una imagen inválida se
+  rechaza siempre, con bucket o sin él, para que el mismo archivo dé el mismo
+  resultado en desarrollo y en producción.
+- En el panel, **SIS → Perfiles** lista quién llenó el suyo (con filtro de
+  incompletos) y muestra la ficha completa.
+
+Variables nuevas: `AVATAR_BUCKET`, `AVATAR_PUBLIC_BASE`, `AVATAR_PREFIX`,
+`AVATAR_MAX_BYTES`. Dependencia opcional nueva: `@aws-sdk/client-s3`, cargada
+de forma perezosa como `nodemailer`.
+
+### 26.5 «Let's talk about your program»: ni correo ni sistema de tickets
+
+**Lo que preguntaba TFU:** «Is this an email or does it generate a ticket that
+must be closed keeping all information about the communication?»
+
+Ninguna de las dos. `POST /v1/contact` guarda una fila en `contact_messages`
+con `status` (`new` / `in_progress` / `closed` / `spam`), `handled_by` y
+`handled_at`, y se gestiona desde el panel (vive dentro de la vista del
+checklist CIE). **No sale ningún correo**: `SMTP_URL` no está definida y el
+mailer no finge envíos; faltan los buzones institucionales de TFU.
+
+O sea: la información se conserva y el mensaje se puede cerrar, pero no hay
+hilo de respuestas ni notificación. Un sistema de tickets de verdad (osTicket)
+es el **Anexo A, USD 950, fuera de los 26.650** y diferido a acuerdo
+independiente por la Cláusula 9.4.
+
+### 26.6 El calendario y el sílabo: ahora sí, y en una sola dirección
+
+**Lo que preguntaba TFU:** «When the syllabus is uploaded, does the calendar
+synchronize with it? Just wondering if it is automatic.»
+
+No lo era, y además al revés de como lo prometía la propia plantilla. La §8 del
+Master Syllabus dice que la malla de ocho semanas «la genera el calendario
+académico a partir de la fecha de inicio del término», pero nada la generaba: la
+facultad tecleaba las ocho filas y la validación sólo contaba que fueran ocho.
+El renderizador ya esperaba `startsOn` y `endsOn` por semana — campos que nadie
+rellenaba.
+
+Ahora:
+
+- Al **crear** un sílabo con término, las ocho semanas se prellenan desde la
+  malla (`modules/syllabus/calendario.ts`).
+- `POST /admin/syllabi/:id/sync-calendar` las **refresca** después, que es lo
+  que hace falta cuando un festivo desplaza plazos y el calendario se regenera
+  (Cláusula 7). Conserva tema, lecturas y actividades; es idempotente y
+  responde `already-aligned` cuando no hay nada que hacer.
+- En el editor hay un botón «Traer fechas del calendario», y las fechas se
+  **muestran** en cada semana pero no se editan: editarlas en el sílabo las
+  separaría del término.
+
+**La dirección contraria no se implementa a propósito.** Si un sílabo pudiera
+mover el calendario, dos cursos del mismo término acabarían con semanas
+distintas y la Cláusula 7 —un festivo desplaza los plazos de todas las
+secciones— sería imposible de cumplir.
+
+### 26.7 «Departments» en el panel: qué es de verdad
+
+**Lo que preguntaba TFU:** «What is this section for? Grouping programs?»
+
+No agrupa programas. Es el módulo **corporativo B2B** heredado de la plantilla
+del producto: por dentro son `companies` → miembros → grupos de aulas. Su propio
+*hint* lo decía: «Empresas y programas B2B».
+
+Lo que sí agrupa programas es la tabla académica `departments` (código, nombre,
+decano), referenciada por `degree_programs.department_id` y
+`moodle_courses.department_id`, que vive bajo la sección SIS y **sólo tiene GET
+y POST**: no se edita ni se borra desde el panel.
+
+Qué se hizo, que es lo mínimo honesto sin decidir alcance por TFU: la pantalla
+ahora **explica en su cabecera** qué agrupa y qué no, y el *hint* del menú dice
+«Unidades con estudiantes y aulas asignadas». Además, los seis mensajes de error
+de ese módulo estaban en español fijo y ahora pasan por i18next.
+
+**Decisión pendiente de TFU:** renombrar la sección a «Cuentas corporativas»,
+esconderla, o darle interfaz propia a los departamentos académicos si quieren
+agrupar programas por unidad.
+
+### 26.8 Dos estudiantes de prueba
+
+`infra/data/crear-estudiantes-de-prueba.sh` crea dos cuentas con contraseña
+conocida —una en inglés y otra en español— y las matricula por programa usando
+las mismas rutas que usa el portal: el alta pública crea también el usuario de
+Moodle y la matrícula por programa escribe el SIS y el espejo del aula.
+Replicarlo con SQL sería reimplementar dos módulos y acabaría desincronizado.
+
+Es idempotente e imprime las credenciales a propósito: son cuentas de prueba
+para entregar a TFU.
+
+Esto **no** sustituye al §8.2 del traspaso: la contraseña de
+`demo.estudiante@thefloridianuniversity.com` sigue sin conocerse. Con estas dos
+cuentas nuevas deja de ser bloqueante para evaluar la plataforma.
+
+### 26.9 Cómo se verificó
+
+- Prueba de humo contra producción **antes** de tocar nada: 33 passed / 1 failed
+  (el CORS del LMS, §8.4, ajeno a esta tanda).
+- El front compilado en el contenedor salía **byte a byte igual** al que sirve
+  producción (`index-DicCFYLX.js` / `index-DtJxCZRP.css`), lo que confirma que
+  el punto de partida era el HEAD del repositorio.
+- Paridad i18n consciente de plurales antes y después: 0 claves faltantes en
+  cada idioma.
+- API nueva probada **de punta a punta contra una base PostgreSQL local**:
+  perfil vacío, escritura completa, `PATCH` parcial que no borra, `null` que sí
+  borra, las cuatro validaciones que deben rechazar (enlace sin esquema,
+  familiaridad inventada, años negativos, meta inventada), 401 sin sesión, y la
+  ficha de staff con su listado.
+- Sílabo ↔ calendario probado contra esa misma base: prellenado al crear,
+  refresco conservando lo escrito, idempotencia y el error claro cuando el
+  sílabo no tiene término.
+- Portal servido en local y recorrido con Playwright **en los dos idiomas**:
+  0 `requestfailed`, 0 `pageerror`, 0 respuestas 4xx.
+- **Mirando las capturas** salió un defecto que el código no delataba: las
+  casillas de «metas de aprendizaje» se pintaban encima de su texto porque
+  `.profile-ext-bloque label` (0,2,1) ganaba a `.profile-ext-checkbox` (0,1,0).
+  Es la trampa de especificidad de siempre. Medido después:
+  `display: flex`, fila de 44px, casilla de 20px, sin desborde horizontal a
+  390px de ancho.

@@ -1,8 +1,16 @@
 # Traspaso — Plataforma estudiantil de The Floridian University
 
-**Fecha:** 14 de octubre de 2026
-**Rama:** `feat/university-os-fases-1-5` · **HEAD:** `87ff0e4` · árbol limpio
+**Fecha:** 20 de octubre de 2026
+**Rama:** `feat/university-os-fases-1-5` · árbol limpio
 **Repositorio:** `github.com/johnwainer/university.git`
+
+> **Última tanda (20 oct):** las peticiones de TFU sobre el portal y el panel.
+> Idioma de arranque en inglés, el contenido del aula sigue al idioma, vídeo
+> incrustado, perfil del estudiante con los campos que pidieron, y el sílabo
+> trae sus ocho semanas del calendario. El detalle está en
+> `PROJECT_RUNBOOK.md` §26, con las respuestas a las cuatro preguntas que TFU
+> hizo (contacto, calendario, «Departments» y el botón de traducción).
+> **Falta desplegarlo:** los cambios están en el repositorio, no en producción.
 
 Este archivo existe para que una conversación nueva pueda arrancar sin contexto
 previo. Todo lo que dice se comprobó contra producción el 14 de octubre de 2026;
@@ -272,6 +280,18 @@ sudo -u postgres psql -d tfu -f retirar-ficcion-atlas.sql
 El código ya es inmune al orden: `asegurarTenant()` pregunta si existe *algún*
 tenant, así que da igual si el guion corre antes o después de un despliegue.
 
+### 8.1-bis Desplegar la tanda del 20 de octubre — PENDIENTE
+
+Los cambios del §26 del runbook están en el repositorio y **no** en producción.
+El despliegue es el de siempre (§7), con dos cosas propias de esta tanda:
+
+- `npm ci --omit=dev` instala `@aws-sdk/client-s3`, que es dependencia
+  **opcional** nueva. Sin ella la foto de perfil no sube y el resto funciona.
+- Variables nuevas en el `.env` del release, si se quiere la foto de perfil:
+  `AVATAR_BUCKET=plataforma-estudiantil-frontend`,
+  `AVATAR_PUBLIC_BASE=https://portal.thefloridianuniversity.com`,
+  `AVATAR_PREFIX=avatares/`. Recuerda el §9.1: hay DOS `.env`.
+
 ### 8.2 La contraseña del estudiante demo — BLOQUEADO, necesita al usuario
 
 `demo.estudiante@thefloridianuniversity.com` es la cuenta que se va a entregar y
@@ -323,6 +343,18 @@ como pendiente**, tanto en el panel como en la respuesta del API
 fuera la de la institución. Hace falta que TFU confirme la suya.
 
 ---
+
+### 8.8 Tres decisiones que TFU o el usuario tienen que tomar
+
+1. **«Departments» en el panel** (runbook §26.7): el módulo es corporativo B2B,
+   no agrupa programas. ¿Se renombra a «Cuentas corporativas», se esconde, o se
+   le da interfaz propia a los departamentos académicos?
+2. **El formulario de contacto** (§26.5): hoy es una bandeja con estados dentro
+   del panel y sin correo. Un sistema de tickets de verdad es el Anexo A
+   (osTicket, USD 950, fuera del contrato hasta acuerdo independiente).
+3. **La foto de perfil vive en un bucket de lectura pública** (§26.4). El nombre
+   del objeto es aleatorio, pero quien tenga la URL ve la foto. Si TFU quiere
+   privacidad real, hace falta bucket privado y servirlas por el API.
 
 ## 9. Trampas conocidas
 
@@ -399,6 +431,23 @@ El patrón casa con la línea de comando del ssh. Buscar el PID con `ss -ltnp`.
 
 ---
 
+### 9.9 `current_role` es palabra reservada en PostgreSQL
+
+Un `CREATE TABLE` con una columna llamada `current_role` falla con
+`syntax error at or near "current_role"`: es una función del estándar, como
+`current_user`. Entrecomillarla obligaría a entrecomillarla en cada consulta
+para siempre. La columna del perfil se llama `current_position` y el campo de
+la API sigue siendo `currentRole`.
+
+Lo encontró el arranque contra una base local, no una revisión del código: otra
+razón para probar las migraciones antes de llevarlas al servidor.
+
+### 9.10 Los acentos graves cierran un template literal de TypeScript
+
+Un comentario SQL dentro de un `pool.query(\`...\`)` que mencione
+\`una_columna\` entre acentos graves **cierra la cadena** y el error que sale
+(`TS1005: ',' expected`) no apunta a la causa. Dentro del SQL, comillas simples.
+
 ## 10. Qué se hizo en la sesión que termina aquí
 
 Resumen; el detalle está en `PROJECT_RUNBOOK.md` §21–§25.
@@ -431,6 +480,26 @@ Resumen; el detalle está en `PROJECT_RUNBOOK.md` §21–§25.
 
 ---
 
+## 10-bis. Qué se hizo el 20 de octubre (peticiones de TFU)
+
+Resumen; el detalle y las respuestas a sus preguntas están en
+`PROJECT_RUNBOOK.md` §26.
+
+1. **El portal y el panel arrancan en inglés** (§26.1). El idioma lo decidía el
+   navegador; ahora el respaldo es inglés y sólo manda la preferencia guardada.
+2. **El botón de traducción, lo que de verdad fallaba** (§26.2): ocho mensajes
+   en español fijos en registro, sesión y aula, y el contenido del aula, que
+   llegaba crudo de Moodle y nunca seguía al idioma.
+3. **Vídeo en el aula** (§26.3): YouTube y Vimeo se incrustan; un enlace que no
+   es vídeo deja de caer en un reproductor vacío. Guion para cargar un vídeo de
+   prueba en un aula.
+4. **Perfil del estudiante** (§26.4): diecinueve campos nuevos en dos bloques de
+   visibilidad, foto al bucket, y la pestaña SIS → Perfiles en el panel.
+5. **Sílabo ↔ calendario** (§26.6): la malla de ocho semanas se trae del término
+   al crear y se refresca con un botón.
+6. **«Departments»** (§26.7): la pantalla ahora explica qué agrupa y qué no.
+7. **Dos estudiantes de prueba** (§26.8) con guion idempotente.
+
 ## 11. Dónde está documentado cada cosa
 
 | archivo | qué contiene |
@@ -444,6 +513,12 @@ Resumen; el detalle está en `PROJECT_RUNBOOK.md` §21–§25.
 | `apps/web/src/components/aula.css` | el aula rediseñada |
 | `apps/web/src/components/aula-iconos.tsx` | iconos y traducción de la jerga de Moodle |
 | `apps/api/src/modules/sis/registraduria.ts` | matrícula SIS y registro de notas |
+| `apps/api/src/modules/sis/aula-idioma.ts` | resuelve el idioma del contenido del aula |
+| `apps/api/src/modules/perfil/` | perfil extendido del estudiante (esquema, rutas, avatar) |
+| `apps/api/src/modules/syllabus/calendario.ts` | la malla del sílabo, traída del término |
+| `apps/web/src/components/StudentProfileFields.tsx` | formulario del perfil, con sus dos bloques |
+| `infra/moodle/cli/paeu-video-de-prueba.php` | pone un vídeo de prueba en un aula |
+| `infra/data/crear-estudiantes-de-prueba.sh` | dos estudiantes con credenciales conocidas |
 
 ---
 
