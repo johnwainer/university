@@ -223,6 +223,22 @@ CDN_CERTIFICATE_NAME="${CDN_CERTIFICATE_NAME:-plataforma-estudiantil-portal-cert
 # endpoint using the BUCKET access keys (see 30-frontend-deploy.sh).
 S3_ENDPOINT_URL="${S3_ENDPOINT_URL:-https://s3.${AWS_REGION}.amazonaws.com}"
 
+# Fotos de perfil de los estudiantes.
+#
+# Van al MISMO bucket del portal, bajo este prefijo, porque es el unico
+# almacen de objetos que el rol de la instancia del API puede escribir
+# (plataforma-estudiantil-frontend.obj-mgmt). Se sirven por el CDN como
+# cualquier otro objeto estatico.
+#
+# Dos consecuencias que hay que tener presentes:
+#   1. El bucket del portal es de LECTURA PUBLICA. El nombre del objeto es
+#      aleatorio de 32 hexadecimales para que no se pueda adivinar, pero quien
+#      tenga la URL ve la foto. Si TFU quiere privacidad real hace falta un
+#      bucket privado y servirlas por el API, que es otro trabajo.
+#   2. 30-frontend-deploy.sh excluye este prefijo al hacer --prune, porque
+#      estos objetos no salen del build.
+AVATAR_PREFIX="${AVATAR_PREFIX:-avatares/}"
+
 WEB_DIST_REL="${WEB_DIST_REL:-apps/web/dist}"
 CACHE_CONTROL_IMMUTABLE="${CACHE_CONTROL_IMMUTABLE:-public, max-age=31536000, immutable}"
 CACHE_CONTROL_NO_CACHE="${CACHE_CONTROL_NO_CACHE:-no-cache, no-store, must-revalidate}"

@@ -234,7 +234,11 @@ upload() {
   )
   if [[ "$PRUNE" == "1" ]]; then
     confirm_destructive "delete bucket objects that are no longer present in ${DIST_DIR}"
-    sync_args+=(--delete)
+    # El prefijo de las fotos de perfil NO sale del build: lo escribe el API
+    # cuando un estudiante sube su avatar. Sin esta exclusion, un --prune
+    # borraria la foto de cada estudiante y el perfil se quedaria sin imagen
+    # sin que nada lo avisara.
+    sync_args+=(--delete --exclude "${AVATAR_PREFIX}*")
   else
     log "not pruning (pass --prune --force to remove stale objects)"
   fi
