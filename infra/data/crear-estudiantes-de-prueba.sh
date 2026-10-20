@@ -106,8 +106,14 @@ echo
 
 # Dos perfiles distintos a proposito: uno en ingles y otro en espanol, para que
 # TFU vea el portal y el aula en los dos idiomas sin tocar nada.
-crear_estudiante "Taylor Reed"   "taylor.reed@${DOMINIO}"   'PruebaTFU2026!Uno' 'en' "${PROGRAMA_1}"
-crear_estudiante "Marcela Ortiz" "marcela.ortiz@${DOMINIO}" 'PruebaTFU2026!Dos' 'es' "${PROGRAMA_2}"
+#
+# LOS NOMBRES DICEN QUE SON DE PRUEBA, y eso no es un detalle de estilo. La
+# limpieza del §8.1 retiro de produccion a ocho empleados inventados con correo
+# @thefloridianuniversity.com precisamente porque en una universidad acreditada
+# un nombre verosimil pasa por real. Una cuenta de prueba tiene que gritar que
+# lo es, en el portal, en el aula de Moodle y en cualquier reporte.
+crear_estudiante "TFU Test Student (EN)"        "test.student.en@${DOMINIO}"     'PruebaTFU2026!Uno' 'en' "${PROGRAMA_1}"
+crear_estudiante "TFU Estudiante de Prueba (ES)" "estudiante.prueba.es@${DOMINIO}" 'PruebaTFU2026!Dos' 'es' "${PROGRAMA_2}"
 
 cat <<'FIN'
 Siguientes pasos para que TFU pueda evaluar interacciones y notificaciones:
