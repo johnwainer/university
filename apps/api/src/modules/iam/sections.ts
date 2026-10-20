@@ -69,6 +69,10 @@ export const ROUTE_SECTIONS: Array<[string, string]> = [
   ['/admin/enterprise',      'enterprise'],
   ['/admin/degree-programs', 'sis'],
   ['/admin/departments',     'sis'],
+  // Perfil extendido del estudiante: lo consultan docentes y staff desde la
+  // ficha académica, así que comparte sección con el SIS. Sin esta línea la
+  // ruta quedaría sólo para superadmin (una ruta no mapeada falla cerrada).
+  ['/admin/students',        'sis'],
   ['/admin/holds',           'sis'],
   ['/admin/invoices',        'sis'],
   ['/admin/registrar',       'registraduria'],

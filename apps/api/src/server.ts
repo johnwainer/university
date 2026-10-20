@@ -12,6 +12,10 @@ import { htmlToPdf } from './integrations/pdf.js';
 import { sendMail } from './integrations/mailer.js';
 // University OS modules (Fases 1-5) — wired below after initDb() and before app.listen()
 import { migrateSis } from './modules/sis/schema.js';
+import { localizarContenidoDelAula, type LocaleAula } from './modules/sis/aula-idioma.js';
+import { getTermGrid } from './modules/calendar/service.js';
+import { migratePerfiles } from './modules/perfil/schema.js';
+import { registerPerfilRoutes } from './modules/perfil/routes.js';
 import { registerSisRoutes } from './modules/sis/routes.js';
 import { registerRegistraduriaRoutes, matricularEnSis, creditosDelAula } from './modules/sis/registraduria.js';
 import { reconciliarPeriodos, periodoActivo } from './modules/sis/periodos.js';
@@ -391,6 +395,9 @@ await migrateSitePages(pool);
 await migrateCalendar(pool);
 await migrateIam(pool);
 await migratePrograms(pool);
+// Perfil extendido del estudiante (campos pedidos por TFU). Va después de
+// migrateSis porque su FK apunta a `users`.
+await migratePerfiles(pool);
 await migrateShellAlerts(pool);
 
 // Une las dos nociones de «periodo» que el proyecto tenía sin relacionar: el
@@ -2129,12 +2136,26 @@ app.get('/v1/courses/:moodleCourseId/content', async (request, reply) => {
 
   // El usuario tiene matrícula activa, así que los ficheros de este contenido
   // quedan habilitados para su sesión y el proxy podrá servirlos.
+  //
+  // OJO con el orden: esto se hace con la respuesta CRUDA de Moodle, antes de
+  // resolver el idioma. Las urls de fichero no cambian al traducir, pero
+  // habilitarlas sobre el objeto original evita depender de que la
+  // transformación los conserve.
   rememberCourseFiles(session, result.data ?? []);
+
+  // El idioma del contenido. Moodle devuelve el texto sin filtrar —con el
+  // marcado multiidioma crudo— y hasta ahora se entregaba así: el conmutador
+  // del portal no movía el contenido del aula porque el texto venía ya
+  // decidido. El idioma se pide por `?locale=`, igual que en el catálogo y en
+  // las páginas, y el respaldo es el español.
+  const query = request.query as Record<string, unknown> | undefined;
+  const locale: LocaleAula = query?.locale === 'en' ? 'en' : 'es';
 
   return {
     moodleCourseId: courseId,
     available: true,
-    sections: result.data ?? []
+    locale,
+    sections: localizarContenidoDelAula(result.data ?? [], locale)
   };
 });
 
@@ -4442,6 +4463,9 @@ registerProgramsAdminRoutes(app, { pool, ensureAdmin });
 registerSyllabusRoutes(app, {
   pool,
   ensureAdmin,
+  // La malla del término, para que el sílabo traiga sus ocho semanas del
+  // calendario académico en vez de que la facultad las teclee.
+  getTermGrid: (termId) => getTermGrid(pool, termId),
   publishToCourse: (courseId, publication) => publishSyllabusToCourse(courseId, publication),
   renderPdf: (html) => htmlToPdf(html),
   publicApiUrl: config.server.publicUrl
@@ -4456,6 +4480,14 @@ registerCredentialsRoutes(app, {
 // formulario de contacto público.
 registerCieRoutes(app, { pool, ensureAdmin });
 registerPagesRoutes(app, { pool, ensureAdmin });
+registerPerfilRoutes(app, {
+  pool,
+  ensureAdmin,
+  resolvePublicUser: (req) => {
+    const s = getPublicSessionFromRequest(req);
+    return { userId: s.userId, email: s.email };
+  }
+});
 registerCalendarRoutes(app, {
   pool,
   ensureAdmin,

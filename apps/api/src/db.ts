@@ -901,7 +901,7 @@ function decodeMoodleText(value: string): string {
  * creado a mano nunca sale en blanco en inglés. `{mlang other}` es el comodín
  * que usa Moodle para "cualquier otro idioma" y aquí hace de respaldo.
  */
-function parseMultilang(value: string): { es: string; en: string } {
+export function parseMultilang(value: string): { es: string; en: string } {
   // Moodle tiene DOS sintaxis de multiidioma y aquí hay que entender las dos.
   //
   //   <span lang="en" class="multilang">…</span>   el filtro del NÚCLEO

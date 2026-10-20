@@ -64,6 +64,27 @@ export const config = {
     // tiene decano cargado.
     academicContact: (process.env.ACADEMIC_CONTACT_EMAIL ?? '').trim()
   },
+  /**
+   * Fotos de perfil de los estudiantes.
+   *
+   * Van al bucket del portal porque es el único almacén de objetos que el rol
+   * de esta instancia puede escribir (`plataforma-estudiantil-frontend.obj-mgmt`),
+   * y se sirven por el CDN como cualquier estático. El nombre del objeto es
+   * aleatorio: el bucket es de lectura pública y un nombre predecible —el id
+   * del estudiante, por ejemplo— dejaría enumerar fotos de estudiantes.
+   *
+   * Sin `AVATAR_BUCKET` la subida NO se simula: responde que no está
+   * configurada, igual que el mailer sin SMTP. El resto del perfil funciona.
+   */
+  avatars: {
+    bucket: (process.env.AVATAR_BUCKET ?? '').trim(),
+    prefix: (process.env.AVATAR_PREFIX ?? 'avatares/').trim(),
+    region: (process.env.AWS_REGION ?? 'us-east-1').trim(),
+    /** Base pública con la que se construye la URL servida al navegador. */
+    publicBase: (process.env.AVATAR_PUBLIC_BASE ?? '').trim().replace(/\/+$/, ''),
+    /** 2 MB. Una foto de perfil no necesita más y el límite frena el abuso. */
+    maxBytes: Number(process.env.AVATAR_MAX_BYTES ?? 2 * 1024 * 1024)
+  },
   institution: {
     name: process.env.INSTITUTION_NAME ?? 'University',
     ncesId: process.env.NCES_ID ?? '',

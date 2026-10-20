@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import type { TermGrid } from '../calendar/cadence.js';
+import { construirSemanasDesdeMalla, semanasAlineadas, type SemanaSilabo } from './calendario.js';
 import type { Pool } from 'pg';
 import { z } from 'zod';
 import { blockingIssues, passingMinimum, validateSyllabus, type SyllabusContent } from './validation.js';
@@ -36,6 +38,13 @@ export interface SyllabusContext {
   publicApiUrl?: string;
   /** Convierte el HTML en PDF etiquetado. Opcional: sin él, la exportación HTML sigue viva. */
   renderPdf?: (html: string) => Promise<{ ok: boolean; buffer?: Buffer; error?: string }>;
+  /**
+   * Malla del término, para prellenar el calendario de ocho semanas del
+   * sílabo. Se inyecta en vez de importar el módulo de calendario, igual que
+   * `publishToCourse`: sin ella el sílabo sigue funcionando y las semanas se
+   * escriben a mano, que es como estaba antes.
+   */
+  getTermGrid?: (termId: string) => Promise<{ grid: TermGrid; revision: number } | null>;
   pool: Pool;
   ensureAdmin: (request: any) => unknown;
 }
@@ -112,7 +121,7 @@ function adminEmail(session: unknown): string {
 }
 
 export function registerSyllabusRoutes(app: FastifyInstance, ctx: SyllabusContext): void {
-  const { pool, ensureAdmin } = ctx;
+  const { pool, ensureAdmin, getTermGrid } = ctx;
 
   // ===========================================================================
   // Syllabus templates.
@@ -238,6 +247,33 @@ export function registerSyllabusRoutes(app: FastifyInstance, ctx: SyllabusContex
   app.post('/admin/syllabi', async (request, reply) => {
     ensureAdmin(request);
     const body = syllabusCreateSchema.parse(request.body);
+
+    /*
+     * La malla de ocho semanas se trae del calendario académico al crear el
+     * sílabo, no se teclea.
+     *
+     * Antes la §8 del Master Syllabus prometía que «la genera el calendario
+     * académico a partir de la fecha de inicio del término» y en realidad la
+     * facultad escribía las ocho filas a mano; la validación sólo contaba que
+     * fueran ocho, así que un sílabo con fechas inventadas pasaba igual.
+     *
+     * Sólo se prellena si el sílabo tiene término y nadie escribió semanas
+     * todavía: un contenido que ya trae su malla no se pisa.
+     */
+    const contenido = { ...(body.content ?? {}) } as Record<string, unknown>;
+    if (body.termId && getTermGrid) {
+      const programa = contenido.course_schedule as { weeks?: SemanaSilabo[] } | undefined;
+      if (!programa?.weeks || programa.weeks.length === 0) {
+        const malla = await getTermGrid(body.termId);
+        if (malla) {
+          contenido.course_schedule = {
+            ...(programa ?? {}),
+            weeks: construirSemanasDesdeMalla(malla.grid, [])
+          };
+        }
+      }
+    }
+
     const result = await pool.query(
       `INSERT INTO syllabi
          (tenant_id, moodle_course_id, degree_program_id, term_id, template_id,
@@ -251,7 +287,7 @@ export function registerSyllabusRoutes(app: FastifyInstance, ctx: SyllabusContex
         body.termId ?? null,
         body.templateId ?? null,
         body.title,
-        JSON.stringify(body.content ?? {}),
+        JSON.stringify(contenido),
         body.status ?? 'draft'
       ]
     );
@@ -339,6 +375,70 @@ export function registerSyllabusRoutes(app: FastifyInstance, ctx: SyllabusContex
   });
 
   // Publish: fill missing sections from the template, bump version, mark published.
+  /**
+   * Trae (o vuelve a traer) las fechas del calendario a la malla del sílabo.
+   *
+   * Existe aparte del prellenado del alta por un motivo operativo: los
+   * festivos desplazan plazos y el calendario se regenera (Cláusula 7). Cuando
+   * eso pasa, un sílabo ya escrito queda con las fechas viejas y hasta ahora
+   * no había forma de refrescarlo sin reescribir las ocho filas.
+   *
+   * Es idempotente y conserva lo que escribió la facultad: sólo toca número,
+   * fecha de inicio y fecha de cierre.
+   */
+  app.post('/admin/syllabi/:id/sync-calendar', async (request, reply) => {
+    ensureAdmin(request);
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    if (!getTermGrid) {
+      return reply.serviceUnavailable('El módulo de calendario no está disponible en este despliegue.');
+    }
+
+    const actual = await pool.query<{ content: Record<string, unknown> | null; term_id: string | null }>(
+      'SELECT content, term_id FROM syllabi WHERE id = $1',
+      [id]
+    );
+    const fila = actual.rows[0];
+    if (!fila) {
+      return reply.notFound('Syllabus not found');
+    }
+    if (!fila.term_id) {
+      return reply.badRequest('El sílabo no tiene término asignado, así que no hay calendario del que traer fechas.');
+    }
+
+    const malla = await getTermGrid(fila.term_id);
+    if (!malla) {
+      return reply.badRequest(`El término ${fila.term_id} todavía no tiene malla generada.`);
+    }
+
+    const contenido = { ...(fila.content ?? {}) } as Record<string, unknown>;
+    const programa = contenido.course_schedule as { weeks?: SemanaSilabo[] } | undefined;
+    const semanasPrevias = programa?.weeks ?? [];
+    if (semanasAlineadas(malla.grid, semanasPrevias)) {
+      return {
+        synced: false,
+        reason: 'already-aligned',
+        termId: fila.term_id,
+        revision: malla.revision,
+        weeks: semanasPrevias
+      };
+    }
+
+    const semanas = construirSemanasDesdeMalla(malla.grid, semanasPrevias);
+    contenido.course_schedule = { ...(programa ?? {}), weeks: semanas };
+    const guardado = await pool.query(
+      'UPDATE syllabi SET content = $1::jsonb, updated_at = now() WHERE id = $2 RETURNING *',
+      [JSON.stringify(contenido), id]
+    );
+    request.log.info({ syllabusId: id, termId: fila.term_id }, 'malla del sílabo sincronizada con el calendario');
+    return {
+      synced: true,
+      termId: fila.term_id,
+      revision: malla.revision,
+      weeks: semanas,
+      syllabus: guardado.rows[0]
+    };
+  });
+
   app.post('/admin/syllabi/:id/publish', async (request, reply) => {
     ensureAdmin(request);
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
